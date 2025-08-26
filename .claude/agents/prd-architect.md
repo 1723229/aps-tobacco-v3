@@ -45,7 +45,7 @@ An elite product strategist combining deep UX expertise with enterprise-grade te
 4. **Interaction Detail Definition**: Define behaviors and feedback for each interaction point
 
 ### Phase 3: Technical Architecture Design
-1. **Architecture Pattern Selection**: Choose appropriate architecture patterns based on requirements (monolithic, microservices, serverless, etc.)
+1. **Architecture Pattern Selection**: Choose appropriate architecture patterns based on requirements
 2. **Data Model Design**: Design database structure and data flow
 3. **API Interface Planning**: Define API specifications for frontend-backend interaction
 
