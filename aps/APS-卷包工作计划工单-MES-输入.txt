@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?><mes:ZMT_APS_PrimaryProcessingWorkPlan xmlns:mes="http://www.zjzyhz.com/mes">
+      <WorkPlans>
+        <Plan>
+          <PlanID>HJB000104078</PlanID>
+          <ProductionLine>A09</ProductionLine>
+          <BatchCode/>
+          <MaterialCode>TYNB0</MaterialCode>
+          <BOMRevision/>
+          <Quantity>500</Quantity>
+          <PlanStartTime>2025/08/04 0:00:00</PlanStartTime>
+          <PlanEndTime>2025/08/04 0:00:00</PlanEndTime>
+          <Sequence>1</Sequence>
+          <Shift/>
+          <InputBatch>
+            <InputPlanID>HWS000006911</InputPlanID>
+            <InputBatchCode/>
+            <Quantity/>
+            <BatchSequence/>
+            <IsWholeBatch/>
+            <IsMainChannel/>
+            <IsDeleted/>
+            <IsLastOne/>
+            <MaterialCode>CTY2A</MaterialCode>
+            <BOMRevision/>
+            <Tiled/>
+            <Remark11/>
+            <Remark12/>
+          </InputBatch>
+          <IsVaccum>false</IsVaccum>
+          <IsSH93>false</IsSH93>
+          <IsHDT>false</IsHDT>
+          <IsFlavor>fasle</IsFlavor>
+          <Unit>公斤</Unit>
+          <PlanDate>2025/08/04</PlanDate>
+          <PlanOutputQuantity/>
+          <IsOutsourcing/>
+          <IsBackup>false</IsBackup>
+          <Remark1/>
+          <Remark2/>
+        </Plan>
+        <Remark/>
+      </WorkPlans>
+    </mes:ZMT_APS_PrimaryProcessingWorkPlan>
