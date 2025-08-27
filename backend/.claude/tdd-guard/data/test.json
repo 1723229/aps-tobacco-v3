@@ -1,0 +1,14 @@
+{
+  "testModules": [
+    {
+      "moduleId": "tests/test_real_data_pipeline.py",
+      "tests": [
+        {
+          "name": "test_pipeline_with_real_decade_plan_data",
+          "fullName": "tests/test_real_data_pipeline.py::TestRealDataPipeline::test_pipeline_with_real_decade_plan_data",
+          "state": "passed"
+        }
+      ]
+    }
+  ]
+}
