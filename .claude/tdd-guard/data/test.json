@@ -1,0 +1,14 @@
+{
+  "testModules": [
+    {
+      "moduleId": "tests/test_snake.py",
+      "tests": [
+        {
+          "name": "test_snake_move_right",
+          "fullName": "tests/test_snake.py::TestSnake::test_snake_move_right",
+          "state": "passed"
+        }
+      ]
+    }
+  ]
+}

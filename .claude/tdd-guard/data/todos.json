@@ -1,0 +1,40 @@
+{
+  "session_id": "3f1e10ed-e803-4275-95b9-d61bcd9d7b42",
+  "transcript_path": "/Users/spuerman/.claude/projects/-Users-spuerman-work-self-code-aps-tobacco-v3/3f1e10ed-e803-4275-95b9-d61bcd9d7b42.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "TodoWrite",
+  "tool_input": {
+    "todos": [
+      {
+        "content": "Create main game structure with pygame initialization",
+        "status": "completed",
+        "priority": "high",
+        "id": "1"
+      },
+      {
+        "content": "Implement Snake class with movement logic",
+        "status": "in_progress",
+        "priority": "high",
+        "id": "2"
+      },
+      {
+        "content": "Add food generation and collision detection",
+        "status": "pending",
+        "priority": "high",
+        "id": "3"
+      },
+      {
+        "content": "Implement game loop with input handling",
+        "status": "pending",
+        "priority": "high",
+        "id": "4"
+      },
+      {
+        "content": "Add game over logic and scoring system",
+        "status": "pending",
+        "priority": "medium",
+        "id": "5"
+      }
+    ]
+  }
+}

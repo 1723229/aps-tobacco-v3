@@ -1,0 +1,11 @@
+{
+  "session_id": "3f1e10ed-e803-4275-95b9-d61bcd9d7b42",
+  "transcript_path": "/Users/spuerman/.claude/projects/-Users-spuerman-work-self-code-aps-tobacco-v3/3f1e10ed-e803-4275-95b9-d61bcd9d7b42.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/Users/spuerman/work/self_code/aps-tobacco-v3/tests/test_snake.py",
+    "old_string": "    def test_snake_move_right(self):\n        \"\"\"Test that snake moves right correctly\"\"\"\n        snake = Snake(5, 5)\n        snake.move()\n        self.assertEqual(snake.body[0], (6, 5))",
+    "new_string": "    def test_snake_move_right(self):\n        \"\"\"Test that snake moves right correctly\"\"\"\n        snake = Snake(5, 5)\n        snake.move()\n        self.assertEqual(snake.body[0], (6, 5))\n    \n    def test_snake_change_direction(self):\n        \"\"\"Test that snake can change direction\"\"\"\n        snake = Snake(5, 5)\n        snake.change_direction(Direction.UP)\n        self.assertEqual(snake.direction, Direction.UP)"
+  }
+}

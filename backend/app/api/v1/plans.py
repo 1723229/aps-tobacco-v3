@@ -1,0 +1,704 @@
+"""
+APS智慧排产系统 - 文件上传API
+
+实现Excel文件上传、解析和验证功能
+支持异步文件处理和详细的错误报告
+"""
+import os
+import uuid
+from datetime import datetime
+from typing import Optional
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.db.connection import get_async_session
+from app.schemas.base import (
+    FileUploadResponse, ImportBatchInfo, ParseRequest, ParseResponse,
+    SuccessResponse, ErrorResponse
+)
+from app.services.excel_parser import parse_production_plan_excel, ExcelParseError
+from app.models.base_models import ImportPlan, DecadePlan
+
+router = APIRouter(prefix="/plans", tags=["计划文件管理"])
+
+
+async def validate_excel_file(file: UploadFile) -> None:
+    """验证Excel文件"""
+    # 检查文件扩展名
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+    
+    file_extension = os.path.splitext(file.filename)[1].lower()
+    if file_extension not in settings.upload_allowed_extensions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"不支持的文件格式：{file_extension}，支持的格式：{settings.upload_allowed_extensions}"
+        )
+    
+    # 检查文件大小
+    if file.size and file.size > settings.upload_max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件大小超过限制：{file.size}字节，最大允许：{settings.upload_max_size}字节"
+        )
+
+
+async def save_uploaded_file(file: UploadFile) -> str:
+    """保存上传的文件并返回文件路径"""
+    # 生成唯一文件名
+    file_extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join(settings.upload_temp_dir, unique_filename)
+    
+    # 保存文件
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        return file_path
+    except Exception as e:
+        # 清理失败的文件
+        if os.path.exists(file_path):
+            os.unlink(file_path)
+        raise HTTPException(status_code=500, detail=f"文件保存失败：{str(e)}")
+
+
+async def create_import_record(
+    db: AsyncSession, 
+    import_batch_id: str,
+    file_name: str,
+    file_path: str,
+    file_size: int
+) -> ImportPlan:
+    """创建导入记录"""
+    import_plan = ImportPlan(
+        import_batch_id=import_batch_id,
+        file_name=file_name,
+        file_path=file_path,
+        file_size=file_size,
+        import_status="UPLOADING",
+        import_start_time=datetime.now(),
+        created_by="api_user"
+    )
+    
+    db.add(import_plan)
+    await db.commit()
+    await db.refresh(import_plan)
+    return import_plan
+
+
+@router.post("/upload", response_model=FileUploadResponse)
+async def upload_excel_file(
+    file: UploadFile = File(..., description="Excel文件"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    上传Excel文件接口
+    
+    支持的文件格式：.xlsx, .xls
+    最大文件大小：50MB
+    """
+    try:
+        # 验证文件
+        await validate_excel_file(file)
+        
+        # 生成导入批次ID
+        import_batch_id = f"IMPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        
+        # 保存文件
+        file_path = await save_uploaded_file(file)
+        
+        # 创建导入记录
+        import_plan = await create_import_record(
+            db=db,
+            import_batch_id=import_batch_id,
+            file_name=file.filename,
+            file_path=file_path,
+            file_size=file.size or 0
+        )
+        
+        # 准备响应数据
+        upload_info = ImportBatchInfo(
+            import_batch_id=import_batch_id,
+            file_name=file.filename,
+            file_size=file.size or 0,
+            upload_time=import_plan.created_time
+        )
+        
+        return FileUploadResponse(
+            code=200,
+            message="文件上传成功",
+            data=upload_info.model_dump()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件上传失败：{str(e)}")
+
+
+async def parse_excel_background(
+    import_batch_id: str,
+    file_path: str,
+    db: AsyncSession
+):
+    """后台解析Excel文件"""
+    try:
+        # 更新状态为解析中
+        from sqlalchemy import update
+        await db.execute(
+            update(ImportPlan)
+            .where(ImportPlan.import_batch_id == import_batch_id)
+            .values(
+                import_status="PARSING",
+                import_start_time=datetime.now()
+            )
+        )
+        await db.commit()
+        
+        # 解析Excel文件
+        parse_result = parse_production_plan_excel(file_path)
+        
+        # 更新导入记录
+        await db.execute(
+            update(ImportPlan)
+            .where(ImportPlan.import_batch_id == import_batch_id)
+            .values(
+                total_records=parse_result['total_records'],
+                valid_records=parse_result['valid_records'],
+                error_records=parse_result['error_records'],
+                import_status="COMPLETED",
+                import_end_time=datetime.now()
+            )
+        )
+        await db.commit()
+        
+        # TODO: 将解析结果保存到数据库中的详细表
+        # 这里可以将 parse_result['records'] 保存到 aps_decade_plan 表
+        
+    except Exception as e:
+        # 更新状态为失败
+        await db.execute(
+            update(ImportPlan)
+            .where(ImportPlan.import_batch_id == import_batch_id)
+            .values(
+                import_status="FAILED",
+                import_end_time=datetime.now(),
+                error_message=str(e)
+            )
+        )
+        await db.commit()
+
+
+@router.post("/{import_batch_id}/parse", response_model=ParseResponse)
+async def parse_excel_file(
+    import_batch_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_async_session),
+    force_reparse: bool = False
+):
+    """
+    解析Excel文件接口
+    
+    支持后台异步解析，返回解析任务信息
+    """
+    try:
+        # 查找导入记录
+        from sqlalchemy import select
+        result = await db.execute(
+            select(ImportPlan).where(ImportPlan.import_batch_id == import_batch_id)
+        )
+        import_plan = result.scalar_one_or_none()
+        
+        if not import_plan:
+            raise HTTPException(status_code=404, detail=f"导入批次不存在：{import_batch_id}")
+        
+        if not os.path.exists(import_plan.file_path):
+            raise HTTPException(status_code=404, detail="源文件不存在")
+        
+        # 检查是否已经解析过
+        if import_plan.import_status == "COMPLETED" and not force_reparse:
+            raise HTTPException(status_code=400, detail="文件已经解析完成，如需重新解析请设置force_reparse=true")
+        
+        # 如果正在解析中
+        if import_plan.import_status == "PARSING":
+            return ParseResponse(
+                code=202,
+                message="文件正在解析中，请稍后查询结果",
+                data={
+                    "import_batch_id": import_batch_id,
+                    "status": "PARSING",
+                    "message": "解析进行中..."
+                }
+            )
+        
+        # 直接解析（同步方式，适合小文件）
+        try:
+            parse_result = parse_production_plan_excel(import_plan.file_path)
+            
+            # 更新导入记录
+            from sqlalchemy import update
+            await db.execute(
+                update(ImportPlan)
+                .where(ImportPlan.import_batch_id == import_batch_id)
+                .values(
+                    total_records=parse_result['total_records'],
+                    valid_records=parse_result['valid_records'],
+                    error_records=parse_result['error_records'],
+                    import_status="COMPLETED",
+                    import_end_time=datetime.now()
+                )
+            )
+            await db.commit()
+            
+            # 保存解析结果到aps_decade_plan表
+            await save_parse_results_to_decade_plan(db, import_batch_id, parse_result)
+            
+            # 转换解析结果为响应格式
+            from app.schemas.base import ParseResult, ParseResultRecord, ParseErrorInfo
+            
+            records = []
+            for record_data in parse_result['records']:
+                record = ParseResultRecord(**record_data)
+                records.append(record)
+            
+            errors = []
+            for error_data in parse_result['errors']:
+                error = ParseErrorInfo(**error_data)
+                errors.append(error)
+            
+            warnings = []
+            for warning_data in parse_result['warnings']:
+                warning = ParseErrorInfo(**warning_data)
+                warnings.append(warning)
+            
+            result_data = ParseResult(
+                import_batch_id=import_batch_id,
+                total_records=parse_result['total_records'],
+                valid_records=parse_result['valid_records'],
+                error_records=parse_result['error_records'],
+                warning_records=parse_result['warning_records'],
+                records=records,
+                errors=errors,
+                warnings=warnings
+            )
+            
+            return ParseResponse(
+                code=200,
+                message="文件解析成功",
+                data=result_data
+            )
+            
+        except ExcelParseError as e:
+            # 更新状态为失败
+            from sqlalchemy import update
+            await db.execute(
+                update(ImportPlan)
+                .where(ImportPlan.import_batch_id == import_batch_id)
+                .values(
+                    import_status="FAILED",
+                    import_end_time=datetime.now(),
+                    error_message=str(e)
+                )
+            )
+            await db.commit()
+            
+            raise HTTPException(status_code=400, detail=f"Excel解析失败：{str(e)}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"解析请求处理失败：{str(e)}")
+
+
+@router.get("/{import_batch_id}/status")
+async def get_parse_status(
+    import_batch_id: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    查询解析状态接口
+    """
+    try:
+        from sqlalchemy import select
+        result = await db.execute(
+            select(ImportPlan).where(ImportPlan.import_batch_id == import_batch_id)
+        )
+        import_plan = result.scalar_one_or_none()
+        
+        if not import_plan:
+            raise HTTPException(status_code=404, detail=f"导入批次不存在：{import_batch_id}")
+        
+        return SuccessResponse(
+            code=200,
+            message="查询成功",
+            data={
+                "import_batch_id": import_batch_id,
+                "file_name": import_plan.file_name,
+                "import_status": import_plan.import_status,
+                "total_records": import_plan.total_records,
+                "valid_records": import_plan.valid_records,
+                "error_records": import_plan.error_records,
+                "import_start_time": import_plan.import_start_time.isoformat() if import_plan.import_start_time else None,
+                "import_end_time": import_plan.import_end_time.isoformat() if import_plan.import_end_time else None,
+                "error_message": import_plan.error_message,
+                "created_time": import_plan.created_time.isoformat()
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"状态查询失败：{str(e)}")
+
+
+async def save_parse_results_to_decade_plan(db: AsyncSession, import_batch_id: str, parse_result: dict):
+    """
+    将解析结果保存到aps_decade_plan表，使用逗号分隔的机台代码字符串
+    
+    Args:
+        db: 数据库会话
+        import_batch_id: 导入批次ID
+        parse_result: 解析结果字典
+    """
+    try:
+        # 先删除同一批次的旧数据（如果存在）
+        from sqlalchemy import delete
+        await db.execute(
+            delete(DecadePlan).where(DecadePlan.import_batch_id == import_batch_id)
+        )
+        
+        # 批量插入新数据
+        decade_plans = []
+        
+        # 处理多工作表的情况
+        if 'sheet_details' in parse_result and parse_result['sheet_details']:
+            # 多工作表的结果
+            for sheet_detail in parse_result['sheet_details']:
+                for record_data in sheet_detail['records']:
+                    decade_plan = create_decade_plan_record(import_batch_id, record_data)
+                    decade_plans.append(decade_plan)
+        else:
+            # 单工作表的结果
+            for record_data in parse_result['records']:
+                decade_plan = create_decade_plan_record(import_batch_id, record_data)
+                decade_plans.append(decade_plan)
+        
+        # 批量插入
+        if decade_plans:
+            db.add_all(decade_plans)
+            await db.commit()
+            
+        print(f"✅ 成功保存 {len(decade_plans)} 条旬计划记录到数据库")
+        
+    except Exception as e:
+        await db.rollback()
+        print(f"❌ 保存旬计划数据失败: {str(e)}")
+        # 不抛出异常，避免影响解析流程
+        
+
+def create_decade_plan_record(import_batch_id: str, record_data: dict) -> DecadePlan:
+    """
+    创建旬计划记录对象，适配标准表结构
+    
+    Args:
+        import_batch_id: 导入批次ID
+        record_data: 记录数据字典
+        
+    Returns:
+        DecadePlan: 旬计划记录对象
+    """
+    from datetime import datetime
+    import uuid
+    
+    # 解析日期
+    planned_start = None
+    planned_end = None
+    if record_data.get('planned_start'):
+        try:
+            planned_start = datetime.fromisoformat(record_data['planned_start'])
+        except:
+            pass
+    if record_data.get('planned_end'):
+        try:
+            planned_end = datetime.fromisoformat(record_data['planned_end'])
+        except:
+            pass
+    
+    # 如果没有日期，使用默认日期
+    if not planned_start:
+        planned_start = datetime(2024, 11, 1)  # 默认开始日期
+    if not planned_end:
+        planned_end = datetime(2024, 11, 15)  # 默认结束日期
+    
+    # 获取机台代码并转换为逗号分隔字符串
+    feeder_codes = record_data.get('feeder_codes', [])
+    maker_codes = record_data.get('maker_codes', [])
+    
+    # 转换为逗号分隔的字符串格式（无空格）
+    feeder_code = ','.join(feeder_codes) if feeder_codes else 'UNKNOWN'
+    maker_code = ','.join(maker_codes) if maker_codes else 'UNKNOWN'
+    
+    # 生成工作订单号（使用行号即可，不需要机台后缀）
+    row_number = record_data.get('row_number', 0)
+    work_order_nr = f"WO_{row_number}"
+    
+    # 获取数量，确保不为None
+    quantity_total = record_data.get('material_input') or 0
+    final_quantity = record_data.get('final_quantity') or 0
+    
+    # 获取牌号，使用article_name作为article_nr
+    article_name = record_data.get('article_name') or 'UNKNOWN'
+    article_nr = record_data.get('article_nr') or article_name
+    
+    # 确定验证状态
+    validation_status = 'VALID'
+    validation_message = None
+    
+    # 检查必要字段
+    if not record_data.get('article_name'):
+        validation_status = 'ERROR'
+        validation_message = '缺少牌号信息'
+    elif feeder_code == 'UNKNOWN' and maker_code == 'UNKNOWN':
+        validation_status = 'ERROR'
+        validation_message = '缺少机台信息'
+    # 移除数量检查 - 允许继承的空值
+    
+    return DecadePlan(
+        import_batch_id=import_batch_id,
+        work_order_nr=work_order_nr,
+        article_nr=article_nr,
+        package_type=record_data.get('package_type'),
+        specification=record_data.get('specification'),
+        quantity_total=quantity_total,
+        final_quantity=final_quantity,
+        production_unit=record_data.get('production_unit'),
+        maker_code=maker_code,
+        feeder_code=feeder_code,
+        planned_start=planned_start,
+        planned_end=planned_end,
+        production_date_range=record_data.get('production_date_range'),
+        row_number=record_data.get('row_number'),
+        validation_status=validation_status,
+        validation_message=validation_message
+    )
+
+
+@router.get("/history")
+async def get_upload_history(
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取上传历史记录接口
+    
+    Args:
+        page: 页码，从1开始
+        page_size: 每页大小，默认20
+        status: 过滤状态，可选值：UPLOADING, PARSING, COMPLETED, FAILED
+        db: 数据库会话
+    """
+    try:
+        from sqlalchemy import select, and_, desc, func
+        
+        # 构建查询条件
+        conditions = []
+        if status:
+            conditions.append(ImportPlan.import_status == status)
+        
+        # 构建基础查询
+        base_query = select(ImportPlan)
+        if conditions:
+            base_query = base_query.where(and_(*conditions))
+        
+        # 获取总数
+        count_query = select(func.count()).select_from(ImportPlan)
+        if conditions:
+            count_query = count_query.where(and_(*conditions))
+        
+        count_result = await db.execute(count_query)
+        total_count = count_result.scalar()
+        
+        # 分页查询
+        offset = (page - 1) * page_size
+        query = base_query.order_by(desc(ImportPlan.created_time)).offset(offset).limit(page_size)
+        
+        result = await db.execute(query)
+        import_plans = result.scalars().all()
+        
+        # 转换为响应格式
+        records = []
+        for plan in import_plans:
+            records.append({
+                "batch_id": plan.import_batch_id,
+                "file_name": plan.file_name,
+                "file_size": plan.file_size,
+                "upload_time": plan.created_time.isoformat(),
+                "import_start_time": plan.import_start_time.isoformat() if plan.import_start_time else None,
+                "import_end_time": plan.import_end_time.isoformat() if plan.import_end_time else None,
+                "status": plan.import_status,
+                "total_records": plan.total_records,
+                "valid_records": plan.valid_records,
+                "error_records": plan.error_records,
+                "error_message": plan.error_message
+            })
+        
+        # 计算分页信息
+        total_pages = (total_count + page_size - 1) // page_size
+        
+        return SuccessResponse(
+            code=200,
+            message="查询成功",
+            data={
+                "records": records,
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total_count": total_count,
+                    "total_pages": total_pages,
+                    "has_next": page < total_pages,
+                    "has_prev": page > 1
+                }
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询历史记录失败：{str(e)}")
+
+
+@router.get("/statistics")
+async def get_upload_statistics(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取上传统计信息
+    """
+    try:
+        from sqlalchemy import select, func, and_
+        from datetime import datetime, timedelta
+        
+        # 今日统计
+        today = datetime.now().date()
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = datetime.combine(today, datetime.max.time())
+        
+        # 本月统计
+        month_start = today.replace(day=1)
+        month_start_dt = datetime.combine(month_start, datetime.min.time())
+        
+        # 今日上传数量
+        today_uploads_result = await db.execute(
+            select(func.count()).select_from(ImportPlan)
+            .where(and_(
+                ImportPlan.created_time >= today_start,
+                ImportPlan.created_time <= today_end
+            ))
+        )
+        today_uploads = today_uploads_result.scalar() or 0
+        
+        # 本月处理记录数
+        monthly_records_result = await db.execute(
+            select(func.sum(ImportPlan.total_records)).select_from(ImportPlan)
+            .where(and_(
+                ImportPlan.created_time >= month_start_dt,
+                ImportPlan.import_status == 'COMPLETED'
+            ))
+        )
+        monthly_processed = monthly_records_result.scalar() or 0
+        
+        # 成功率计算（最近30天）
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        total_recent_result = await db.execute(
+            select(func.count()).select_from(ImportPlan)
+            .where(ImportPlan.created_time >= thirty_days_ago)
+        )
+        total_recent = total_recent_result.scalar() or 0
+        
+        success_recent_result = await db.execute(
+            select(func.count()).select_from(ImportPlan)
+            .where(and_(
+                ImportPlan.created_time >= thirty_days_ago,
+                ImportPlan.import_status == 'COMPLETED'
+            ))
+        )
+        success_recent = success_recent_result.scalar() or 0
+        
+        success_rate = round((success_recent / total_recent * 100), 1) if total_recent > 0 else 0
+        
+        # 活跃批次（解析中或最近完成的）
+        active_batches_result = await db.execute(
+            select(func.count()).select_from(ImportPlan)
+            .where(ImportPlan.import_status.in_(['PARSING', 'UPLOADING']))
+        )
+        active_batches = active_batches_result.scalar() or 0
+        
+        return SuccessResponse(
+            code=200,
+            message="统计信息获取成功",
+            data={
+                "today_uploads": today_uploads,
+                "monthly_processed": monthly_processed,
+                "success_rate": success_rate,
+                "active_batches": active_batches
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取统计信息失败：{str(e)}")
+
+
+@router.get("/{import_batch_id}/decade-plans")
+async def get_decade_plans(
+    import_batch_id: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    查询旬计划记录接口
+    """
+    try:
+        from sqlalchemy import select
+        result = await db.execute(
+            select(DecadePlan).where(DecadePlan.import_batch_id == import_batch_id)
+        )
+        decade_plans = result.scalars().all()
+        
+        if not decade_plans:
+            raise HTTPException(status_code=404, detail=f"未找到导入批次的旬计划记录：{import_batch_id}")
+        
+        # 转换为响应格式
+        plans_data = []
+        for plan in decade_plans:
+            plans_data.append({
+                "work_order_nr": plan.work_order_nr,
+                "article_nr": plan.article_nr,
+                "package_type": plan.package_type,
+                "specification": plan.specification,
+                "feeder_code": plan.feeder_code,
+                "maker_code": plan.maker_code,
+                "quantity_total": plan.quantity_total,
+                "final_quantity": plan.final_quantity,
+                "planned_start": plan.planned_start.isoformat() if plan.planned_start else None,
+                "planned_end": plan.planned_end.isoformat() if plan.planned_end else None,
+                "row_number": plan.row_number,
+                "validation_status": plan.validation_status,
+                "validation_message": plan.validation_message
+            })
+        
+        return SuccessResponse(
+            code=200,
+            message="查询成功",
+            data={
+                "import_batch_id": import_batch_id,
+                "total_plans": len(plans_data),
+                "plans": plans_data
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询旬计划失败：{str(e)}")
