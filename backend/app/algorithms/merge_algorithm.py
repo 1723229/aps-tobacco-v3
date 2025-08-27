@@ -168,7 +168,7 @@ class MergeAlgorithm(AlgorithmBase):
     
     async def process_with_real_data(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
-        使用真实数据库数据执行规则合并 - 按导入批次ID分组处理
+        使用真实数据库数据执行规则合并
         
         Args:
             input_data: 预处理后的计划数据
@@ -186,54 +186,33 @@ class MergeAlgorithm(AlgorithmBase):
             result.output_data = []
             return self.finalize_result(result)
         
-        # 按导入批次ID分组数据
-        batch_groups = self._group_by_import_batch(input_data)
-        
         # 从数据库查询合并规则配置
         merge_rules = await self._get_merge_rules_from_db()
         
         # 标记使用了真实数据库数据
         result.metrics.custom_metrics = {
             'used_real_database_data': True,
-            'merge_rules_count': len(merge_rules),
-            'batch_groups_count': len(batch_groups)
+            'merge_rules_count': len(merge_rules)
         }
         
-        # 对每个导入批次分别执行合并
-        all_merged_plans = []
-        batch_merge_summary = {}
+        # 使用真实业务规则识别合并组
+        merge_groups = self._identify_merge_groups_with_rules(input_data, merge_rules)
         
-        for batch_id, batch_plans in batch_groups.items():
-            logger.info(f"开始处理导入批次 {batch_id}: {len(batch_plans)} 条计划")
-            
-            # 在同一批次内识别合并组
-            merge_groups = self._identify_merge_groups_with_rules(batch_plans, merge_rules)
-            
-            # 执行批次内合并
-            batch_merged_plans = []
-            for group in merge_groups:
-                if len(group) > 1:
-                    # 需要合并
-                    merged_plan = self._merge_plans_with_rules(group, merge_rules)
-                    # 保留原始批次ID
-                    merged_plan['import_batch_id'] = batch_id
-                    batch_merged_plans.append(merged_plan)
-                    logger.info(f"批次{batch_id}合并了{len(group)}个计划为: {merged_plan['work_order_nr']}")
-                else:
-                    # 单个计划，不需要合并
-                    batch_merged_plans.append(group[0])
-            
-            all_merged_plans.extend(batch_merged_plans)
-            batch_merge_summary[batch_id] = {
-                'input_count': len(batch_plans),
-                'output_count': len(batch_merged_plans),
-                'merge_ratio': len(batch_merged_plans) / len(batch_plans) if batch_plans else 0
-            }
+        # 执行合并
+        merged_plans = []
+        for group in merge_groups:
+            if len(group) > 1:
+                # 需要合并
+                merged_plan = self._merge_plans_with_rules(group, merge_rules)
+                merged_plans.append(merged_plan)
+                logger.info(f"合并了{len(group)}个计划为: {merged_plan['work_order_nr']}")
+            else:
+                # 单个计划，不需要合并
+                merged_plans.append(group[0])
         
-        result.output_data = all_merged_plans
-        result.metrics.custom_metrics['batch_merge_summary'] = batch_merge_summary
+        result.output_data = merged_plans
         
-        logger.info(f"按批次合并完成(真实数据): 输入{len(input_data)}个 -> 输出{len(all_merged_plans)}个，处理了{len(batch_groups)}个批次")
+        logger.info(f"合并完成(真实数据): 输入{len(input_data)}个 -> 输出{len(merged_plans)}个")
         return self.finalize_result(result)
     
     def _identify_merge_groups_with_rules(self, plans: List[Dict[str, Any]], merge_rules: Dict[str, Any]) -> List[List[Dict[str, Any]]]:
