@@ -1,4 +1,4 @@
-# APS智慧排产系统 - 技术设计文档
+# APS智慧排产系统 - 技术设计文档（实际实现状态）
 
 ## 1. 系统架构设计
 
@@ -23,59 +23,108 @@
 └─────────────────┘    └─────────────────┘
 ```
 
-### 1.2 技术栈选择
+### 1.2 技术栈选择（实际实现）
 
-| 层次 | 技术选型 | 版本要求 | 选择理由 |
-|------|----------|----------|----------|
-| **前端** | Vue.js 3 + TypeScript | 3.3+ | 组件化开发，类型安全 |
-| | Element Plus | 2.3+ | 丰富的UI组件库 |
-| | ECharts/G2 | 5.4+ | 甘特图和数据可视化 |
-| **后端** | FastAPI | 0.104+ | 高性能异步框架，自动API文档 |
-| | SQLAlchemy | 2.0+ | Python ORM，支持异步操作 |
-| | Pydantic | 2.5+ | 数据验证和序列化 |
-| **数据库** | MySQL | 8.0+ | 事务支持，成熟稳定 |
-| | Redis | 7.0+ | 缓存和会话存储 |
-| **中间件** | openpyxl | 3.1+ | Excel文件解析 |
-| | Celery | 5.3+ | 异步任务队列 |
+| 层次 | 技术选型 | 实际版本 | 实现状态 | 选择理由 |
+|------|----------|----------|----------|----------|
+| **前端** | Vue.js 3 + TypeScript | 3.5.18 | ✅ 已实现 | 组件化开发，类型安全 |
+| | Element Plus | 2.8.8 | ✅ 已实现 | 丰富的UI组件库，中文本地化 |
+| | Vue Router | 4.5.1 | ✅ 已实现 | 前端路由管理 |
+| | Pinia | 3.0.3 | ✅ 已实现 | 状态管理 |
+| | Axios | 1.7.7 | ✅ 已实现 | HTTP客户端 |
+| | Vite | 7.0.6 | ✅ 已实现 | 前端构建工具 |
+| | ECharts/G2 | - | ❌ 未实现 | 甘特图和数据可视化 |
+| **后端** | FastAPI | 0.104.1 | ✅ 已实现 | 高性能异步框架，自动API文档 |
+| | SQLAlchemy | 2.0.23 | ✅ 已实现 | Python ORM，支持异步操作 |
+| | Pydantic | 2.5.0 | ✅ 已实现 | 数据验证和序列化 |
+| | Pydantic-Settings | 2.5.2 | ✅ 已实现 | 配置管理 |
+| **数据库** | MySQL | 8.0+ | ✅ 已配置 | 事务支持，成熟稳定 |
+| | aiomysql | 0.2.0 | ✅ 已实现 | MySQL异步驱动 |
+| | Redis | 7.0+ | ✅ 已配置 | 缓存和会话存储 |
+| **文件处理** | openpyxl | 3.1.2 | ✅ 已实现 | Excel文件解析 |
+| | pandas | 2.1.3 | ✅ 已实现 | 数据处理 |
+| **开发工具** | pytest | 7.4.3 | ✅ 已配置 | 单元测试框架 |
+| | black | 23.10.1 | ✅ 已配置 | 代码格式化 |
+| | uvicorn | 0.24.0 | ✅ 已实现 | ASGI服务器 |
 
-### 1.3 模块划分
+### 1.3 模块划分（实际项目结构）
 
 ```
-aps-cigarette/
-├── frontend/                    # 前端模块
-│   ├── src/
-│   │   ├── components/         # 通用组件
-│   │   ├── views/             # 页面组件
-│   │   ├── services/          # API服务
-│   │   ├── utils/             # 工具类
-│   │   └── types/             # TypeScript类型定义
-│   └── package.json
-├── backend/                # 后端服务
+aps-tobacco-v3/
+├── frontend/                    # 前端模块 ✅ 完整Vue.js应用
+│   ├── src/                    # ✅ 源代码目录
+│   │   ├── components/         # ✅ 业务组件
+│   │   │   ├── DecadePlanUpload.vue    # ✅ 文件上传组件
+│   │   │   ├── DecadePlanTable.vue     # ✅ 数据表格组件
+│   │   │   ├── ParseResult.vue         # ✅ 解析结果组件
+│   │   │   └── LoadingComponent.vue    # ✅ 加载组件
+│   │   ├── views/              # ✅ 页面视图
+│   │   │   ├── Home.vue        # ✅ 首页（统计信息、快速操作）
+│   │   │   ├── DecadePlanEntry.vue     # ✅ 旬计划录入页面
+│   │   │   └── DecadePlanDetail.vue    # ✅ 旬计划详情页面
+│   │   ├── services/           # ✅ API服务层
+│   │   │   └── api.ts          # ✅ 完整的API客户端
+│   │   ├── stores/             # ✅ Pinia状态管理
+│   │   │   └── decade-plan.ts  # ✅ 旬计划状态管理
+│   │   ├── router/             # ✅ Vue Router配置
+│   │   │   └── index.ts        # ✅ 路由定义
+│   │   ├── types/              # ✅ TypeScript类型
+│   │   │   └── api.ts          # ✅ API类型定义
+│   │   ├── utils/              # ✅ 工具函数
+│   │   │   ├── index.ts        # ✅ 通用工具函数
+│   │   │   ├── http.ts         # ✅ HTTP客户端配置
+│   │   │   └── error-handler.ts# ✅ 错误处理
+│   │   ├── assets/             # ✅ 静态资源
+│   │   ├── App.vue             # ✅ 根组件（完整导航布局）
+│   │   └── main.ts             # ✅ 应用入口
+│   ├── package.json            # ✅ 项目依赖配置
+│   ├── vite.config.ts          # ✅ Vite构建配置
+│   ├── index.html              # ✅ HTML模板
+│   └── tsconfig.json           # ✅ TypeScript配置
+├── backend/                     # 后端服务 ✅ 已实现核心模块
 │   ├── app/
-│   │   ├── api/               # API路由
-│   │   │   └── v1/            # API版本1
-│   │   ├── core/              # 核心配置
-│   │   ├── db/                # 数据库相关
-│   │   ├── models/            # 数据模型
-│   │   ├── schemas/           # Pydantic模型
-│   │   ├── services/          # 业务服务层
-│   │   ├── algorithms/        # 排产算法
-│   │   ├── utils/             # 工具函数
-│   │   └── main.py            # 应用入口
-│   ├── alembic/               # 数据库迁移
-│   ├── tests/                 # 测试代码
-│   ├── requirements.txt       # 依赖包
-│   └── pyproject.toml         # 项目配置
-└── aps-database/               # 数据库相关
-    ├── seeds/                 # 初始数据
-    └── docs/                  # 数据库文档
+│   │   ├── api/                # ✅ API路由层
+│   │   │   └── v1/             # ✅ API版本1
+│   │   │       ├── data.py     # ✅ 数据查询API
+│   │   │       ├── plans.py    # ✅ 计划上传解析API
+│   │   │       └── router.py   # ✅ 路由汇总
+│   │   ├── core/               # ✅ 核心配置
+│   │   │   └── config.py       # ✅ 配置管理
+│   │   ├── db/                 # ✅ 数据库层
+│   │   │   ├── cache.py        # ✅ Redis缓存
+│   │   │   └── connection.py   # ✅ 数据库连接
+│   │   ├── models/             # ✅ 数据模型
+│   │   │   ├── base_models.py  # ✅ 基础模型
+│   │   │   └── decade_plan.py  # ✅ 旬计划模型
+│   │   ├── schemas/            # ✅ Pydantic模型
+│   │   │   └── base.py         # ✅ API DTO模型
+│   │   ├── services/           # ✅ 业务服务层
+│   │   │   └── excel_parser.py # ✅ Excel解析服务
+│   │   ├── algorithms/         # ❌ 排产算法 (空文件夹)
+│   │   ├── utils/              # ✅ 工具函数
+│   │   └── main.py             # ✅ 应用入口
+│   ├── tests/                  # ✅ 测试代码框架
+│   ├── requirements.txt        # ✅ 依赖包定义
+│   └── pytest.ini             # ✅ 测试配置
+├── docs/                       # ✅ 项目文档
+│   ├── algorithm-design.md     # ✅ 算法设计文档
+│   ├── requirements-detail.md  # ✅ 需求细化文档
+│   ├── technical-design.md     # ✅ 技术设计文档
+│   └── ux-design.md           # ✅ 用户体验设计
+├── aps/                        # ✅ 业务样例数据
+└── scripts/                    # ✅ 数据库脚本
+    └── database-schema.sql     # ✅ 数据库结构
 ```
 
-## 2. 数据表结构设计
+#### 实现状态说明：
+- **✅ 已实现**: 功能完整，可正常运行
+- **❌ 未实现**: 功能缺失或仅有基础框架
+
+## 2. 数据表结构设计（实现状态）
 
 ### 2.1 基础数据表
 
-#### 2.1.1 机台信息表 (aps_machine)
+#### 2.1.1 机台信息表 (aps_machine) ✅ 已实现
 
 ```sql
 CREATE TABLE aps_machine (
@@ -95,7 +144,7 @@ CREATE TABLE aps_machine (
 ) COMMENT='机台基础信息表';
 ```
 
-#### 2.1.2 物料信息表 (aps_material)
+#### 2.1.2 物料信息表 (aps_material) ✅ 已实现
 
 ```sql
 CREATE TABLE aps_material (
@@ -117,7 +166,7 @@ CREATE TABLE aps_material (
 ) COMMENT='物料基础信息表';
 ```
 
-#### 2.1.3 机台生产速度配置表 (aps_machine_speed)
+#### 2.1.3 机台生产速度配置表 (aps_machine_speed) ❌ 未实现
 
 ```sql
 CREATE TABLE aps_machine_speed (
@@ -140,7 +189,7 @@ CREATE TABLE aps_machine_speed (
 ) COMMENT='机台生产速度配置表';
 ```
 
-#### 2.1.4 机台对应关系表 (aps_machine_relation)
+#### 2.1.4 机台对应关系表 (aps_machine_relation) ❌ 未实现
 
 ```sql
 CREATE TABLE aps_machine_relation (
@@ -165,7 +214,7 @@ CREATE TABLE aps_machine_relation (
 ) COMMENT='喂丝机与卷包机对应关系表';
 ```
 
-#### 2.1.5 班次配置表 (aps_shift_config)
+#### 2.1.5 班次配置表 (aps_shift_config) ❌ 未实现
 
 ```sql
 CREATE TABLE aps_shift_config (
@@ -192,7 +241,7 @@ CREATE TABLE aps_shift_config (
 
 ### 2.2 业务数据表
 
-#### 2.2.1 导入计划表 (aps_import_plan)
+#### 2.2.1 导入计划表 (aps_import_plan) ✅ 已实现
 
 ```sql
 CREATE TABLE aps_import_plan (
@@ -218,7 +267,7 @@ CREATE TABLE aps_import_plan (
 ) COMMENT='计划导入记录表';
 ```
 
-#### 2.2.2 原始旬计划表 (aps_decade_plan)
+#### 2.2.2 原始旬计划表 (aps_decade_plan) ✅ 已实现
 
 ```sql
 CREATE TABLE aps_decade_plan (
@@ -251,7 +300,7 @@ CREATE TABLE aps_decade_plan (
 ) COMMENT='原始卷包旬计划表';
 ```
 
-#### 2.2.3 排产任务表 (aps_scheduling_task)
+#### 2.2.3 排产任务表 (aps_scheduling_task) ❌ 未实现
 
 ```sql
 CREATE TABLE aps_scheduling_task (
@@ -775,658 +824,165 @@ CREATE TABLE aps_operation_log (
 - 核心业务字段不允许为空
 - 提供合理的默认值
 
-## 4. API接口设计
-
-### 4.1 RESTful API规范
-
-**URL设计规范：**
-```
-/api/v1/{resource}[/{resource-id}[/{sub-resource}[/{sub-resource-id}]]]
-```
-
-**HTTP方法使用：**
-- GET：查询数据
-- POST：创建数据
-- PUT：更新数据（全量更新）
-- PATCH：更新数据（部分更新）
-- DELETE：删除数据
-
-**状态码规范：**
-- 200：成功
-- 201：创建成功
-- 400：请求参数错误
-- 401：未授权
-- 403：禁止访问
-- 404：资源不存在
-- 500：服务器内部错误
-
-### 4.2 核心API接口
-
-#### 4.2.1 文件上传接口
-
-```yaml
-POST /api/v1/plans/upload
-Content-Type: multipart/form-data
-
-Request:
-  file: binary           # Excel文件
-  planType: string       # 计划类型：DECADE_PLAN
-
-Response:
-  code: 200
-  message: "upload success"
-  data:
-    importBatchId: string
-    fileName: string
-    fileSize: number
-    totalRecords: number
-    uploadTime: string
-```
-
-#### 4.2.2 数据解析接口
-
-```yaml
-POST /api/v1/plans/{importBatchId}/parse
-
-Response:
-  code: 200
-  message: "parse success"  
-  data:
-    importBatchId: string
-    totalRecords: number
-    validRecords: number
-    errorRecords: number
-    parseResult:
-      - record: object
-        status: "VALID|WARNING|ERROR"
-        message: string
-```
-
-#### 4.2.3 排产执行接口
-
-```yaml
-POST /api/v1/scheduling/start
-
-Request:
-  importBatchId: string
-  schedulingParams:
-    mergeEnabled: boolean
-    splitEnabled: boolean
-    correctionEnabled: boolean
-    parallelEnabled: boolean
-
-Response:
-  code: 200
-  message: "scheduling started"
-  data:
-    taskId: string
-    status: "RUNNING"
-    progress: 0
-```
-
-#### 4.2.4 任务状态查询接口
-
-```yaml
-GET /api/v1/scheduling/tasks/{taskId}/status
-
-Response:
-  code: 200
-  data:
-    taskId: string
-    status: "PENDING|RUNNING|COMPLETED|FAILED"
-    progress: number
-    currentStage: string
-    startTime: string
-    endTime: string
-    errorMessage: string
-```
-
-#### 4.2.5 工单查询接口
-
-```yaml
-GET /api/v1/orders/packing?taskId={taskId}&page={page}&size={size}
-
-Response:
-  code: 200
-  data:
-    content:
-      - workOrderNr: string
-        articleNr: string
-        makerCode: string
-        quantityTotal: number
-        plannedStart: string
-        plannedEnd: string
-        orderStatus: string
-    totalElements: number
-    totalPages: number
-    pageable:
-      pageNumber: number
-      pageSize: number
-```
-
-#### 4.2.6 甘特图数据接口
-
-```yaml
-GET /api/v1/scheduling/tasks/{taskId}/gantt
-
-Response:
-  code: 200
-  data:
-    timeline:
-      start: string        # ISO格式时间
-      end: string          # ISO格式时间
-    resources:
-      - id: string         # 机台代码
-        name: string       # 机台名称
-        type: "PACKING|FEEDING"
-        category: string   # 机台分类
-    tasks:
-      - id: string         # 工单号
-        name: string       # 显示名称
-        start: string      # 开始时间
-        end: string        # 结束时间
-        resource: string   # 关联机台
-        color: string      # 显示颜色
-        type: string       # 工单类型
-        details:
-          article: string  # 物料编号
-          quantity: number # 数量
-          is_split: boolean
-          is_merged: boolean
-    maintenances:
-      - id: string         # 轮保计划号
-        name: string       # 轮保名称
-        start: string      # 开始时间
-        end: string        # 结束时间
-        resource: string   # 机台代码
-        color: "#e74c3c"   # 红色
-        type: "MAINTENANCE"
-    relationships:
-      parallel_groups:     # 并行任务组
-        - feeder: string
-          orders: [string]
-          type: "PARALLEL"
-      serial_chains:       # 串行任务链
-        - machine: string
-          orders: [string]
-          type: "SERIAL"
-```
-
-#### 4.2.7 MES导出接口
-
-```yaml
-POST /api/v1/mes/export
-
-Request:
-  taskId: string
-  exportType: "PACKING|FEEDING|ALL"
-  exportFormat: "JSON|XML"
-
-Response:
-  code: 200
-  message: "export success"
-  data:
-    dispatchBatchId: string
-    exportedOrders: number
-    exportTime: string
-```
-
-### 4.3 数据传输对象(DTO)
-
-#### 4.3.1 卷包机工单DTO
-
-```python
-from datetime import datetime
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
-
-class PackingOrderDTO(BaseModel):
-    work_order_nr: str = Field(..., description="工单号")
-    task_id: str = Field(..., description="排产任务ID")
-    original_order_nr: Optional[str] = Field(None, description="原始订单号")
-    
-    # 产品信息
-    article_nr: str = Field(..., description="成品烟牌号")
-    quantity_total: int = Field(..., description="投料总量")
-    final_quantity: int = Field(..., description="成品数量")
-    
-    # 机台信息
-    maker_code: str = Field(..., description="卷包机代码")
-    machine_type: Optional[str] = Field(None, description="机台型号")
-    
-    # 时间信息
-    planned_start: datetime = Field(..., description="计划开始时间")
-    planned_end: datetime = Field(..., description="计划结束时间")
-    estimated_duration: Optional[int] = Field(None, description="预计耗时（分钟）")
-    
-    # 生产参数
-    production_speed: Optional[float] = Field(None, description="生产速度（箱/小时）")
-    working_shifts: Optional[Dict[str, Any]] = Field(None, description="工作班次信息")
-    
-    # 关联信息
-    feeder_code: str = Field(..., description="对应喂丝机代码")
-    related_feeder_order: Optional[str] = Field(None, description="关联喂丝机工单号")
-    
-    # 状态信息
-    order_status: str = Field(default="PLANNED", description="工单状态")
-    priority: int = Field(default=5, description="优先级")
-    
-    # 特殊标记
-    is_split_order: bool = Field(default=False, description="是否为拆分工单")
-    split_from: Optional[str] = Field(None, description="拆分来源")
-    split_index: Optional[int] = Field(None, description="拆分序号")
-    is_merged_order: bool = Field(default=False, description="是否为合并工单")
-    merged_from: Optional[List[str]] = Field(None, description="合并来源列表")
-    
-    # 审计信息
-    created_by: str = Field(default="system", description="创建者")
-    created_time: datetime = Field(..., description="创建时间")
-    updated_time: datetime = Field(..., description="更新时间")
-
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-```
-
-#### 4.3.2 甘特图数据DTO
-
-```python
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field
-
-class TimelineDTO(BaseModel):
-    start: datetime = Field(..., description="开始时间")
-    end: datetime = Field(..., description="结束时间")
-
-class ResourceDTO(BaseModel):
-    id: str = Field(..., description="机台代码")
-    name: str = Field(..., description="机台名称")
-    type: str = Field(..., description="机台类型：PACKING|FEEDING")
-    category: str = Field(..., description="机台分类")
-
-class TaskDTO(BaseModel):
-    id: str = Field(..., description="工单号")
-    name: str = Field(..., description="显示名称")
-    start: datetime = Field(..., description="开始时间")
-    end: datetime = Field(..., description="结束时间")
-    resource: str = Field(..., description="关联机台代码")
-    color: str = Field(..., description="显示颜色")
-    type: str = Field(..., description="工单类型")
-    details: Dict[str, Any] = Field(default_factory=dict, description="详细信息")
-
-class MaintenanceDTO(BaseModel):
-    id: str = Field(..., description="轮保计划号")
-    name: str = Field(..., description="轮保名称")
-    start: datetime = Field(..., description="开始时间")
-    end: datetime = Field(..., description="结束时间")
-    resource: str = Field(..., description="机台代码")
-    color: str = Field(default="#e74c3c", description="显示颜色")
-    type: str = Field(default="MAINTENANCE", description="类型")
-
-class ParallelGroupDTO(BaseModel):
-    feeder: str = Field(..., description="喂丝机代码")
-    orders: List[str] = Field(..., description="并行工单列表")
-    type: str = Field(default="PARALLEL", description="关系类型")
-
-class SerialChainDTO(BaseModel):
-    machine: str = Field(..., description="机台代码")
-    orders: List[str] = Field(..., description="串行工单列表")
-    type: str = Field(default="SERIAL", description="关系类型")
-
-class RelationshipsDTO(BaseModel):
-    parallel_groups: List[ParallelGroupDTO] = Field(default_factory=list, description="并行任务组")
-    serial_chains: List[SerialChainDTO] = Field(default_factory=list, description="串行任务链")
-
-class GanttDataDTO(BaseModel):
-    timeline: TimelineDTO = Field(..., description="时间轴配置")
-    resources: List[ResourceDTO] = Field(..., description="资源列表")
-    tasks: List[TaskDTO] = Field(..., description="工单任务列表")
-    maintenances: List[MaintenanceDTO] = Field(default_factory=list, description="轮保计划列表")
-    relationships: RelationshipsDTO = Field(default_factory=RelationshipsDTO, description="任务关系")
-
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-```
-
-## 5. 缓存设计
-
-### 5.1 Redis缓存策略
-
-**缓存分层：**
-- L1: 应用本地缓存（Caffeine）
-- L2: 分布式缓存（Redis）
-
-**缓存键命名规范：**
-```
-aps:{模块}:{功能}:{标识}:{版本}
-```
-
-**示例：**
-```
-aps:machine:speed:JJ#01:PA:v1
-aps:scheduling:task:status:task123:v1
-aps:maintenance:plans:2024-08-15:v1
-```
-
-### 5.2 缓存对象设计
-
-#### 5.2.1 机台速度缓存
-
-```python
-from datetime import datetime, date
-from typing import Optional
-from pydantic import BaseModel, Field
-import redis
-import json
-
-class MachineSpeedCache(BaseModel):
-    machine_code: str = Field(..., description="机台代码")
-    article_nr: str = Field(..., description="物料编号")
-    speed: float = Field(..., description="生产速度（箱/小时）")
-    efficiency_rate: float = Field(..., description="效率系数（%）")
-    effective_from: date = Field(..., description="生效日期")
-    effective_to: Optional[date] = Field(None, description="失效日期")
-    cache_time: datetime = Field(default_factory=datetime.now, description="缓存时间")
-
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            date: lambda v: v.isoformat()
-        }
-
-    @classmethod
-    def get_cache_key(cls, machine_code: str, article_nr: str) -> str:
-        return f"aps:machine:speed:{machine_code}:{article_nr}:v1"
-
-    def to_cache(self, redis_client: redis.Redis, ttl: int = 3600):
-        """保存到Redis缓存"""
-        key = self.get_cache_key(self.machine_code, self.article_nr)
-        redis_client.setex(
-            key, 
-            ttl, 
-            self.json(ensure_ascii=False)
-        )
-
-    @classmethod
-    def from_cache(cls, redis_client: redis.Redis, machine_code: str, article_nr: str) -> Optional['MachineSpeedCache']:
-        """从Redis缓存读取"""
-        key = cls.get_cache_key(machine_code, article_nr)
-        data = redis_client.get(key)
-        if data:
-            return cls.parse_raw(data)
-        return None
-```
-
-#### 5.2.2 排产任务状态缓存
-
-```python
-from datetime import datetime
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
-import redis
-
-class SchedulingTaskStatusCache(BaseModel):
-    task_id: str = Field(..., description="任务ID")
-    task_status: str = Field(..., description="任务状态")
-    progress: int = Field(default=0, description="进度百分比")
-    current_stage: Optional[str] = Field(None, description="当前阶段")
-    start_time: Optional[datetime] = Field(None, description="开始时间")
-    end_time: Optional[datetime] = Field(None, description="结束时间")
-    error_message: Optional[str] = Field(None, description="错误信息")
-    result_summary: Optional[Dict[str, Any]] = Field(None, description="结果摘要")
-    cache_time: datetime = Field(default_factory=datetime.now, description="缓存时间")
-
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
-
-    @classmethod
-    def get_cache_key(cls, task_id: str) -> str:
-        return f"aps:scheduling:task:{task_id}:v1"
-
-    def to_cache(self, redis_client: redis.Redis, ttl: int = 7200):
-        """保存到Redis缓存"""
-        key = self.get_cache_key(self.task_id)
-        redis_client.setex(
-            key,
-            ttl,
-            self.json(ensure_ascii=False)
-        )
-
-    @classmethod
-    def from_cache(cls, redis_client: redis.Redis, task_id: str) -> Optional['SchedulingTaskStatusCache']:
-        """从Redis缓存读取"""
-        key = cls.get_cache_key(task_id)
-        data = redis_client.get(key)
-        if data:
-            return cls.parse_raw(data)
-        return None
-```
-
-### 5.3 缓存更新策略
-
-**更新触发时机：**
-- 数据库写操作后
-- 定时刷新（凌晨刷新基础数据）
-- 手工刷新（管理界面触发）
-
-**缓存失效策略：**
-- TTL过期自动失效
-- 数据变更主动失效
-- 版本控制失效
-
-## 6. 性能优化设计
-
-### 6.1 数据库性能优化
-
-**分区策略：**
-```sql
--- 按月分区大表
-CREATE TABLE aps_decade_plan (
-    -- 字段定义...
-) PARTITION BY RANGE (YEAR(planned_start) * 100 + MONTH(planned_start)) (
-    PARTITION p202408 VALUES LESS THAN (202409),
-    PARTITION p202409 VALUES LESS THAN (202410),
-    PARTITION p202410 VALUES LESS THAN (202411),
-    -- 更多分区...
-    PARTITION p_future VALUES LESS THAN MAXVALUE
-);
-```
-
-**读写分离：**
-- 主库：写操作
-- 从库：读操作
-- 使用@Transactional(readOnly = true)标记只读事务
-
-**连接池优化：**
-```yaml
-spring:
-  datasource:
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-```
-
-### 6.2 应用性能优化
-
-**异步处理：**
-```python
-from celery import Celery
-import asyncio
-from fastapi import BackgroundTasks
-
-app = Celery('aps_scheduler')
-
-@app.task
-async def execute_scheduling_task(task_id: str) -> dict:
-    """异步执行排产算法"""
-    try:
-        # 排产算法执行
-        result = await scheduling_service.execute_scheduling(task_id)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-# FastAPI后台任务
-async def schedule_in_background(background_tasks: BackgroundTasks, task_id: str):
-    background_tasks.add_task(execute_scheduling_async, task_id)
-```
-
-**批量操作：**
-```python
-from sqlalchemy.orm import Session
-from typing import List
-
-async def save_batch_orders(db: Session, orders: List[PackingOrder], batch_size: int = 1000):
-    """批量保存工单"""
-    for i in range(0, len(orders), batch_size):
-        batch = orders[i:i + batch_size]
-        db.add_all(batch)
-        await db.commit()
-
-async def bulk_insert_with_sqlalchemy(db: Session, orders: List[dict]):
-    """使用SQLAlchemy批量插入"""
-    await db.execute(
-        PackingOrder.__table__.insert(),
-        orders
-    )
-    await db.commit()
-```
-
-**分页查询优化：**
-```python
-from sqlalchemy import and_, desc
-from typing import Optional
-
-async def find_orders_with_cursor_pagination(
-    db: Session, 
-    cursor: Optional[str] = None, 
-    limit: int = 20
-) -> List[PackingOrder]:
-    """使用游标分页替代offset分页"""
-    query = db.query(PackingOrder)
-    
-    if cursor:
-        # 解析游标获取上次查询的最后一条记录ID
-        last_id = int(cursor)
-        query = query.filter(PackingOrder.id > last_id)
-    
-    return query.order_by(PackingOrder.id).limit(limit).all()
-```
-
-## 7. 安全设计
-
-### 7.1 数据安全
-
-**敏感数据加密：**
-```python
-from cryptography.fernet import Fernet
-import base64
-import os
-
-class DataEncryption:
-    def __init__(self):
-        # 从环境变量或配置文件获取密钥
-        key = os.getenv('ENCRYPTION_KEY', self._generate_key())
-        self.cipher_suite = Fernet(key.encode() if isinstance(key, str) else key)
-    
-    def _generate_key(self) -> str:
-        """生成加密密钥"""
-        return base64.urlsafe_b64encode(os.urandom(32)).decode()
-    
-    def encrypt_sensitive_data(self, data: str) -> str:
-        """加密敏感数据"""
-        return self.cipher_suite.encrypt(data.encode()).decode()
-    
-    def decrypt_sensitive_data(self, encrypted_data: str) -> str:
-        """解密敏感数据"""
-        return self.cipher_suite.decrypt(encrypted_data.encode()).decode()
-
-# 使用示例
-encryption = DataEncryption()
-encrypted_password = encryption.encrypt_sensitive_data("sensitive_info")
-```
-
-**SQL注入防护：**
-```python
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
-# 使用参数化查询
-async def safe_query_with_params(db: Session, machine_code: str):
-    """安全的参数化查询"""
-    result = await db.execute(
-        text("SELECT * FROM aps_machine WHERE machine_code = :code"),
-        {"code": machine_code}
-    )
-    return result.fetchall()
-
-# 使用SQLAlchemy ORM（自动防护）
-async def safe_orm_query(db: Session, machine_code: str):
-    """使用ORM的安全查询"""
-    return db.query(Machine).filter(Machine.machine_code == machine_code).all()
-
-# 输入验证
-from pydantic import BaseModel, validator
-
-class MachineQueryRequest(BaseModel):
-    machine_code: str
-    
-    @validator('machine_code')
-    def validate_machine_code(cls, v):
-        # 验证机台代码格式
-        if not v.replace('#', '').replace('-', '').isalnum():
-            raise ValueError('Invalid machine code format')
-        return v
-```
-
-### 7.2 访问控制（后续扩展）
-
-**预留接口设计：**
-```python
-from abc import ABC, abstractmethod
-from typing import List
-
-class SecurityService(ABC):
-    """安全服务抽象类"""
-    
-    @abstractmethod
-    async def has_permission(self, user_id: str, resource: str, action: str) -> bool:
-        """检查用户权限"""
-        pass
-    
-    @abstractmethod
-    async def get_user_roles(self, user_id: str) -> List[str]:
-        """获取用户角色列表"""
-        pass
-    
-    @abstractmethod
-    async def is_operation_allowed(self, operation: str) -> bool:
-        """检查操作是否允许"""
-        pass
-
-# 实现类（后续扩展）
-class DefaultSecurityService(SecurityService):
-    async def has_permission(self, user_id: str, resource: str, action: str) -> bool:
-        # TODO: 实现权限检查逻辑
-        return True  # 暂时允许所有操作
-    
-    async def get_user_roles(self, user_id: str) -> List[str]:
-        # TODO: 实现角色获取逻辑
-        return ["admin"]  # 暂时返回管理员角色
-    
-    async def is_operation_allowed(self, operation: str) -> bool:
-        # TODO: 实现操作检查逻辑
-        return True  # 暂时允许所有操作
-```
-
-这个技术设计文档详细描述了APS智慧排产系统的数据表结构设计、API接口规范、缓存策略、性能优化方案等技术实现细节，完全基于PRD中的业务需求和实际的数据结构进行设计，确保技术方案与业务需求完全匹配。
+### 2.7 数据表实现状态总结
+
+#### 已实现的数据表 ✅
+1. **aps_machine** - 机台基础信息表
+   - 完整的SQLAlchemy模型定义
+   - 支持卷包机和喂丝机类型
+   - 包含状态管理和索引优化
+
+2. **aps_material** - 物料基础信息表
+   - 完整的SQLAlchemy模型定义
+   - 支持物料类型分类
+   - 包含包装类型和规格信息
+
+3. **aps_import_plan** - 导入计划表
+   - 完整的SQLAlchemy模型定义
+   - 支持导入状态管理
+   - 文件信息和错误追踪
+
+4. **aps_decade_plan** - 原始旬计划表
+   - 完整的SQLAlchemy模型定义
+   - 支持Excel解析结果存储
+   - 包含机台代码和验证状态
+
+#### 未实现的数据表 ❌
+1. **业务配置表** - 速度配置、机台关系、班次配置等
+2. **排产算法表** - 任务表、处理日志等
+3. **工单结果表** - 卷包机工单、喂丝机工单等
+4. **MES集成表** - 工单下发、状态同步等
+5. **系统配置表** - 参数配置、业务规则等
+
+#### 数据库连接状态 ✅
+- **MySQL连接**: 已实现异步连接池
+- **Redis连接**: 已实现缓存连接
+- **连接健康检查**: 已实现监控接口
+- **配置管理**: 支持环境变量配置
+
+## 4. API接口设计（实际实现状态）
+
+### 4.1 已实现的API接口 ✅
+
+#### RESTful API规范（已遵循）
+- **URL设计**: `/api/v1/{resource}` 格式
+- **HTTP方法**: 正确使用GET/POST/PUT/DELETE
+- **状态码**: 标准HTTP状态码
+- **数据格式**: JSON格式，使用Pydantic验证
+
+#### 实现的接口列表
+1. **文件上传管理** (`/api/v1/plans/`)
+   - `POST /upload` - Excel文件上传 ✅
+   - `POST /{import_batch_id}/parse` - 文件解析 ✅
+   - `GET /{import_batch_id}/status` - 解析状态查询 ✅
+   - `GET /history` - 上传历史查询 ✅
+   - `GET /statistics` - 上传统计信息 ✅
+   - `GET /{import_batch_id}/decade-plans` - 旬计划查询 ✅
+
+2. **数据查询服务** (`/api/v1/data/`)
+   - `GET /imports` - 导入计划列表查询 ✅
+   - `GET /imports/{import_batch_id}` - 导入计划详情 ✅
+   - `GET /machines` - 机台信息查询 ✅
+   - `GET /materials` - 物料信息查询 ✅
+   - `GET /statistics` - 系统统计信息 ✅
+
+3. **系统监控接口**
+   - `GET /health` - 健康检查 ✅
+   - `GET /config` - 配置信息 ✅
+   - `GET /` - 系统基础信息 ✅
+
+### 4.2 未实现的核心API接口 ❌
+
+#### 排产算法接口（核心缺失）
+- `POST /api/v1/scheduling/start` - 启动排产任务
+- `GET /api/v1/scheduling/tasks/{taskId}/status` - 查询排产状态
+- `GET /api/v1/scheduling/tasks/{taskId}/gantt` - 甘特图数据
+
+#### 工单管理接口（未实现）
+- `GET /api/v1/orders/packing` - 卷包机工单查询
+- `GET /api/v1/orders/feeding` - 喂丝机工单查询
+
+#### MES集成接口（未实现）
+- `POST /api/v1/mes/export` - 工单导出到MES
+- `GET /api/v1/mes/maintenance` - 轮保计划同步
+
+### 4.3 API实现质量评估
+
+#### 优势
+- **代码规范**: 遵循FastAPI最佳实践
+- **类型安全**: 完整的Pydantic模型验证
+- **错误处理**: 详细的异常处理和中文错误信息
+- **自动文档**: FastAPI自动生成API文档（/docs）
+- **性能优化**: 异步处理和数据库连接池
+
+#### 局限性
+- **核心功能缺失**: 排产算法相关接口完全未实现
+- **MES集成缺失**: 与外部系统的集成接口未实现
+- **前端支持不足**: 缺少前端友好的数据格式
+
+## 5. 实现状态总结
+
+### 5.1 已完成的核心模块
+
+#### 技术基础设施 ✅
+- FastAPI框架和应用启动配置
+- MySQL数据库异步连接和ORM
+- Redis缓存连接和配置管理
+- 完整的配置管理系统
+- 健康检查和监控接口
+
+#### 数据导入处理 ✅ (完整实现)
+- Excel文件上传API
+- 复杂Excel解析器（支持多工作表、合并单元格）
+- 数据验证和清洗
+- 导入批次管理
+- 解析结果存储
+
+#### 数据查询服务 ✅
+- 分页查询API
+- 多维度数据过滤
+- 系统统计信息
+- RESTful API设计
+
+### 5.2 未实现的关键模块
+
+#### 排产算法引擎 ❌ (核心缺失)
+- algorithms文件夹完全为空
+- 所有排产算法未实现
+- 工单生成逻辑缺失
+
+#### 前端用户界面 ✅ (完整实现)
+- Vue.js 3 + TypeScript应用完全实现
+- Element Plus UI组件库集成
+- 完整的用户交互界面：
+  - 响应式导航布局
+  - 文件上传和解析流程
+  - 统计信息展示
+  - 历史记录查询
+  - 现代化UI设计
+- 状态管理（Pinia）和路由（Vue Router）
+- 完善的错误处理和用户反馈
+- ❌ 甘特图可视化未实现
+
+#### MES系统集成 ❌
+- 外部系统接口未实现
+- 数据导出功能缺失
+
+### 5.3 后续开发优先级
+
+#### 高优先级（核心功能）
+1. 排产算法引擎开发
+2. 工单生成功能
+3. ✅ 基础前端界面（已完成）
+
+#### 中优先级（系统集成）
+1. MES系统集成
+2. 甘特图可视化
+3. 用户权限管理
+
+#### 低优先级（系统完善）
+1. 报表导出功能
+2. 业务规则配置
+3. 性能监控优化
+
+这个技术设计文档详细描述了APS智慧排产系统的实际实现状态，为后续开发提供了明确的技术方向和优先级指导。

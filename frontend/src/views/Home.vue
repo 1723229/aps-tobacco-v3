@@ -1,0 +1,427 @@
+<template>
+  <div class="home-page">
+    <!-- 页面头部 -->
+    <div class="page-header">
+      <div class="header-content">
+        <div class="header-left">
+          <h1 class="page-title">
+            <el-icon><DataAnalysis /></el-icon>
+            APS 烟草生产计划系统
+          </h1>
+          <p class="page-subtitle">Advanced Planning and Scheduling System</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 系统概览统计 -->
+    <div class="overview-section">
+      <el-row :gutter="24">
+        <el-col :span="6">
+          <el-card class="stat-card">
+            <el-statistic title="今日上传" :value="statistics.today_uploads" suffix="个文件">
+              <template #prefix>
+                <el-icon class="stat-icon upload-icon"><Upload /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="stat-card">
+            <el-statistic title="本月处理" :value="statistics.monthly_processed" suffix="条记录">
+              <template #prefix>
+                <el-icon class="stat-icon process-icon"><DataLine /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="stat-card">
+            <el-statistic title="成功率" :value="statistics.success_rate" suffix="%">
+              <template #prefix>
+                <el-icon class="stat-icon success-icon"><CircleCheck /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="stat-card">
+            <el-statistic title="活跃批次" :value="statistics.active_batches" suffix="个">
+              <template #prefix>
+                <el-icon class="stat-icon batch-icon"><Grid /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
+
+    <!-- 快速操作 -->
+    <div class="quick-actions">
+      <el-row justify="center">
+        <el-col :span="12">
+          <el-card class="action-card" @click="goToEntry">
+            <div class="action-content">
+              <div class="action-icon upload-action">
+                <el-icon><UploadFilled /></el-icon>
+              </div>
+              <div class="action-text">
+                <h3>卷包旬计划录入</h3>
+                <p>上传Excel文件进行旬计划数据录入，查看历史记录</p>
+              </div>
+              <div class="action-arrow">
+                <el-icon><ArrowRight /></el-icon>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
+
+    <!-- 最近活动 -->
+    <div class="recent-activity">
+      <el-card>
+        <template #header>
+          <div class="card-header">
+            <el-icon><List /></el-icon>
+            <span>最近活动</span>
+            <div class="header-actions">
+              <el-button size="small" text @click="refreshActivity">
+                <el-icon><Refresh /></el-icon>
+              </el-button>
+            </div>
+          </div>
+        </template>
+
+        <el-table
+          :data="recentActivity"
+          style="width: 100%"
+          size="small"
+          :loading="activityLoading"
+        >
+          <el-table-column prop="batch_id" label="批次ID" width="150" />
+          <el-table-column prop="file_name" label="文件名" show-overflow-tooltip />
+          <el-table-column prop="upload_time" label="上传时间" width="180">
+            <template #default="{ row }">
+              {{ formatDateTime(row.upload_time) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="total_records" label="记录数" width="100" align="right" />
+          <el-table-column prop="status" label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getStatusColor(row.status)" size="small">
+                {{ getStatusText(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120" align="center">
+            <template #default="{ row }">
+              <el-button
+                size="small"
+                text
+                @click="viewDetails(row.batch_id)"
+              >
+                查看详情
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div v-if="recentActivity.length === 0 && !activityLoading" class="empty-state">
+          <el-empty description="暂无最近活动记录" />
+        </div>
+      </el-card>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import {
+  DataAnalysis,
+  Plus,
+  Upload,
+  DataLine,
+  CircleCheck,
+  Grid,
+  Lightning,
+  UploadFilled,
+  Clock,
+  Download,
+  ArrowRight,
+  List,
+  Refresh
+} from '@element-plus/icons-vue'
+import { formatDateTime, getStatusColor, getStatusText } from '@/utils'
+import { useDecadePlanStore } from '@/stores/decade-plan'
+import DecadePlanAPI from '@/services/api'
+import type { StatisticsData, HistoryRecord } from '@/types/api'
+
+const router = useRouter()
+const decadePlanStore = useDecadePlanStore()
+
+// 响应式数据
+const statistics = ref<StatisticsData>({
+  today_uploads: 0,
+  monthly_processed: 0,
+  success_rate: 0,
+  active_batches: 0
+})
+
+const recentActivity = ref<HistoryRecord[]>([])
+
+const activityLoading = ref(false)
+
+// 方法
+const goToEntry = () => {
+  router.push('/decade-plan/entry?tab=history')
+}
+
+const downloadTemplate = () => {
+  // 模板下载功能移到录入页面
+  router.push('/decade-plan/entry')
+}
+
+const viewDetails = (batchId: string) => {
+  router.push(`/decade-plan/detail/${batchId}`)
+}
+
+const refreshActivity = async () => {
+  activityLoading.value = true
+  try {
+    const historyResponse = await DecadePlanAPI.getUploadHistory(1, 5)
+    recentActivity.value = historyResponse.data.records
+    ElMessage.success('数据已刷新')
+  } catch (error) {
+    console.error('刷新数据失败:', error)
+    ElMessage.error('刷新数据失败')
+  } finally {
+    activityLoading.value = false
+  }
+}
+
+// 加载统计数据
+const loadStatistics = async () => {
+  try {
+    const statsResponse = await DecadePlanAPI.getStatistics()
+    statistics.value = statsResponse.data
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
+  }
+}
+
+// 加载最近活动
+const loadRecentActivity = async () => {
+  try {
+    activityLoading.value = true
+    const historyResponse = await DecadePlanAPI.getUploadHistory(1, 5)
+    recentActivity.value = historyResponse.data.records
+  } catch (error) {
+    console.error('加载最近活动失败:', error)
+  } finally {
+    activityLoading.value = false
+  }
+}
+
+// 生命周期
+onMounted(async () => {
+  console.log('Home page mounted')
+
+  // 并行加载数据
+  await Promise.all([
+    loadStatistics(),
+    loadRecentActivity()
+  ])
+})
+</script>
+
+<style scoped>
+.home-page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+}
+
+.header-left .page-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 12px 0;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.header-left .page-subtitle {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 16px;
+  font-weight: 300;
+}
+
+.overview-section {
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  text-align: center;
+  transition: all 0.3s ease;
+  height: 140px;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.stat-icon {
+  font-size: 24px;
+}
+
+.upload-icon {
+  color: #409eff;
+}
+
+.process-icon {
+  color: #67c23a;
+}
+
+.success-icon {
+  color: #e6a23c;
+}
+
+.batch-icon {
+  color: #f56c6c;
+}
+
+.quick-actions {
+  margin-bottom: 32px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.header-actions {
+  margin-left: auto;
+}
+
+.action-card {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.action-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: #409eff;
+}
+
+.action-content {
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  min-height: 100px;
+}
+
+.action-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20px;
+  font-size: 24px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.upload-action {
+  background: linear-gradient(135deg, #409eff, #67c23a);
+}
+
+.history-action {
+  background: linear-gradient(135deg, #e6a23c, #f56c6c);
+}
+
+.action-text {
+  flex: 1;
+}
+
+.action-text h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  color: #303133;
+  font-weight: 600;
+}
+
+.action-text p {
+  margin: 0;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.action-arrow {
+  font-size: 20px;
+  color: #c0c4cc;
+  transition: color 0.3s ease;
+}
+
+.action-card:hover .action-arrow {
+  color: #409eff;
+}
+
+.recent-activity {
+  margin-bottom: 32px;
+}
+
+.empty-state {
+  padding: 40px 0;
+  text-align: center;
+}
+
+:deep(.el-statistic__number) {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+:deep(.el-statistic__title) {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+:deep(.el-card) {
+  border-radius: 8px;
+}
+
+:deep(.el-card__body) {
+  padding: 20px;
+}
+</style>

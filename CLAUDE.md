@@ -1,152 +1,196 @@
-# Development Guidelines
+# CLAUDE.md
 
-## Philosophy
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-### Core Beliefs
+## Project Overview
 
-- **Incremental progress over big bangs** - Small changes that compile and pass tests
-- **Learning from existing code** - Study and plan before implementing
-- **Pragmatic over dogmatic** - Adapt to project reality
-- **Clear intent over clever code** - Be boring and obvious
+APS智慧排产系统 (APS Tobacco v3) - An intelligent production scheduling system specifically designed for tobacco manufacturing. This system implements advanced scheduling algorithms to process Excel-based production plans, optimize machine allocation, and generate work orders for both packing machines (卷包机) and feeding machines (喂丝机).
 
-### Simplicity Means
+**Key Focus**: The system is primarily designed for processing tobacco packaging production plans with complex business rules including merging, splitting, time correction, and parallel processing algorithms.
 
-- Single responsibility per function/class
-- Avoid premature abstractions
-- No clever tricks - choose the boring solution
-- If you need to explain it, it's too complex
+## Architecture & Technology Stack
 
-## Process
+### Frontend (Vue.js 3 Application)
+- **Framework**: Vue.js 3.5.18 with TypeScript
+- **UI Library**: Element Plus 2.8.8 (Chinese localization)
+- **State Management**: Pinia 3.0.3
+- **Build Tool**: Vite 7.0.6
+- **Location**: `/frontend/`
 
-### 1. Planning & Staging
+### Backend (FastAPI Service)
+- **Framework**: FastAPI 0.104.1 (async Python framework)
+- **ORM**: SQLAlchemy 2.0.23 with async support
+- **Database**: MySQL 8.0+ with aiomysql 0.2.0 driver
+- **Cache**: Redis 7.0+ for session and data caching
+- **Excel Processing**: openpyxl 3.1.2 for complex Excel parsing
+- **Location**: `/backend/`
 
-Break complex work into 3-5 stages. Document in `IMPLEMENTATION_PLAN.md`:
+### Database Architecture
+- **Primary**: MySQL 8.0+ (main data storage)
+- **Cache**: Redis 7.0+ (caching and session management)
+- **Schema**: Comprehensive table structure defined in `/scripts/database-schema.sql`
 
-```markdown
-## Stage N: [Name]
-**Goal**: [Specific deliverable]
-**Success Criteria**: [Testable outcomes]
-**Tests**: [Specific test cases]
-**Status**: [Not Started|In Progress|Complete]
+## Development Commands
+
+### Frontend Development
+```bash
+cd frontend/
+npm install                    # Install dependencies
+npm run dev                   # Development server (localhost:5173)
+npm run build                 # Production build
+npm run type-check           # TypeScript checking
+npm run lint                  # ESLint with --fix
 ```
-- Update status as you progress
-- Remove file when all stages are done
 
-### 2. Implementation Flow
+### Backend Development
+```bash
+cd backend/
+pip install -r requirements.txt   # Install Python dependencies
+python app/main.py                # Run FastAPI server (localhost:8000)
 
-1. **Understand** - Study existing patterns in codebase
-2. **Test** - Write test first (red)
-3. **Implement** - Minimal code to pass (green)
-4. **Refactor** - Clean up with tests passing
-5. **Commit** - With clear message linking to plan
+# Testing
+pytest                            # Run test suite
+pytest --cov=app                 # Run with coverage
 
-### 3. When Stuck (After 3 Attempts)
+# Code Quality
+black .                          # Code formatting
+isort .                          # Import sorting
+flake8 .                         # Linting
+```
 
-**CRITICAL**: Maximum 3 attempts per issue, then STOP.
+## Core Business Logic
 
-1. **Document what failed**:
-   - What you tried
-   - Specific error messages
-   - Why you think it failed
+### Primary Data Flow
+1. **Excel Upload** → File validation and storage
+2. **Excel Parsing** → Complex Excel parsing with merged cells support
+3. **Data Processing** → Apply business rules and validation
+4. **Scheduling Algorithm** → ⚠️ **NOT IMPLEMENTED** - Core scheduling engine missing
+5. **Work Order Generation** → Generate machine work orders
+6. **MES Integration** → ⚠️ **NOT IMPLEMENTED** - External system integration missing
 
-2. **Research alternatives**:
-   - Find 2-3 similar implementations
-   - Note different approaches used
+### Critical Implementation Status
+- ✅ **Fully Implemented**: Excel upload, parsing, data storage, query APIs
+- ❌ **Missing Core Logic**: All scheduling algorithms (`/backend/app/algorithms/` is empty)
+- ❌ **Missing Integration**: MES system interfaces
+- ❌ **Missing Visualization**: Gantt chart components
 
-3. **Question fundamentals**:
-   - Is this the right abstraction level?
-   - Can this be split into smaller problems?
-   - Is there a simpler approach entirely?
+## Key File Structure & Patterns
 
-4. **Try different angle**:
-   - Different library/framework feature?
-   - Different architectural pattern?
-   - Remove abstraction instead of adding?
+### Backend Structure
+```
+backend/app/
+├── api/v1/                    # ✅ API routes (RESTful design)
+│   ├── data.py               # Data query endpoints
+│   ├── plans.py              # Plan upload/parsing endpoints
+│   └── router.py             # Route aggregation
+├── core/config.py            # ✅ Configuration management
+├── db/                       # ✅ Database layer
+│   ├── connection.py         # Async MySQL/Redis connections
+│   └── cache.py              # Redis cache utilities
+├── models/                   # ✅ SQLAlchemy models
+│   ├── base_models.py        # Machine, Material models
+│   └── decade_plan.py        # Plan data models
+├── schemas/base.py           # ✅ Pydantic API schemas
+├── services/excel_parser.py  # ✅ Complex Excel parsing logic
+├── algorithms/               # ❌ EMPTY - Core scheduling missing
+└── main.py                   # ✅ FastAPI application entry
+```
 
-## Technical Standards
+### Frontend Structure
+```
+frontend/src/
+├── components/               # ✅ Business components
+│   ├── DecadePlanUpload.vue  # File upload with drag-drop
+│   ├── DecadePlanTable.vue   # Data display tables
+│   └── ParseResult.vue       # Parse result visualization
+├── views/                    # ✅ Page components
+│   ├── Home.vue              # Dashboard with statistics
+│   ├── DecadePlanEntry.vue   # Plan entry workflow
+│   └── DecadePlanDetail.vue  # Plan details view
+├── services/api.ts           # ✅ API client with axios
+├── stores/decade-plan.ts     # ✅ Pinia state management
+├── router/index.ts           # ✅ Vue Router configuration
+└── types/api.ts              # ✅ TypeScript definitions
+```
 
-### Architecture Principles
+## Development Guidelines
 
-- **Composition over inheritance** - Use dependency injection
-- **Interfaces over singletons** - Enable testing and flexibility
-- **Explicit over implicit** - Clear data flow and dependencies
-- **Test-driven when possible** - Never disable tests, fix them
+### Code Style & Standards
+- **Backend**: Follow PEP 8, use `black` formatter, comprehensive docstrings in Chinese
+- **Frontend**: ESLint configuration with Vue 3 + TypeScript rules
+- **Database**: Consistent naming with `aps_` prefix, proper indexing
 
-### Code Quality
+### API Design Patterns
+- **RESTful**: Consistent URL patterns `/api/v1/{resource}`
+- **Response Format**: Standardized JSON with `code`, `message`, `data` structure
+- **Error Handling**: Comprehensive exception handling with Chinese error messages
+- **Validation**: Strict Pydantic models for request/response validation
 
-- **Every commit must**:
-  - Compile successfully
-  - Pass all existing tests
-  - Include tests for new functionality
-  - Follow project formatting/linting
+### Business Rule Implementation
+The system implements complex tobacco manufacturing business rules:
+- **Merging Rules**: Combine plans with same month/product/machine
+- **Splitting Rules**: Distribute workload across multiple machines
+- **Time Correction**: Handle maintenance schedules and shift constraints
+- **Parallel Processing**: Ensure synchronized machine operations
 
-- **Before committing**:
-  - Run formatters/linters
-  - Self-review changes
-  - Ensure commit message explains "why"
+## Critical Missing Components
 
-### Error Handling
+### 1. Scheduling Algorithm Engine (High Priority)
+**Location**: `/backend/app/algorithms/` (currently empty)
+**Required**: Core scheduling algorithms for:
+- Rule-based merging (`merge_algorithm.py`)
+- Workload splitting (`split_algorithm.py`) 
+- Time correction (`time_correction.py`)
+- Parallel processing (`parallel_processing.py`)
 
-- Fail fast with descriptive messages
-- Include context for debugging
-- Handle errors at appropriate level
-- Never silently swallow exceptions
+### 2. MES System Integration (Medium Priority)
+**Required**: External system interfaces for:
+- Maintenance schedule synchronization
+- Work order dispatch to MES
+- Production status feedback
 
-## Decision Framework
+### 3. Gantt Chart Visualization (Medium Priority)
+**Required**: Frontend visualization components for:
+- Timeline view of work orders
+- Machine utilization charts
+- Schedule conflict visualization
 
-When multiple valid approaches exist, choose based on:
+## Testing Strategy
 
-1. **Testability** - Can I easily test this?
-2. **Readability** - Will someone understand this in 6 months?
-3. **Consistency** - Does this match project patterns?
-4. **Simplicity** - Is this the simplest solution that works?
-5. **Reversibility** - How hard to change later?
+### Backend Testing
+- **Unit Tests**: pytest with async test support
+- **Integration Tests**: Database and API endpoint testing
+- **Test Coverage**: Configured with coverage reporting
+- **Test Data**: Fixtures in `/backend/tests/fixtures/`
 
-## Project Integration
+### Frontend Testing
+- **Framework**: Ready for Vue Test Utils setup
+- **Type Checking**: TypeScript compilation as basic test
+- **Linting**: ESLint for code quality
 
-### Learning the Codebase
+## Configuration Management
 
-- Find 3 similar features/components
-- Identify common patterns and conventions
-- Use same libraries/utilities when possible
-- Follow existing test patterns
+### Environment Variables
+- Database connections via environment variables
+- Redis configuration through settings
+- File upload limits and allowed extensions
+- Business rule parameters
 
-### Tooling
+### Configuration Files
+- **Backend**: `/backend/app/core/config.py` - Pydantic Settings
+- **Frontend**: Vite configuration with proxy to backend
+- **Database**: Schema in `/scripts/database-schema.sql`
 
-- Use project's existing build system
-- Use project's test framework
-- Use project's formatter/linter settings
-- Don't introduce new tools without strong justification
+## Deployment Considerations
 
-## Quality Gates
+### Production Setup
+- **Proxy Configuration**: Vite dev server proxies `/api` to `http://10.0.0.87:8000`
+- **Database**: Requires MySQL 8.0+ with proper indexing
+- **Dependencies**: Node.js 20.19.0+, Python 3.11+
+- **CORS**: Currently allows all origins (should restrict in production)
 
-### Definition of Done
+## Business Context Notes
 
-- [ ] Tests written and passing
-- [ ] Code follows project conventions
-- [ ] No linter/formatter warnings
-- [ ] Commit messages are clear
-- [ ] Implementation matches plan
-- [ ] No TODOs without issue numbers
+This system handles **烟草生产排产** (tobacco production scheduling) with specific Chinese business terminology and processes. The Excel parsing supports complex formats with merged cells representing machine assignments and time ranges. All user-facing text and error messages are in Chinese to match the business context.
 
-### Test Guidelines
-
-- Test behavior, not implementation
-- One assertion per test when possible
-- Clear test names describing scenario
-- Use existing test utilities/helpers
-- Tests should be deterministic
-
-## Important Reminders
-
-**NEVER**:
-- Use `--no-verify` to bypass commit hooks
-- Disable tests instead of fixing them
-- Commit code that doesn't compile
-- Make assumptions - verify with existing code
-
-**ALWAYS**:
-- Commit working code incrementally
-- Update plan documentation as you go
-- Learn from existing implementations
-- Stop after 3 failed attempts and reassess
+**Important**: When implementing missing scheduling algorithms, ensure deep understanding of tobacco manufacturing constraints, machine capabilities, and regulatory requirements specific to Chinese tobacco industry standards.
