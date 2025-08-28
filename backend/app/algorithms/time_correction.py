@@ -349,13 +349,19 @@ class TimeCorrection(AlgorithmBase):
     def _get_shift_end_datetime(self, ref_date: datetime, shift: Dict[str, Any]) -> datetime:
         """获取班次结束时间的完整datetime"""
         end_time_str = shift.get('end_time', '16:00')
-        hour, minute = map(int, end_time_str.split(':'))
         
-        end_date = ref_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        # 处理24:00这样的特殊时间格式
+        if end_time_str == '24:00':
+            hour, minute = 0, 0
+            end_date = ref_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            end_date += timedelta(days=1)  # 24:00表示第二天的0:00
+        else:
+            hour, minute = map(int, end_time_str.split(':'))
+            end_date = ref_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
         
         # 处理跨天的班次
         start_time_str = shift.get('start_time', '08:00')
-        if end_time_str <= start_time_str:
+        if end_time_str != '24:00' and end_time_str <= start_time_str:
             end_date += timedelta(days=1)
         
         return end_date

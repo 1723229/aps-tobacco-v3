@@ -33,6 +33,8 @@
         :before-upload="beforeUpload"
         :on-change="handleFileChange"
         accept=".xlsx,.xls"
+        :multiple="false"
+        :limit="1"
       >
         <div class="upload-content">
           <el-icon class="upload-icon"><UploadFilled /></el-icon>
@@ -174,6 +176,8 @@ const uploadStatus = computed(() => {
 
 // 方法
 const beforeUpload = (file: File): boolean => {
+  console.log('Before upload check:', file.name, file.type, file.size)
+  
   // 验证文件类型
   if (!validateFileType(file, ALLOWED_TYPES)) {
     ElMessage.error('文件格式不正确！请上传 .xlsx 或 .xls 格式的文件')
@@ -186,14 +190,19 @@ const beforeUpload = (file: File): boolean => {
     return false
   }
 
-  return true
+  console.log('File validation passed')
+  return false // 返回 false 阻止自动上传，我们手动处理
 }
 
 const handleFileChange = (file: UploadFile) => {
+  console.log('File change detected:', file)
   if (file.raw) {
     // 重置状态
     resetUploadState()
     currentFile.value = file.raw
+    ElMessage.success(`文件 ${file.name} 已选择，大小: ${formatFileSize(file.size || 0)}`)
+  } else {
+    console.warn('No raw file found in upload file')
   }
 }
 

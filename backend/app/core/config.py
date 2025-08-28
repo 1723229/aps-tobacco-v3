@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     
-    # 数据库配置 - MySQL 8.0+
+    # 数据库配置 - MySQL 8.0+ (真实数据库)
     mysql_url: str = "mysql+aiomysql://root:Mysql_Apex_2025.@10.0.0.87:3306/aps"
     mysql_echo: bool = False
     mysql_pool_size: int = 20

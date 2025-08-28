@@ -95,6 +95,7 @@ class WorkOrderGeneration(AlgorithmBase):
             AlgorithmResult: 工单生成结果
         """
         from app.services.database_query_service import DatabaseQueryService
+        from app.services.mes_integration import mes_service
         
         result = self.create_result()
         result.input_data = input_data
@@ -108,7 +109,8 @@ class WorkOrderGeneration(AlgorithmBase):
         result.metrics.custom_metrics = {
             'used_real_database_data': True,
             'product_specs_count': len(product_specs),
-            'quality_standards_count': len(quality_standards)
+            'quality_standards_count': len(quality_standards),
+            'mes_integration_enabled': True
         }
         
         generated_work_orders = []
@@ -151,6 +153,23 @@ class WorkOrderGeneration(AlgorithmBase):
             'synchronized_work_orders': sync_orders,
             'generation_success_rate': len(generated_work_orders) / len(input_data) if input_data else 0
         })
+        
+        # 推送工单到MES系统
+        try:
+            mes_response = await mes_service.send_work_order_to_mes(generated_work_orders)
+            result.metrics.custom_metrics.update({
+                'mes_push_success': mes_response.success,
+                'mes_accepted_orders': mes_response.data.get('accepted_count', 0) if mes_response.data else 0,
+                'mes_rejected_orders': mes_response.data.get('rejected_count', 0) if mes_response.data else 0,
+                'mes_batch_id': mes_response.data.get('mes_batch_id') if mes_response.data else None
+            })
+            logger.info(f"MES推送结果: {mes_response.message}")
+        except Exception as e:
+            logger.warning(f"MES推送失败，继续执行: {str(e)}")
+            result.metrics.custom_metrics.update({
+                'mes_push_success': False,
+                'mes_error': str(e)
+            })
         
         logger.info(f"工单生成完成(真实数据): 喂丝机{feeder_orders}个，卷包机{maker_orders}个，同步{sync_orders}个")
         return self.finalize_result(result)
@@ -458,3 +477,207 @@ def generate_work_orders(
     
     result = generator.process(parallel_orders, **kwargs)
     return result.output_data
+
+
+# 为WorkOrderGeneration类添加数据库持久化方法
+def add_database_persistence_methods():
+    """为WorkOrderGeneration类动态添加数据库持久化方法"""
+    import types
+    
+    async def save_work_orders_to_database(self, work_orders: List[Dict[str, Any]], task_id: str) -> AlgorithmResult:
+        """将工单保存到数据库"""
+        from app.db.connection import get_db_session
+        from sqlalchemy import text
+        from datetime import datetime, date
+        import json
+        
+        result = self.create_result()
+        result.input_data = work_orders
+        result.metrics.processed_records = len(work_orders)
+        
+        packing_orders_saved = 0
+        feeding_orders_saved = 0
+        
+        async with get_db_session() as db:
+            try:
+                for work_order in work_orders:
+                    # 提取公共字段
+                    common_fields = self._extract_common_work_order_fields(work_order, task_id)
+                    
+                    if work_order.get('machine_type') == 'MAKER':
+                        # 保存卷包工单
+                        await self._save_packing_order(db, common_fields, work_order)
+                        packing_orders_saved += 1
+                        
+                    elif work_order.get('machine_type') == 'FEEDER':
+                        # 保存喂丝工单
+                        await self._save_feeding_order(db, common_fields, work_order)
+                        feeding_orders_saved += 1
+                        
+                    else:
+                        # 默认保存为卷包工单
+                        await self._save_packing_order(db, common_fields, work_order)
+                        packing_orders_saved += 1
+                
+                await db.commit()
+                logger.info(f"工单保存完成: 卷包工单{packing_orders_saved}个，喂丝工单{feeding_orders_saved}个")
+                
+            except Exception as e:
+                await db.rollback()
+                error_msg = f"工单保存失败: {str(e)}"
+                logger.error(error_msg)
+                result.add_error(error_msg)
+                return self.finalize_result(result)
+        
+        result.output_data = {
+            'packing_orders_saved': packing_orders_saved,
+            'feeding_orders_saved': feeding_orders_saved,
+            'total_saved': packing_orders_saved + feeding_orders_saved
+        }
+        
+        result.metrics.custom_metrics = {
+            'packing_orders_saved': packing_orders_saved,
+            'feeding_orders_saved': feeding_orders_saved,
+            'save_success_rate': (packing_orders_saved + feeding_orders_saved) / len(work_orders) if work_orders else 0
+        }
+        
+        result.success = True
+        return result
+    
+    def _extract_common_work_order_fields(self, work_order: Dict[str, Any], task_id: str) -> Dict[str, Any]:
+        """提取工单公共字段"""
+        from datetime import datetime, date
+        
+        # 处理时间字段
+        def safe_datetime(value):
+            if isinstance(value, datetime):
+                return value
+            elif isinstance(value, str):
+                try:
+                    return datetime.fromisoformat(value.replace('Z', '+00:00'))
+                except:
+                    return datetime.now()
+            else:
+                return datetime.now()
+                
+        def safe_date(value):
+            if isinstance(value, date):
+                return value
+            elif isinstance(value, datetime):
+                return value.date()
+            elif isinstance(value, str):
+                try:
+                    return datetime.fromisoformat(value.replace('Z', '+00:00')).date()
+                except:
+                    return datetime.now().date()
+            else:
+                return datetime.now().date()
+        
+        # 处理数值字段
+        def safe_int(value, default=0):
+            try:
+                return int(value) if value is not None else default
+            except (ValueError, TypeError):
+                return default
+        
+        planned_start = safe_datetime(work_order.get('planned_start_time') or work_order.get('planned_start'))
+        planned_end = safe_datetime(work_order.get('planned_end_time') or work_order.get('planned_end'))
+        
+        return {
+            'work_order_nr': work_order.get('work_order_nr', ''),
+            'task_id': task_id,
+            'article_nr': work_order.get('product_code', ''),
+            'quantity_total': safe_int(work_order.get('plan_quantity')),
+            'final_quantity': safe_int(work_order.get('plan_quantity')),
+            'planned_start': planned_start,
+            'planned_end': planned_end,
+            'sequence': safe_int(work_order.get('sequence'), 1),
+            'plan_date': safe_date(planned_start),
+            'work_order_type': work_order.get('work_order_type', 'MAKER')[:10],
+            'machine_code': work_order.get('machine_code', '')[:20],
+            'product_code': work_order.get('product_code', '')[:100],
+            'plan_quantity': safe_int(work_order.get('plan_quantity')),
+            'work_order_status': 'PENDING',
+            'planned_start_time': planned_start,
+            'planned_end_time': planned_end,
+            'created_by': work_order.get('created_by', 'system')
+        }
+    
+    async def _save_packing_order(self, db, common_fields: Dict[str, Any], work_order: Dict[str, Any]):
+        """保存卷包工单到aps_packing_order表"""
+        from sqlalchemy import text
+        
+        # 卷包工单特有字段
+        packing_fields = common_fields.copy()
+        packing_fields.update({
+            'maker_code': work_order.get('machine_code', '')[:20],
+            'machine_type': 'MAKER',
+            'unit': work_order.get('plan_unit', '箱')[:20],
+            'production_speed': int(work_order.get('production_speed', 0)) if work_order.get('production_speed') else None,
+            'feeder_code': work_order.get('feeder_code', '')[:20] if work_order.get('feeder_code') else '',
+            'estimated_duration': int((packing_fields['planned_end'] - packing_fields['planned_start']).total_seconds() / 60) if packing_fields['planned_end'] and packing_fields['planned_start'] else None,
+        })
+        
+        insert_sql = text('''
+            INSERT INTO aps_packing_order (
+                work_order_nr, task_id, original_order_nr, article_nr, quantity_total, final_quantity,
+                maker_code, machine_type, planned_start, planned_end, estimated_duration, sequence,
+                unit, plan_date, production_speed, feeder_code, work_order_type, machine_code,
+                product_code, plan_quantity, work_order_status, planned_start_time, planned_end_time,
+                created_by
+            ) VALUES (
+                :work_order_nr, :task_id, :work_order_nr, :article_nr, :quantity_total, :final_quantity,
+                :maker_code, :machine_type, :planned_start, :planned_end, :estimated_duration, :sequence,
+                :unit, :plan_date, :production_speed, :feeder_code, :work_order_type, :machine_code,
+                :product_code, :plan_quantity, :work_order_status, :planned_start_time, :planned_end_time,
+                :created_by
+            )
+        ''')
+        
+        await db.execute(insert_sql, packing_fields)
+    
+    async def _save_feeding_order(self, db, common_fields: Dict[str, Any], work_order: Dict[str, Any]):
+        """保存喂丝工单到aps_feeding_order表"""
+        from sqlalchemy import text
+        import json
+        
+        # 喂丝工单特有字段
+        feeding_fields = common_fields.copy()
+        feeding_fields.update({
+            'base_quantity': feeding_fields['quantity_total'],
+            'feeder_code': work_order.get('machine_code', '')[:20],
+            'feeder_type': work_order.get('feeder_type', '')[:50] if work_order.get('feeder_type') else None,
+            'machine_type': 'FEEDER',
+            'unit': work_order.get('plan_unit', '公斤')[:20],
+            'feeding_speed': float(work_order.get('feeding_rate', 0)) if work_order.get('feeding_rate') else None,
+            'related_packing_orders': json.dumps(work_order.get('related_packing_orders', [])),
+            'packing_machines': json.dumps(work_order.get('packing_machines', [])),
+            'estimated_duration': int((feeding_fields['planned_end'] - feeding_fields['planned_start']).total_seconds() / 60) if feeding_fields['planned_end'] and feeding_fields['planned_start'] else None,
+        })
+        
+        insert_sql = text('''
+            INSERT INTO aps_feeding_order (
+                work_order_nr, task_id, article_nr, quantity_total, base_quantity, feeder_code,
+                feeder_type, planned_start, planned_end, estimated_duration, sequence, unit,
+                plan_date, feeding_speed, related_packing_orders, packing_machines, work_order_type,
+                machine_type, machine_code, product_code, plan_quantity, work_order_status,
+                planned_start_time, planned_end_time, created_by
+            ) VALUES (
+                :work_order_nr, :task_id, :article_nr, :quantity_total, :base_quantity, :feeder_code,
+                :feeder_type, :planned_start, :planned_end, :estimated_duration, :sequence, :unit,
+                :plan_date, :feeding_speed, :related_packing_orders, :packing_machines, :work_order_type,
+                :machine_type, :machine_code, :product_code, :plan_quantity, :work_order_status,
+                :planned_start_time, :planned_end_time, :created_by
+            )
+        ''')
+        
+        await db.execute(insert_sql, feeding_fields)
+    
+    # 将方法动态添加到WorkOrderGeneration类
+    WorkOrderGeneration.save_work_orders_to_database = save_work_orders_to_database
+    WorkOrderGeneration._extract_common_work_order_fields = _extract_common_work_order_fields
+    WorkOrderGeneration._save_packing_order = _save_packing_order
+    WorkOrderGeneration._save_feeding_order = _save_feeding_order
+
+# 调用函数添加方法
+add_database_persistence_methods()

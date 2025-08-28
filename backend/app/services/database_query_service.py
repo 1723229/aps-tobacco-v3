@@ -284,3 +284,49 @@ class DatabaseQueryService:
             
             logger.info(f"查询到 {len(relations)} 个喂丝机的机台关系")
             return relations
+    
+    @staticmethod
+    async def get_machine_speeds() -> Dict[str, Dict[str, Any]]:
+        """
+        查询机台速度配置
+        
+        Returns:
+            Dict[str, Dict]: {机台代码: {速度配置}}
+        """
+        query = """
+        SELECT machine_code, article_nr as product_code, speed,
+               efficiency_rate
+        FROM aps_machine_speed 
+        WHERE status = 'ACTIVE'
+        AND (effective_to IS NULL OR effective_to >= CURDATE())
+        ORDER BY machine_code, article_nr
+        """
+        
+        async with get_db_session() as db:
+            result = await db.execute(text(query))
+            rows = result.fetchall()
+            
+            speeds = {}
+            for row in rows:
+                machine_code = row.machine_code
+                
+                if machine_code not in speeds:
+                    speeds[machine_code] = {
+                        'hourly_capacity': float(row.speed or 100),
+                        'daily_capacity': float(row.speed or 100) * 24,
+                        'efficiency_rate': float(row.efficiency_rate or 0.85),
+                        'setup_time_minutes': 30,  # 默认值
+                        'changeover_time_minutes': 15,  # 默认值
+                        'product_speeds': {}
+                    }
+                
+                # 如果有产品特定速度，记录下来
+                if row.product_code:
+                    speeds[machine_code]['product_speeds'][row.product_code] = {
+                        'hourly_capacity': float(row.speed or 100),
+                        'daily_capacity': float(row.speed or 100) * 24,
+                        'efficiency_rate': float(row.efficiency_rate or 0.85)
+                    }
+            
+            logger.info(f"查询到 {len(speeds)} 个机台的速度配置")
+            return speeds

@@ -491,34 +491,63 @@ async def get_upload_history(
     page: int = 1,
     page_size: int = 20,
     status: Optional[str] = None,
+    scheduling_status: Optional[str] = None,  # 新增：排产状态过滤
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    获取上传历史记录接口
+    获取上传历史记录，包含排产状态信息
     
     Args:
         page: 页码，从1开始
         page_size: 每页大小，默认20
         status: 过滤状态，可选值：UPLOADING, PARSING, COMPLETED, FAILED
+        scheduling_status: 排产状态过滤
+            - unscheduled: 未排产
+            - scheduling: 排产中  
+            - completed: 排产完成
+            - failed: 排产失败
         db: 数据库会话
     """
     try:
-        from sqlalchemy import select, and_, desc, func
+        from sqlalchemy import select, and_, desc, func, outerjoin
+        from app.models.scheduling_models import SchedulingTask, SchedulingTaskStatus
+        
+        # 构建联合查询：ImportPlan + SchedulingTask
+        base_query = select(
+            ImportPlan,
+            SchedulingTask.task_id,
+            SchedulingTask.task_status,
+            SchedulingTask.result_summary
+        ).outerjoin(
+            SchedulingTask, 
+            ImportPlan.import_batch_id == SchedulingTask.import_batch_id
+        )
         
         # 构建查询条件
         conditions = []
         if status:
             conditions.append(ImportPlan.import_status == status)
+            
+        # 排产状态过滤
+        if scheduling_status == 'unscheduled':
+            conditions.append(SchedulingTask.task_id == None)
+        elif scheduling_status == 'scheduling':
+            conditions.append(SchedulingTask.task_status == SchedulingTaskStatus.RUNNING)
+        elif scheduling_status == 'completed':
+            conditions.append(SchedulingTask.task_status == SchedulingTaskStatus.COMPLETED)
+        elif scheduling_status == 'failed':
+            conditions.append(SchedulingTask.task_status == SchedulingTaskStatus.FAILED)
         
-        # 构建基础查询
-        base_query = select(ImportPlan)
         if conditions:
             base_query = base_query.where(and_(*conditions))
         
         # 获取总数
         count_query = select(func.count()).select_from(ImportPlan)
         if conditions:
-            count_query = count_query.where(and_(*conditions))
+            count_query = count_query.outerjoin(
+                SchedulingTask, 
+                ImportPlan.import_batch_id == SchedulingTask.import_batch_id
+            ).where(and_(*conditions))
         
         count_result = await db.execute(count_query)
         total_count = count_result.scalar()
@@ -528,11 +557,25 @@ async def get_upload_history(
         query = base_query.order_by(desc(ImportPlan.created_time)).offset(offset).limit(page_size)
         
         result = await db.execute(query)
-        import_plans = result.scalars().all()
+        records_with_tasks = result.fetchall()
         
         # 转换为响应格式
         records = []
-        for plan in import_plans:
+        for plan, task_id, task_status, result_summary in records_with_tasks:
+            # 确定排产状态
+            if not task_id:
+                scheduling_status_value = 'unscheduled'
+                scheduling_text = '未排产'
+            else:
+                scheduling_status_value = task_status.value.lower()
+                scheduling_text = {
+                    'pending': '待排产',
+                    'running': '排产中',
+                    'completed': '已完成',
+                    'failed': '排产失败',
+                    'cancelled': '已取消'
+                }.get(task_status.value.lower(), task_status.value)
+            
             records.append({
                 "batch_id": plan.import_batch_id,
                 "file_name": plan.file_name,
@@ -544,7 +587,14 @@ async def get_upload_history(
                 "total_records": plan.total_records,
                 "valid_records": plan.valid_records,
                 "error_records": plan.error_records,
-                "error_message": plan.error_message
+                "error_message": plan.error_message,
+                
+                # 新增排产相关信息
+                "task_id": task_id,
+                "scheduling_status": scheduling_status_value,
+                "scheduling_text": scheduling_text,
+                "work_orders_summary": result_summary.get('total_work_orders', 0) if result_summary else 0,
+                "can_schedule": plan.import_status == 'COMPLETED' and not task_id,  # 已解析且未排产
             })
         
         # 计算分页信息
@@ -702,3 +752,102 @@ async def get_decade_plans(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查询旬计划失败：{str(e)}")
+
+
+@router.get("/available-for-scheduling")
+async def get_available_batches_for_scheduling(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取可用于排产的批次列表
+    条件：import_status = 'COMPLETED' 且没有对应的排产任务
+    """
+    try:
+        from sqlalchemy import select, and_, desc, outerjoin
+        from app.models.scheduling_models import SchedulingTask
+        
+        # 查询已解析完成但未排产的批次
+        query = select(ImportPlan).outerjoin(
+            SchedulingTask, 
+            ImportPlan.import_batch_id == SchedulingTask.import_batch_id
+        ).where(and_(
+            ImportPlan.import_status == 'COMPLETED',
+            SchedulingTask.task_id == None  # 未排产
+        )).order_by(desc(ImportPlan.created_time))
+        
+        result = await db.execute(query)
+        import_plans = result.scalars().all()
+        
+        # 转换为响应格式
+        available_batches = []
+        for plan in import_plans:
+            available_batches.append({
+                "batch_id": plan.import_batch_id,
+                "file_name": plan.file_name,
+                "total_records": plan.total_records,
+                "valid_records": plan.valid_records,
+                "import_end_time": plan.import_end_time.isoformat() if plan.import_end_time else None,
+                "display_name": f"{plan.file_name} ({plan.valid_records}条记录)",
+                "can_schedule": True
+            })
+        
+        return SuccessResponse(
+            code=200,
+            message="查询成功",
+            data={
+                "available_batches": available_batches,
+                "total_count": len(available_batches)
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询可排产批次失败：{str(e)}")
+
+
+@router.get("/{import_batch_id}/scheduling-history")
+async def get_batch_scheduling_history(
+    import_batch_id: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取特定批次的所有排产历史记录
+    """
+    try:
+        from sqlalchemy import select, desc
+        from app.models.scheduling_models import SchedulingTask
+        
+        # 查询该批次的所有排产任务
+        query = select(SchedulingTask).where(
+            SchedulingTask.import_batch_id == import_batch_id
+        ).order_by(desc(SchedulingTask.created_time))
+        
+        result = await db.execute(query)
+        tasks = result.scalars().all()
+        
+        # 转换为响应格式
+        history_records = []
+        for task in tasks:
+            history_records.append({
+                "task_id": task.task_id,
+                "task_name": task.task_name,
+                "status": task.task_status.value,
+                "progress": task.progress,
+                "start_time": task.start_time.isoformat() if task.start_time else None,
+                "end_time": task.end_time.isoformat() if task.end_time else None,
+                "execution_duration": task.execution_duration,
+                "error_message": task.error_message,
+                "result_summary": task.result_summary
+            })
+        
+        return SuccessResponse(
+            code=200,
+            message="查询成功",
+            data={
+                "import_batch_id": import_batch_id,
+                "total_tasks": len(history_records),
+                "history": history_records
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询批次排产历史失败：{str(e)}")

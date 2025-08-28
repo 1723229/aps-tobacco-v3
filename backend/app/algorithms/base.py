@@ -48,6 +48,7 @@ class AlgorithmResult:
     status: ProcessingStatus = ProcessingStatus.PENDING
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
+    success: bool = True
     
     input_data: List[Dict[str, Any]] = field(default_factory=list)
     output_data: List[Dict[str, Any]] = field(default_factory=list)

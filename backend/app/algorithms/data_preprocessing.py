@@ -43,7 +43,7 @@ class DataPreprocessor(AlgorithmBase):
         return self.finalize_result(result)
     
     def _clean_data(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """清洗数据，移除空记录"""
+        """清洗数据，移除空记录，添加字段映射"""
         cleaned_data = []
         
         for record in data:
@@ -51,8 +51,56 @@ class DataPreprocessor(AlgorithmBase):
             if self._is_empty_record(record):
                 logger.debug(f"移除空记录: {record}")
                 continue
+            
+            # 创建标准化记录副本
+            cleaned_record = record.copy()
+            
+            # 添加字段映射和标准化
+            # 1. 产品代码映射
+            cleaned_record['product_code'] = record.get('article_nr', '')
+            
+            # 2. 机台类型判断 - 基于机台代码推断
+            maker_code = record.get('maker_code', '')
+            if maker_code:
+                # 卷包机代码通常以C开头或包含数字
+                if maker_code.startswith('C') or any(c.isdigit() for c in maker_code):
+                    cleaned_record['machine_type'] = 'MAKER'
+                else:
+                    cleaned_record['machine_type'] = 'FEEDER'
+            else:
+                cleaned_record['machine_type'] = 'MAKER'  # 默认卷包机
+            
+            # 3. 数量字段标准化（添加类型检查）
+            try:
+                quantity_total = record.get('quantity_total', 0)
+                if isinstance(quantity_total, (int, float)):
+                    cleaned_record['plan_quantity'] = int(quantity_total)
+                elif isinstance(quantity_total, str) and quantity_total.isdigit():
+                    cleaned_record['plan_quantity'] = int(quantity_total)
+                else:
+                    cleaned_record['plan_quantity'] = 0
+            except (ValueError, TypeError):
+                cleaned_record['plan_quantity'] = 0
+            
+            # 4. 时间字段处理
+            if record.get('planned_start'):
+                cleaned_record['planned_start'] = record.get('planned_start')
+            if record.get('planned_end'):
+                cleaned_record['planned_end'] = record.get('planned_end')
+            
+            # 5. 机台代码处理（可能包含多个机台，用逗号分隔）
+            if ',' in maker_code:
+                # 如果是多机台，保留原始格式，后续拆分算法会处理
+                cleaned_record['maker_code'] = maker_code
+                cleaned_record['is_multi_machine'] = True
+            else:
+                cleaned_record['maker_code'] = maker_code
+                cleaned_record['is_multi_machine'] = False
+            
+            # 6. 喂丝机代码
+            cleaned_record['feeder_code'] = record.get('feeder_code', '')
                 
-            cleaned_data.append(record)
+            cleaned_data.append(cleaned_record)
         
         logger.info(f"数据清洗完成: 原始{len(data)}条 -> 清洗后{len(cleaned_data)}条")
         return cleaned_data

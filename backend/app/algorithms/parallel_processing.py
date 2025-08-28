@@ -89,7 +89,7 @@ class ParallelProcessing(AlgorithmBase):
         
         # 从数据库查询机台关系和速度配置
         machine_relations = await DatabaseQueryService.get_machine_relations()
-        machine_speeds = await self._get_machine_speeds_from_db()
+        machine_speeds = await DatabaseQueryService.get_machine_speeds()
         
         # 标记使用了真实数据库数据
         result.metrics.custom_metrics = {
@@ -347,18 +347,6 @@ class ParallelProcessing(AlgorithmBase):
             sync_end = sync_start + max(feeder_duration, maker_duration)
         
         return sync_start, sync_end
-    
-    async def _get_machine_speeds_from_db(self) -> Dict[str, Dict[str, Any]]:
-        """从数据库查询机台速度配置"""
-        # TODO: 实现真实的数据库查询
-        # 这里暂时返回默认速度配置
-        return {
-            'default': {
-                'hourly_capacity': 100,
-                'efficiency_rate': 0.85,
-                'setup_time_minutes': 30
-            }
-        }
 
 
 def create_parallel_processing() -> ParallelProcessing:

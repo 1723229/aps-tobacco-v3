@@ -58,9 +58,18 @@
 
     <!-- 快速操作 -->
     <div class="quick-actions">
-      <el-row justify="center">
-        <el-col :span="12">
-          <el-card class="action-card" @click="goToEntry">
+      <el-row :gutter="24" justify="center">
+        <el-col :span="8">
+          <el-card class="action-card upload-card" @click="goToEntry">
+            <div class="card-header">
+              <div class="header-logo">
+                <el-icon><UploadFilled /></el-icon>
+              </div>
+              <div class="header-menu">
+                <el-icon><Upload /></el-icon>
+                <span>数据录入</span>
+              </div>
+            </div>
             <div class="action-content">
               <div class="action-icon upload-action">
                 <el-icon><UploadFilled /></el-icon>
@@ -68,6 +77,56 @@
               <div class="action-text">
                 <h3>卷包旬计划录入</h3>
                 <p>上传Excel文件进行旬计划数据录入，查看历史记录</p>
+              </div>
+              <div class="action-arrow">
+                <el-icon><ArrowRight /></el-icon>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="8">
+          <el-card class="action-card machine-config-card" @click="goToMachineConfig">
+            <div class="card-header">
+              <div class="header-logo">
+                <el-icon><Grid /></el-icon>
+              </div>
+              <div class="header-menu">
+                <el-icon><Setting /></el-icon>
+                <span>配置管理</span>
+              </div>
+            </div>
+            <div class="action-content">
+              <div class="action-icon config-action">
+                <el-icon><Grid /></el-icon>
+              </div>
+              <div class="action-text">
+                <h3>机台配置管理</h3>
+                <p>管理机台信息、关系配置、速度设置、维护计划和班次</p>
+              </div>
+              <div class="action-arrow">
+                <el-icon><ArrowRight /></el-icon>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="8">
+          <el-card class="action-card scheduling-card" @click="goToScheduling">
+            <div class="card-header">
+              <div class="header-logo">
+                <el-icon><Lightning /></el-icon>
+              </div>
+              <div class="header-menu">
+                <el-icon><DataAnalysis /></el-icon>
+                <span>智能排产</span>
+              </div>
+            </div>
+            <div class="action-content">
+              <div class="action-icon scheduling-action">
+                <el-icon><Lightning /></el-icon>
+              </div>
+              <div class="action-text">
+                <h3>智能排产管理</h3>
+                <p>智能算法排产，优化生产计划，提升生产效率</p>
               </div>
               <div class="action-arrow">
                 <el-icon><ArrowRight /></el-icon>
@@ -152,7 +211,8 @@ import {
   Download,
   ArrowRight,
   List,
-  Refresh
+  Refresh,
+  Setting
 } from '@element-plus/icons-vue'
 import { formatDateTime, getStatusColor, getStatusText } from '@/utils'
 import { useDecadePlanStore } from '@/stores/decade-plan'
@@ -177,6 +237,14 @@ const activityLoading = ref(false)
 // 方法
 const goToEntry = () => {
   router.push('/decade-plan/entry?tab=history')
+}
+
+const goToMachineConfig = () => {
+  router.push('/machine-config')
+}
+
+const goToScheduling = () => {
+  router.push('/scheduling')
 }
 
 const downloadTemplate = () => {
@@ -334,6 +402,7 @@ onMounted(async () => {
   transition: all 0.3s ease;
   border-radius: 12px;
   overflow: hidden;
+  height: 180px; /* 增加高度以适应header */
 }
 
 .action-card:hover {
@@ -423,5 +492,147 @@ onMounted(async () => {
 
 :deep(.el-card__body) {
   padding: 20px;
+}
+
+/* 快速操作卡片图标样式 */
+.upload-action {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.config-action {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.scheduling-action {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+/* 机台配置卡片特殊样式 */
+.machine-config-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.machine-config-card .card-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  color: white;
+  font-size: 12px;
+  z-index: 1;
+  border-radius: 8px 8px 0 0;
+}
+
+.machine-config-card .header-logo {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.machine-config-card .header-menu {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.machine-config-card .action-content {
+  margin-top: 40px;
+  padding: 16px 24px 24px 24px; /* 减少上方padding来补偿header高度 */
+  min-height: 100px; /* 调整最小高度 */
+}
+
+/* 卷包旬计划录入卡片特殊样式 */
+.upload-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-card .card-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  color: white;
+  font-size: 12px;
+  z-index: 1;
+  border-radius: 8px 8px 0 0;
+}
+
+.upload-card .header-logo {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.upload-card .header-menu {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.upload-card .action-content {
+  margin-top: 40px;
+  padding: 16px 24px 24px 24px;
+  min-height: 100px;
+}
+
+/* 智能排产管理卡片特殊样式 */
+.scheduling-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.scheduling-card .card-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  color: white;
+  font-size: 12px;
+  z-index: 1;
+  border-radius: 8px 8px 0 0;
+}
+
+.scheduling-card .header-logo {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.scheduling-card .header-menu {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.scheduling-card .action-content {
+  margin-top: 40px;
+  padding: 16px 24px 24px 24px;
+  min-height: 100px;
 }
 </style>

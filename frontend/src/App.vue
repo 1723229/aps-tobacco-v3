@@ -30,13 +30,17 @@
                   <el-icon><Setting /></el-icon>
                   <span>排产作业</span>
                 </template>
-                <el-menu-item index="/decade-plan/entry?tab=history">
+                <el-menu-item index="/decade-plan/entry">
                   <el-icon><UploadFilled /></el-icon>
                   <span>卷包旬计划录入</span>
                 </el-menu-item>
-                <el-menu-item index="start-production">
+                <el-menu-item index="/scheduling">
                   <el-icon><Operation /></el-icon>
-                  <span>开始排产</span>
+                  <span>智能排产管理</span>
+                </el-menu-item>
+                <el-menu-item index="/machine-config">
+                  <el-icon><Setting /></el-icon>
+                  <span>机台配置管理</span>
                 </el-menu-item>
               </el-sub-menu>
             </el-menu>
@@ -125,7 +129,8 @@ import {
   Bell,
   User,
   Setting,
-  Operation
+  Operation,
+  Monitor
 } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 
@@ -153,13 +158,26 @@ const notifications = ref([
 const activeMenuIndex = computed(() => {
   const path = route.path
   if (path.startsWith('/decade-plan/entry')) {
-    // If we're on the entry page with history tab, show the menu with history
-    if (route.query.tab === 'history') {
-      return '/decade-plan/entry?tab=history'
-    }
-    return '/decade-plan/entry?tab=history'
+    return '/decade-plan/entry'
   }
-  if (path.startsWith('/about')) return '/about'
+  if (path === '/scheduling') {
+    return '/scheduling'
+  }
+  if (path.startsWith('/scheduling/history')) {
+    return '/scheduling/history'
+  }
+  if (path.startsWith('/scheduling/task')) {
+    return '/scheduling/history'
+  }
+  if (path.startsWith('/gantt-chart')) {
+    return '/gantt-chart'
+  }
+  if (path.startsWith('/machine-config')) {
+    return '/machine-config'
+  }
+  if (path.startsWith('/about')) {
+    return '/about'
+  }
   return '/'
 })
 
@@ -175,19 +193,7 @@ const handleMenuSelect = (index: string) => {
     router.push(index)
   } else {
     // 处理其他菜单项
-    switch (index) {
-      case 'start-production':
-        ElMessage.info('开始排产功能开发中...')
-        break
-      case 'history-upload':
-        ElMessage.info('上传记录功能开发中...')
-        break
-      case 'history-process':
-        ElMessage.info('处理记录功能开发中...')
-        break
-      default:
-        ElMessage.info(`${index} 功能开发中...`)
-    }
+    ElMessage.info(`${index} 功能开发中...`)
   }
 }
 

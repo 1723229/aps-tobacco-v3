@@ -7,6 +7,7 @@ APS智慧排产系统 - 数据库连接模块
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
+from sqlalchemy import text
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 import logging
@@ -117,7 +118,7 @@ async def check_database_connection():
     """检查数据库连接状态"""
     try:
         async with engine.begin() as conn:
-            result = await conn.execute("SELECT 1 as health_check")
+            result = await conn.execute(text("SELECT 1 as health_check"))
             row = result.fetchone()
             if row and row[0] == 1:
                 logger.info("Database connection healthy")

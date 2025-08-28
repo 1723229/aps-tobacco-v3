@@ -8,7 +8,8 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
 
-from .base import AlgorithmBase, AlgorithmResult, ProcessingStage, ProcessingStatus, AlgorithmPipeline
+from .base import AlgorithmBase, AlgorithmResult, ProcessingStage, ProcessingStatus
+from .pipeline import AlgorithmPipeline
 from .data_preprocessing import DataPreprocessor
 from .merge_algorithm import MergeAlgorithm
 from .split_algorithm import SplitAlgorithm
@@ -21,7 +22,7 @@ class SchedulingEngine:
     
     def __init__(self, task_id: Optional[str] = None):
         self.task_id = task_id
-        self.pipeline = AlgorithmPipeline(task_id)
+        self.pipeline = AlgorithmPipeline()
         self.logger = logging.getLogger(f"{__name__}.SchedulingEngine")
         
         # 构建算法流水线
@@ -29,14 +30,55 @@ class SchedulingEngine:
     
     def _setup_pipeline(self):
         """设置算法流水线"""
-        # 添加核心算法到流水线
-        self.pipeline.add_algorithm(DataPreprocessor())
-        self.pipeline.add_algorithm(MergeAlgorithm())
+        # AlgorithmPipeline 已经在初始化时设置了所有算法
+        # 不需要额外设置
+        pass
+    
+    async def execute_scheduling_pipeline(
+        self,
+        input_data: List[Dict[str, Any]], 
+        config: Dict[str, Any] = None
+    ) -> AlgorithmResult:
+        """
+        执行完整的排产算法管道
         
-        # 注意：其他算法（时间校正、并行处理、工单生成）待实现后添加
-        # self.pipeline.add_algorithm(TimeCorrection())
-        # self.pipeline.add_algorithm(ParallelProcessor())
-        # self.pipeline.add_algorithm(WorkOrderGenerator())
+        Args:
+            input_data: 输入的计划数据
+            config: 算法配置
+            
+        Returns:
+            AlgorithmResult: 管道执行结果
+        """
+        from .base import AlgorithmResult, ProcessingStage, ProcessingStatus
+        
+        if config is None:
+            config = {}
+            
+        self.logger.info(f"开始执行排产管道 - 输入{len(input_data)}条数据")
+        
+        # 使用AlgorithmPipeline执行完整流程
+        pipeline_result = await self.pipeline.execute_full_pipeline(
+            raw_plan_data=input_data,
+            use_real_data=config.get('use_real_data', True)
+        )
+        
+        # 转换为AlgorithmResult格式
+        result = AlgorithmResult(
+            stage=ProcessingStage.WORK_ORDER_GENERATION,
+            status=ProcessingStatus.COMPLETED if pipeline_result['success'] else ProcessingStatus.FAILED
+        )
+        result.input_data = input_data
+        result.output_data = pipeline_result.get('final_work_orders', [])
+        result.success = pipeline_result['success']
+        
+        if not pipeline_result['success']:
+            result.add_error(pipeline_result.get('error', '管道执行失败'))
+        
+        result.metrics.processed_records = len(input_data)
+        result.metrics.custom_metrics = pipeline_result.get('summary', {})
+        
+        self.logger.info(f"排产管道执行完成 - 输出{len(result.output_data)}个工单")
+        return result
     
     def execute_scheduling(
         self, 
