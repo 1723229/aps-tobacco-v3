@@ -1,186 +1,116 @@
 <template>
   <div class="decade-plan-entry">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-left">
-          <el-button text @click="goBack" class="back-button">
-            <el-icon><ArrowLeft /></el-icon>
-            返回首页
-          </el-button>
-          <h1 class="page-title">
-            <el-icon><UploadFilled /></el-icon>
-            卷包旬计划录入
-          </h1>
-          <p class="page-description">上传Excel文件进行卷包旬计划数据录入与解析</p>
+    <!-- 页面标题区 -->
+    <div class="page-title-section">
+      <div class="title-content">
+        <div class="title-icon">
+          <el-icon><UploadFilled /></el-icon>
         </div>
-        <div class="header-right">
-          <el-button @click="downloadTemplate" plain>
-            <el-icon><Download /></el-icon>
-            下载模板
-          </el-button>
+        <div class="title-text">
+          <h1>卷包旬计划录入</h1>
+          <p>上传Excel文件进行卷包旬计划数据录入与解析</p>
         </div>
       </div>
     </div>
 
-    <!-- 当前上传状态概览 -->
-    <div v-if="currentBatchId" class="current-status">
-      <el-card>
-        <template #header>
-          <div class="card-header">
-            <el-icon><InfoFilled /></el-icon>
-            <span>当前批次: {{ currentBatchId }}</span>
-            <el-tag v-if="uploadStatus" :type="getStatusColor(uploadStatus)" size="small">
-              {{ getStatusText(uploadStatus) }}
-            </el-tag>
-          </div>
-        </template>
-        
-        <el-steps :active="currentStep" align-center>
-          <el-step title="文件上传" :icon="UploadFilled" />
-          <el-step title="数据解析" :icon="Reading" />
-          <el-step title="结果展示" :icon="View" />
-          <el-step title="记录查看" :icon="Grid" />
-        </el-steps>
-      </el-card>
-    </div>
+    <!-- 主要内容区域 -->
+    <div class="main-content">
+      <!-- 文件上传区域 -->
+      <div class="upload-section">
+        <el-card class="upload-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <el-icon class="header-icon"><Upload /></el-icon>
+              <span class="header-title">文件上传</span>
+            </div>
+          </template>
+          
+          <DecadePlanUpload 
+            @upload-success="handleUploadSuccess"
+            @parse-success="handleParseSuccess"
+            @view-details="handleViewDetails"
+          />
+        </el-card>
+      </div>
 
-    <!-- 文件上传组件 -->
-    <div class="upload-section">
-      <DecadePlanUpload 
-        @upload-success="handleUploadSuccess"
-        @parse-success="handleParseSuccess"
-        @view-details="handleViewDetails"
-      />
-    </div>
-
-    <!-- 历史上传记录 -->
-    <div class="history-section">
-      <el-card>
-        <template #header>
-          <div class="card-header">
-            <el-icon><List /></el-icon>
-            <span>最近上传记录</span>
-            <div class="header-actions">
-              <el-button size="small" @click="toggleHistory">
-                {{ showHistory ? '收起' : '展开' }}
-              </el-button>
+      <!-- 历史记录区域 -->
+      <div class="history-section">
+        <el-card class="history-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <div class="header-left">
+                <el-icon class="header-icon"><Clock /></el-icon>
+                <span class="header-title">最近上传记录</span>
+              </div>
+              <div class="header-actions">
+                <el-button 
+                  :type="showHistory ? 'primary' : 'default'" 
+                  size="small" 
+                  @click="toggleHistory"
+                  text
+                >
+                  {{ showHistory ? '收起' : '展开' }}
+                  <el-icon class="expand-icon" :class="{ 'expanded': showHistory }">
+                    <ArrowDown />
+                  </el-icon>
+                </el-button>
+              </div>
+            </div>
+          </template>
+          
+          <div class="history-content">
+            <el-table 
+              :data="uploadHistory" 
+              style="width: 100%" 
+              size="default"
+              :loading="historyLoading"
+              class="modern-table"
+            >
+              <el-table-column prop="batch_id" label="批次ID" width="160" />
+              <el-table-column prop="file_name" label="文件名" show-overflow-tooltip />
+              <el-table-column prop="upload_time" label="上传时间" width="160">
+                <template #default="{ row }">
+                  {{ formatDateTime(row.upload_time) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="file_size" label="文件大小" width="100" align="right">
+                <template #default="{ row }">
+                  {{ formatFileSize(row.file_size) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="total_records" label="记录数" width="100" align="right" />
+              <el-table-column prop="status" label="状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getStatusColor(row.status)" size="small">
+                    {{ getStatusText(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="120" align="center">
+                <template #default="{ row }">
+                  <el-button-group size="small">
+                    <el-button text type="primary" @click="viewBatchDetails(row.batch_id)">
+                      <el-icon><View /></el-icon>
+                    </el-button>
+                    <el-button 
+                      v-if="row.status === 'FAILED'"
+                      text 
+                      type="warning" 
+                      @click="retryParse(row.batch_id)"
+                    >
+                      <el-icon><Refresh /></el-icon>
+                    </el-button>
+                  </el-button-group>
+                </template>
+              </el-table-column>
+            </el-table>
+            
+            <div v-if="uploadHistory.length === 0 && !historyLoading" class="empty-state">
+              <el-empty description="暂无上传记录" />
             </div>
           </div>
-        </template>
-        
-        <div v-show="showHistory">
-          <el-table 
-          :data="uploadHistory" 
-          style="width: 100%" 
-          size="small"
-          :loading="historyLoading"
-        >
-          <el-table-column prop="batch_id" label="批次ID" width="160" />
-          <el-table-column prop="file_name" label="文件名" show-overflow-tooltip />
-          <el-table-column prop="upload_time" label="上传时间" width="180">
-            <template #default="{ row }">
-              {{ formatDateTime(row.upload_time) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="file_size" label="文件大小" width="100" align="right">
-            <template #default="{ row }">
-              {{ formatFileSize(row.file_size) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="total_records" label="记录数" width="100" align="right" />
-          <el-table-column prop="status" label="状态" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag :type="getStatusColor(row.status)" size="small">
-                {{ getStatusText(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="160" align="center">
-            <template #default="{ row }">
-              <el-button-group size="small">
-                <el-button text @click="viewBatchDetails(row.batch_id)">
-                  <el-icon><View /></el-icon>
-                  查看
-                </el-button>
-                <el-button 
-                  v-if="row.status === 'FAILED'"
-                  text 
-                  type="warning" 
-                  @click="retryParse(row.batch_id)"
-                >
-                  <el-icon><Refresh /></el-icon>
-                  重试
-                </el-button>
-              </el-button-group>
-            </template>
-          </el-table-column>
-        </el-table>
-        
-        <div v-if="uploadHistory.length === 0 && !historyLoading && showHistory" class="empty-state">
-          <el-empty description="暂无上传记录" />
-        </div>
-        </div>
-      </el-card>
-    </div>
-
-    <!-- 使用说明 -->
-    <div class="help-section">
-      <el-card>
-        <template #header>
-          <div class="card-header">
-            <el-icon><QuestionFilled /></el-icon>
-            <span>使用说明</span>
-          </div>
-        </template>
-        
-        <div class="help-content">
-          <el-row :gutter="24">
-            <el-col :span="8">
-              <div class="help-item">
-                <div class="help-icon">
-                  <el-icon><Document /></el-icon>
-                </div>
-                <h4>文件格式要求</h4>
-                <ul>
-                  <li>支持 .xlsx 或 .xls 格式</li>
-                  <li>文件大小不超过 50MB</li>
-                  <li>请使用标准模板格式</li>
-                </ul>
-              </div>
-            </el-col>
-            
-            <el-col :span="8">
-              <div class="help-item">
-                <div class="help-icon">
-                  <el-icon><Setting /></el-icon>
-                </div>
-                <h4>数据字段说明</h4>
-                <ul>
-                  <li>工单号：必填，唯一标识</li>
-                  <li>成品烟牌号：产品代码</li>
-                  <li>机台代码：喂丝机/卷包机</li>
-                  <li>数量信息：投料量/成品量</li>
-                </ul>
-              </div>
-            </el-col>
-            
-            <el-col :span="8">
-              <div class="help-item">
-                <div class="help-icon">
-                  <el-icon><Warning /></el-icon>
-                </div>
-                <h4>注意事项</h4>
-                <ul>
-                  <li>上传前请检查数据完整性</li>
-                  <li>重复上传会覆盖之前数据</li>
-                  <li>解析失败请检查格式</li>
-                </ul>
-              </div>
-            </el-col>
-          </el-row>
-        </div>
-      </el-card>
+        </el-card>
+      </div>
     </div>
   </div>
 </template>
@@ -190,20 +120,13 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { 
-  ArrowLeft,
   UploadFilled, 
   Download, 
+  Upload,
   Clock, 
-  InfoFilled,
-  Reading,
-  View,
-  Grid,
-  List,
-  QuestionFilled,
-  Document,
-  Setting,
-  Warning,
-  Refresh
+  ArrowDown,
+  Refresh,
+  View
 } from '@element-plus/icons-vue'
 import DecadePlanUpload from '@/components/DecadePlanUpload.vue'
 import { useDecadePlanStore } from '@/stores/decade-plan'
@@ -216,40 +139,54 @@ const route = useRoute()
 const decadePlanStore = useDecadePlanStore()
 
 // 响应式数据
-const showHistory = ref(route.query.tab === 'history')
+const showHistory = ref(true) // 默认展示历史记录
 const historyLoading = ref(false)
-const uploadHistory = ref<HistoryRecord[]>([])
-
-// 计算属性
-const currentBatchId = computed(() => decadePlanStore.currentBatchId)
-const uploadStatus = computed(() => decadePlanStore.importStatus?.import_status)
-
-const currentStep = computed(() => {
-  const status = uploadStatus.value
-  switch (status) {
-    case 'UPLOADING':
-      return 0
-    case 'PARSING':
-      return 1
-    case 'COMPLETED':
-      return 3
-    case 'FAILED':
-      return 1
-    default:
-      return 0
+const uploadHistory = ref<HistoryRecord[]>([
+  // 示例数据
+  {
+    batch_id: 'IMPORT_20241201_143052_a1b2c3d4',
+    file_name: '卷包生产计划_2024年11月.xlsx',
+    file_size: 2048576,
+    upload_time: '2024-12-01 14:30:52',
+    import_start_time: '2024-12-01 14:30:55',
+    import_end_time: '2024-12-01 14:31:15',
+    status: 'COMPLETED',
+    total_records: 156,
+    valid_records: 152,
+    error_records: 4,
+    error_message: null
+  },
+  {
+    batch_id: 'IMPORT_20241130_101234_e5f6g7h8',
+    file_name: '旬计划_第三旬_产品组合.xlsx',
+    file_size: 1536789,
+    upload_time: '2024-11-30 10:12:34',
+    import_start_time: '2024-11-30 10:12:40',
+    import_end_time: '2024-11-30 10:13:05',
+    status: 'COMPLETED',
+    total_records: 89,
+    valid_records: 87,
+    error_records: 2,
+    error_message: null
+  },
+  {
+    batch_id: 'IMPORT_20241129_165543_i9j0k1l2',
+    file_name: '生产安排_机台配置_V2.xlsx',
+    file_size: 3145728,
+    upload_time: '2024-11-29 16:55:43',
+    import_start_time: '2024-11-29 16:55:50',
+    import_end_time: null,
+    status: 'FAILED',
+    total_records: 0,
+    valid_records: 0,
+    error_records: 0,
+    error_message: '文件格式不正确，请检查表头字段'
   }
-})
+])
+
+// 计算属性 - 移除了不再需要的currentBatchId和步骤相关逻辑
 
 // 方法
-const goBack = () => {
-  router.push('/')
-}
-
-const downloadTemplate = () => {
-  // TODO: 实现模板下载
-  ElMessage.info('模板下载功能开发中...')
-}
-
 const viewHistory = () => {
   showHistory.value = !showHistory.value
   if (showHistory.value && uploadHistory.value.length === 0) {
@@ -335,133 +272,267 @@ onMounted(() => {
 
 <style scoped>
 .decade-plan-entry {
-  padding: 20px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 0;
+  border: none !important;
+  outline: none !important;
+}
+
+/* Remove any yellow borders/outlines globally */
+.decade-plan-entry *,
+.decade-plan-entry *::before,
+.decade-plan-entry *::after {
+  border-color: transparent !important;
+  outline: none !important;
+}
+
+.decade-plan-entry *:focus {
+  outline: none !important;
+  border-color: #409eff !important;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2) !important;
+}
+
+/* 页面标题区 */
+.page-title-section {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  padding: 40px 0 60px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.page-title-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+}
+
+.title-content {
   max-width: 1200px;
   margin: 0 auto;
-}
-
-.page-header {
-  margin-bottom: 24px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 24px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  border-radius: 12px;
-  color: white;
-}
-
-.back-button {
-  color: white !important;
-  padding: 4px 8px;
-  margin-bottom: 8px;
-}
-
-.back-button:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.header-left .page-title {
+  padding: 0 40px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 0 0 8px 0;
-  font-size: 24px;
-  font-weight: 600;
+  gap: 20px;
+  position: relative;
+  z-index: 1;
 }
 
-.header-left .page-description {
-  margin: 0;
-  opacity: 0.9;
-  font-size: 14px;
-}
-
-.header-right {
+.title-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
 }
 
-.current-status {
-  margin-bottom: 24px;
+.title-text h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0 0 8px 0;
 }
 
+.title-text p {
+  font-size: 1.1rem;
+  color: #4a5568;
+  margin: 0;
+  font-weight: 400;
+}
+
+.title-actions {
+  margin-left: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.title-actions .el-button {
+  padding: 16px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  color: #667eea;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.title-actions .el-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  background: white;
+}
+
+/* 主要内容区域 */
+.main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+  transform: translateY(-30px);
+  position: relative;
+  z-index: 2;
+}
+
+/* 顶部内容 */
+.upload-section {
+  margin-bottom: 40px;
+}
+
+.upload-card {
+  border-radius: 20px;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  background: white;
+}
+
+.upload-card :deep(.el-card__header) {
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  border-bottom: 1px solid #e8eaed;
+  padding: 24px 32px;
+}
+
+.upload-card :deep(.el-card__body) {
+  padding: 40px 32px;
+}
+
+/* 历史记录 */
+.history-section {
+  margin-bottom: 40px;
+}
+
+.history-card {
+  border-radius: 20px;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  background: white;
+}
+
+.history-card :deep(.el-card__header) {
+  background: linear-gradient(135deg, #fff8f0 0%, #fff2e6 100%);
+  border-bottom: 1px solid #e8eaed;
+  padding: 24px 32px;
+}
+
+.history-card :deep(.el-card__body) {
+  padding: 0;
+}
+
+.history-content {
+  padding: 32px;
+}
+
+/* 卡片头部样式 */
 .card-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 500;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  color: #2d3748;
+}
+
+.header-icon {
+  font-size: 20px;
+  color: #667eea;
+}
+
+.header-title {
+  flex: 1;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .header-actions {
   margin-left: auto;
 }
 
-.upload-section {
-  margin-bottom: 24px;
+.expand-icon {
+  margin-left: 8px;
+  transition: transform 0.3s ease;
 }
 
-.history-section {
-  margin-bottom: 24px;
+.expand-icon.expanded {
+  transform: rotate(180deg);
 }
 
+/* 表格样式 */
+.modern-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.modern-table :deep(.el-table__header) {
+  background: #f8fafc;
+}
+
+.modern-table :deep(.el-table__header th) {
+  background: #f8fafc;
+  color: #4a5568;
+  font-weight: 600;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modern-table :deep(.el-table__body tr:hover) {
+  background: #f7fafc;
+}
+
+.modern-table :deep(.el-table td) {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* 空状态 */
 .empty-state {
-  padding: 40px 0;
+  padding: 60px 20px;
   text-align: center;
 }
 
-.help-section {
-  margin-bottom: 24px;
+.empty-state :deep(.el-empty__description) {
+  color: #718096;
 }
 
-.help-content {
-  padding: 16px;
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  .title-content {
+    padding: 0 20px;
+    flex-direction: column;
+    text-align: center;
+    gap: 30px;
+  }
+  
+  .main-content {
+    padding: 0 20px;
+  }
 }
 
-.help-item {
-  text-align: center;
-  padding: 20px;
-}
-
-.help-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #409eff, #67c23a);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16px;
-  font-size: 24px;
-  color: white;
-}
-
-.help-item h4 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  color: #303133;
-}
-
-.help-item ul {
-  text-align: left;
-  margin: 0;
-  padding-left: 20px;
-  font-size: 14px;
-  color: #606266;
-  line-height: 1.6;
-}
-
-.help-item li {
-  margin-bottom: 4px;
-}
-
-:deep(.el-steps) {
-  margin: 20px 0;
-}
-
-:deep(.el-step__title) {
-  font-size: 14px;
+@media (max-width: 768px) {
+  .page-title-section {
+    padding: 30px 0 50px 0;
+  }
+  
+  .title-text h1 {
+    font-size: 2rem;
+  }
+  
+  .title-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 28px;
+  }
 }
 </style>

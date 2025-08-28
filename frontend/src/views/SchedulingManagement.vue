@@ -172,127 +172,7 @@
           </div>
         </el-card>
       </div>
-      <!-- 排产进度监控面板 -->
-      <div v-if="currentTask" class="progress-section">
-        <el-card class="progress-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <div class="header-content">
-                <el-icon class="header-icon"><VideoPlay /></el-icon>
-                <div>
-                  <h2>排产进度监控</h2>
-                  <p>{{ currentTask.task_name }}</p>
-                </div>
-              </div>
-              <el-tag 
-                :type="getTaskStatusType(currentTask.status)"
-                size="large"
-                class="task-status-tag"
-              >
-                {{ getTaskStatusText(currentTask.status) }}
-              </el-tag>
-            </div>
-          </template>
-          
-          <div class="progress-content">
-            <div class="progress-section">
-              <div class="progress-header">
-                <h4>执行进度</h4>
-                <span class="progress-percent">{{ currentTask.progress }}%</span>
-              </div>
-              <el-progress 
-                :percentage="currentTask.progress" 
-                :status="getProgressStatus(currentTask.status)"
-                stroke-width="8"
-                class="progress-bar"
-              />
-              <div class="progress-details">
-                <span>当前阶段: {{ currentTask.current_stage }}</span>
-                <span>{{ currentTask.processed_records }} / {{ currentTask.total_records }} 记录</span>
-              </div>
-            </div>
-            
-            <div class="task-details">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <span class="detail-label">任务ID</span>
-                  <span class="detail-value">{{ currentTask.task_id.slice(-12) }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">批次ID</span>
-                  <span class="detail-value">{{ currentTask.import_batch_id.slice(-8) }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">执行时长</span>
-                  <span class="detail-value">{{ formatDuration(currentTask.execution_duration) }}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div v-if="currentTask.error_message" class="error-section">
-              <el-alert
-                :title="currentTask.error_message"
-                type="error"
-                show-icon
-                :closable="false"
-              />
-            </div>
-            
-            <!-- 排产完成结果 -->
-            <div v-if="currentTask.status === 'COMPLETED' && currentTask.result_summary" class="result-summary">
-              <div class="summary-grid">
-                <div class="summary-card">
-                  <div class="summary-icon">
-                    <el-icon><Document /></el-icon>
-                  </div>
-                  <div class="summary-content">
-                    <h3>{{ currentTask.result_summary.total_work_orders || 0 }}</h3>
-                    <p>总工单数</p>
-                  </div>
-                </div>
-                <div class="summary-card">
-                  <div class="summary-icon success">
-                    <el-icon><Box /></el-icon>
-                  </div>
-                  <div class="summary-content">
-                    <h3>{{ currentTask.result_summary.packing_orders_generated || 0 }}</h3>
-                    <p>卷包机工单</p>
-                  </div>
-                </div>
-                <div class="summary-card">
-                  <div class="summary-icon warning">
-                    <el-icon><Operation /></el-icon>
-                  </div>
-                  <div class="summary-content">
-                    <h3>{{ currentTask.result_summary.feeding_orders_generated || 0 }}</h3>
-                    <p>喂丝机工单</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="result-actions">
-                <el-button 
-                  type="primary" 
-                  size="large"
-                  @click="viewGanttChart(currentTask)"
-                  class="action-btn"
-                >
-                  <el-icon><TrendCharts /></el-icon>
-                  查看甘特图
-                </el-button>
-                <el-button 
-                  size="large"
-                  @click="closeProgressPanel"
-                  class="action-btn"
-                >
-                  <el-icon><Close /></el-icon>
-                  关闭面板
-                </el-button>
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </div>
+
 
       <!-- 排产历史记录 -->
       <div class="history-section">
@@ -332,52 +212,154 @@
         <p class="config-description">选择适合的智能排产算法组合：</p>
         
         <div class="algorithm-options">
-          <div 
-            v-for="algorithm in algorithmOptions"
-            :key="algorithm.key"
-            class="algorithm-option"
-          >
+          <div v-for="option in algorithmOptions" :key="option.key" class="algorithm-option">
             <div class="option-header">
-              <el-icon class="option-icon" :style="{ color: algorithm.color }">
-                <component :is="algorithm.icon" />
-              </el-icon>
-              <div class="option-info">
-                <h4>{{ algorithm.title }}</h4>
-                <p>{{ algorithm.description }}</p>
-              </div>
-              <el-switch
-                v-model="algorithmConfig[algorithm.key]"
-                size="large"
-                :active-color="algorithm.color"
+              <el-switch 
+                v-model="algorithmConfig[option.key]"
+                class="option-switch"
               />
+              <div class="option-info">
+                <h3>{{ option.title }}</h3>
+                <p>{{ option.description }}</p>
+              </div>
             </div>
             <div class="option-tags">
               <el-tag
-                v-for="tag in algorithm.tags"
+                v-for="tag in option.tags"
                 :key="tag"
                 size="small"
-                effect="plain"
+                type="info"
               >
                 {{ tag }}
               </el-tag>
             </div>
           </div>
         </div>
-        
-        <div class="algorithm-summary">
-          <el-tag type="info">已启用算法: {{ enabledAlgorithmCount }} / 4</el-tag>
-        </div>
       </div>
       
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="algorithmDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmAlgorithmConfig">确定</el-button>
+        </div>
+      </template>
+    </el-dialog>
+    
+    <!-- 排产进度监控弹窗 -->
+    <el-dialog
+      v-model="progressDialogVisible"
+      title="排产进度监控"
+      width="80%"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="true"
+      @close="closeProgressPanel"
+    >
+      <div v-if="currentTask" class="dialog-progress-content">
+        <div class="progress-header-section">
+          <div class="task-info">
+            <h3>{{ currentTask.task_name }}</h3>
+            <el-tag 
+              :type="getTaskStatusType(currentTask.status)"
+              size="large"
+              class="status-tag"
+            >
+              {{ getTaskStatusText(currentTask.status) }}
+            </el-tag>
+          </div>
+        </div>
+        
+        <div class="progress-body">
+          <div class="progress-section">
+            <div class="progress-header">
+              <h4>执行进度</h4>
+              <span class="progress-percent">{{ currentTask.progress }}%</span>
+            </div>
+            <el-progress 
+              :percentage="currentTask.progress" 
+              :status="getProgressStatus(currentTask.status)"
+              stroke-width="8"
+              class="progress-bar"
+            />
+            <div class="progress-details">
+              <span>当前阶段: {{ currentTask.current_stage }}</span>
+              <span>{{ currentTask.processed_records }} / {{ currentTask.total_records }} 记录</span>
+            </div>
+          </div>
+          
+          <div class="task-details">
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">任务ID</span>
+                <span class="detail-value">{{ currentTask.task_id.slice(-12) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">批次ID</span>
+                <span class="detail-value">{{ currentTask.import_batch_id.slice(-8) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">执行时长</span>
+                <span class="detail-value">{{ formatDuration(currentTask.execution_duration) }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="currentTask.error_message" class="error-section">
+            <el-alert
+              :title="currentTask.error_message"
+              type="error"
+              show-icon
+              :closable="false"
+            />
+          </div>
+          
+          <!-- 排产完成结果 -->
+          <div v-if="currentTask.status === 'COMPLETED' && currentTask.result_summary" class="result-summary">
+            <div class="summary-grid">
+              <div class="summary-card">
+                <div class="summary-icon">
+                  <el-icon><Document /></el-icon>
+                </div>
+                <div class="summary-content">
+                  <h3>{{ currentTask.result_summary.total_work_orders || 0 }}</h3>
+                  <p>总工单数</p>
+                </div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-icon success">
+                  <el-icon><Box /></el-icon>
+                </div>
+                <div class="summary-content">
+                  <h3>{{ currentTask.result_summary.packing_orders_generated || 0 }}</h3>
+                  <p>卷包机工单</p>
+                </div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-icon warning">
+                  <el-icon><Operation /></el-icon>
+                </div>
+                <div class="summary-content">
+                  <h3>{{ currentTask.result_summary.feeding_orders_generated || 0 }}</h3>
+                  <p>喂丝机工单</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
           <el-button 
+            v-if="currentTask?.status === 'COMPLETED'"
             type="primary" 
-            @click="confirmScheduling"
-            :loading="schedulingLoading"
+            @click="viewGanttChart(currentTask)"
           >
-            确认并开始排产
+            <el-icon><TrendCharts /></el-icon>
+            查看甘特图
+          </el-button>
+          <el-button @click="closeProgressPanel">
+            关闭
           </el-button>
         </div>
       </template>
@@ -429,6 +411,7 @@ const plansLoading = ref(false)
 const schedulingLoading = ref(false)
 const currentTask = ref<SchedulingTask | null>(null)
 const algorithmDialogVisible = ref(false)
+const progressDialogVisible = ref(false)
 const selectedPlanForScheduling = ref<AvailableBatch | null>(null)
 const pollingTimer = ref<number | null>(null)
 
@@ -662,6 +645,7 @@ const confirmScheduling = async () => {
 
 const viewSchedulingProgress = (plan: AvailableBatch) => {
   if ((plan as any).task_id) {
+    progressDialogVisible.value = true
     pollTaskStatus((plan as any).task_id)
   }
 }
@@ -697,6 +681,10 @@ const pollTaskStatus = async (taskId: string) => {
         clearInterval(pollingTimer.value!)
         pollingTimer.value = null
         await refreshPlans() // 刷新列表
+        // 延迟关闭弹窗，让用户看到完成状态
+        setTimeout(() => {
+          progressDialogVisible.value = false
+        }, 2000)
       } else if (response.data.status === 'FAILED') {
         ElMessage.error('排产失败')
         clearInterval(pollingTimer.value!)
@@ -723,6 +711,7 @@ const pollTaskStatus = async (taskId: string) => {
 }
 
 const closeProgressPanel = () => {
+  progressDialogVisible.value = false
   currentTask.value = null
   if (pollingTimer.value) {
     clearInterval(pollingTimer.value)
@@ -1612,5 +1601,161 @@ onUnmounted(() => {
   .card-content {
     padding: 30px 20px;
   }
+}
+
+/* 弹窗相关样式 */
+.dialog-progress-content {
+  padding: 20px;
+}
+
+.progress-header-section {
+  margin-bottom: 24px;
+}
+
+.task-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.task-info h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #303133;
+}
+
+.status-tag {
+  margin-left: 16px;
+}
+
+.progress-body {
+  padding: 16px 0;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* 确保弹窗中的进度条样式正确 */
+.dialog-progress-content .progress-section {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.dialog-progress-content .progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.dialog-progress-content .progress-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #303133;
+}
+
+.dialog-progress-content .progress-percent {
+  font-size: 16px;
+  font-weight: 600;
+  color: #409eff;
+}
+
+.dialog-progress-content .progress-details {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.dialog-progress-content .detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dialog-progress-content .detail-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+.dialog-progress-content .detail-label {
+  font-weight: 500;
+  color: #606266;
+}
+
+.dialog-progress-content .detail-value {
+  color: #303133;
+  font-family: monospace;
+}
+
+.dialog-progress-content .error-section {
+  margin: 24px 0;
+}
+
+.dialog-progress-content .result-summary {
+  margin-top: 24px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.dialog-progress-content .summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.dialog-progress-content .summary-card {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.dialog-progress-content .summary-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  background: #409eff;
+  color: white;
+}
+
+.dialog-progress-content .summary-icon.success {
+  background: #67c23a;
+}
+
+.dialog-progress-content .summary-icon.warning {
+  background: #e6a23c;
+}
+
+.dialog-progress-content .summary-content h3 {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.dialog-progress-content .summary-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #606266;
 }
 </style>

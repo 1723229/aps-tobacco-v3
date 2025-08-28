@@ -45,6 +45,49 @@ async def validate_excel_file(file: UploadFile) -> None:
         )
 
 
+async def check_filename_uniqueness(
+    db: AsyncSession, 
+    filename: str, 
+    allow_overwrite: bool = False
+) -> Optional[ImportPlan]:
+    """
+    检查文件名唯一性
+    
+    Args:
+        db: 数据库会话
+        filename: 要检查的文件名
+        allow_overwrite: 是否允许覆盖已存在的文件
+        
+    Returns:
+        如果需要覆盖，返回已存在的ImportPlan记录；否则返回None
+        
+    Raises:
+        HTTPException: 当文件名重复且不允许覆盖时
+    """
+    from sqlalchemy import select, desc
+    
+    # 查询是否存在相同文件名的记录
+    result = await db.execute(
+        select(ImportPlan)
+        .where(ImportPlan.file_name == filename)
+        .order_by(desc(ImportPlan.created_time))
+    )
+    existing_plan = result.scalar_one_or_none()
+    
+    if existing_plan:
+        # 如果不允许覆盖，直接报错
+        if not allow_overwrite:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件名 '{filename}' 已存在，上传时间：{existing_plan.created_time.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+        
+        # 如果允许覆盖，返回已存在的记录用于后续处理
+        return existing_plan
+    
+    return None
+
+
 async def save_uploaded_file(file: UploadFile) -> str:
     """保存上传的文件并返回文件路径"""
     # 生成唯一文件名
@@ -92,6 +135,7 @@ async def create_import_record(
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_excel_file(
     file: UploadFile = File(..., description="Excel文件"),
+    allow_overwrite: bool = False,
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -99,13 +143,42 @@ async def upload_excel_file(
     
     支持的文件格式：.xlsx, .xls
     最大文件大小：50MB
+    
+    Args:
+        file: Excel文件
+        allow_overwrite: 是否允许覆盖已存在的同名文件（默认False）
+        db: 数据库会话
     """
     try:
         # 验证文件
         await validate_excel_file(file)
         
+        # 检查文件名唯一性
+        existing_plan = await check_filename_uniqueness(db, file.filename, allow_overwrite)
+        
         # 生成导入批次ID
         import_batch_id = f"IMPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        
+        # 如果需要覆盖已存在的文件，先处理旧记录
+        if existing_plan:
+            # 删除旧的文件
+            if existing_plan.file_path and os.path.exists(existing_plan.file_path):
+                try:
+                    os.unlink(existing_plan.file_path)
+                except Exception as e:
+                    print(f"⚠️ 删除旧文件失败: {e}")
+            
+            # 删除旧的decade_plan记录
+            from sqlalchemy import delete
+            await db.execute(
+                delete(DecadePlan).where(DecadePlan.import_batch_id == existing_plan.import_batch_id)
+            )
+            
+            # 删除旧的import_plan记录
+            await db.execute(
+                delete(ImportPlan).where(ImportPlan.id == existing_plan.id)
+            )
+            await db.commit()
         
         # 保存文件
         file_path = await save_uploaded_file(file)
@@ -127,9 +200,12 @@ async def upload_excel_file(
             upload_time=import_plan.created_time
         )
         
+        # 根据是否覆盖文件生成不同的响应消息
+        message = "文件覆盖上传成功" if existing_plan else "文件上传成功"
+        
         return FileUploadResponse(
             code=200,
-            message="文件上传成功",
+            message=message,
             data=upload_info.model_dump()
         )
         
@@ -412,26 +488,72 @@ def create_decade_plan_record(import_batch_id: str, record_data: dict) -> Decade
     """
     from datetime import datetime
     import uuid
+    import re
     
-    # 解析日期
+    # 解析日期 - 优先从production_date_range拆解
     planned_start = None
     planned_end = None
+    year = None
+    
+    # 获取年份 - 优先从Excel解析器提供的planned_start/planned_end数据中获取
     if record_data.get('planned_start'):
+        try:
+            original_planned_start = datetime.fromisoformat(record_data['planned_start'])
+            year = original_planned_start.year
+        except:
+            pass
+    
+    if not year and record_data.get('planned_end'):
+        try:
+            original_planned_end = datetime.fromisoformat(record_data['planned_end'])
+            year = original_planned_end.year
+        except:
+            pass
+    
+    # 最后备选：使用当前年份
+    if not year:
+        year = datetime.now().year
+    
+    # 从production_date_range解析日期范围
+    production_date_range = record_data.get('production_date_range', '')
+    if production_date_range and '-' in production_date_range:
+        try:
+            # 解析格式如 "10.16-10.31" 或 "10.16 - 10.31"
+            date_parts = production_date_range.strip().split('-')
+            if len(date_parts) == 2:
+                start_str = date_parts[0].strip()
+                end_str = date_parts[1].strip()
+                
+                # 解析开始日期 "10.16"
+                if '.' in start_str:
+                    start_month, start_day = start_str.split('.')
+                    planned_start = datetime(year, int(start_month), int(start_day))
+                
+                # 解析结束日期 "10.31"
+                if '.' in end_str:
+                    end_month, end_day = end_str.split('.')
+                    planned_end = datetime(year, int(end_month), int(end_day))
+                
+        except (ValueError, IndexError) as e:
+            print(f"⚠️ 解析production_date_range失败: {production_date_range}, 错误: {e}")
+    
+    # 如果production_date_range解析失败，尝试从原始字段解析
+    if not planned_start and record_data.get('planned_start'):
         try:
             planned_start = datetime.fromisoformat(record_data['planned_start'])
         except:
             pass
-    if record_data.get('planned_end'):
+    if not planned_end and record_data.get('planned_end'):
         try:
             planned_end = datetime.fromisoformat(record_data['planned_end'])
         except:
             pass
     
-    # 如果没有日期，使用默认日期
+    # 如果还是没有日期，使用默认日期
     if not planned_start:
-        planned_start = datetime(2024, 11, 1)  # 默认开始日期
+        planned_start = datetime(year, 11, 1)  # 使用解析出的年份，默认11月1日
     if not planned_end:
-        planned_end = datetime(2024, 11, 15)  # 默认结束日期
+        planned_end = datetime(year, 11, 15)  # 使用解析出的年份，默认11月15日
     
     # 获取机台代码并转换为逗号分隔字符串
     feeder_codes = record_data.get('feeder_codes', [])

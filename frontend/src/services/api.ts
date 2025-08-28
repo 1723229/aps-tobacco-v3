@@ -369,6 +369,49 @@ export class SchedulingAPI {
 
         throw new Error("排产状态轮询超时");
     }
+
+    /**
+     * 获取排产历史记录
+     * @param params 查询参数
+     * @returns 历史记录列表
+     */
+    static async getSchedulingHistory(params?: {
+        page?: number;
+        page_size?: number;
+        status?: string;
+        scheduling_status?: string;
+        start_date?: string;
+        end_date?: string;
+        batch_id?: string;
+        task_id?: string;
+    }): Promise<ApiResponse<{
+        records: any[];
+        pagination: {
+            page: number;
+            page_size: number;
+            total_count: number;
+            total_pages: number;
+            has_next: boolean;
+            has_prev: boolean;
+        };
+    }>> {
+        const queryParams = new URLSearchParams();
+
+        if (params?.page) queryParams.append('page', params.page.toString());
+        if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+        if (params?.status) queryParams.append('status', params.status);
+        if (params?.scheduling_status) queryParams.append('scheduling_status', params.scheduling_status);
+        if (params?.batch_id) queryParams.append('batch_id', params.batch_id);
+
+        const response = await httpClient.get<ApiResponse<{
+            records: any[];
+            pagination: any;
+        }>>(
+            `${API_PREFIX}/plans/history?${queryParams.toString()}`
+        );
+
+        return response.data;
+    }
 }
 
 export class WorkOrderAPI {

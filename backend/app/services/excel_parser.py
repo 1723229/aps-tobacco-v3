@@ -67,6 +67,7 @@ class ProductionPlanExcelParser:
         self.records: List[ProductionPlanRecord] = []
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
+        self.extracted_year: Optional[int] = None  # 从Excel中提取的年份
         
         # 列映射 - 基于示例Excel文件的列结构
         self.column_mapping = {
@@ -123,6 +124,9 @@ class ProductionPlanExcelParser:
                 self.warnings = []
                 
                 try:
+                    # 提取年份信息 - 从工作表的前几行标题中提取
+                    self._extract_year_from_title(worksheet)
+                    
                     # 查找表头位置 - 根据实际Excel格式，表头通常在第3行
                     header_row = self._find_header_row(worksheet)
                     if header_row is None:
@@ -239,6 +243,47 @@ class ProductionPlanExcelParser:
         
         logger.warning("未找到有效的表头行")
         return None
+    
+    def _extract_year_from_title(self, worksheet: Worksheet) -> None:
+        """从Excel表格标题中提取年份信息"""
+        try:
+            # 搜索前3行中的标题信息
+            for row_idx in range(1, min(4, worksheet.max_row + 1)):
+                for col_idx in range(1, min(6, worksheet.max_column + 1)):  # 只搜索前5列
+                    cell_value = worksheet.cell(row_idx, col_idx).value
+                    if cell_value:
+                        cell_text = str(cell_value).strip()
+                        
+                        # 匹配包含年份的标题格式，如：
+                        # "2024年10月16～31日生产作业计划表"
+                        # "2024年10月16-31日" 
+                        # "2024.10.16-31"
+                        year_patterns = [
+                            r'(\d{4})年',           # 2024年
+                            r'(\d{4})\.',           # 2024.
+                            r'(\d{4})-',            # 2024-
+                            r'(\d{4})/',            # 2024/
+                            r'^(\d{4})$'            # 单独的年份
+                        ]
+                        
+                        for pattern in year_patterns:
+                            match = re.search(pattern, cell_text)
+                            if match:
+                                year = int(match.group(1))
+                                # 验证年份合理性（1990-2050）
+                                if 1990 <= year <= 2050:
+                                    self.extracted_year = year
+                                    logger.info(f"从标题 '{cell_text}' 中提取年份: {year}")
+                                    return
+            
+            # 如果没有找到年份，使用当前年份作为默认值
+            current_year = datetime.now().year
+            self.extracted_year = current_year
+            logger.warning(f"未在Excel标题中找到年份信息，使用当前年份: {current_year}")
+            
+        except Exception as e:
+            logger.error(f"提取年份信息时出错: {e}")
+            self.extracted_year = datetime.now().year
     
     def _parse_header_columns(self, worksheet: Worksheet, header_row: int) -> Dict[int, str]:
         """解析表头列映射 - 精确匹配Excel表头列名，处理空格字符"""
@@ -526,8 +571,8 @@ class ProductionPlanExcelParser:
     def _parse_single_date(self, date_str: str) -> Optional[datetime]:
         """解析单个日期字符串"""
         try:
-            # 假设是2024年（可以从配置或文件名获取年份）
-            year = 2024
+            # 使用从Excel标题中提取的年份，如果没有则使用当前年份
+            year = self.extracted_year if self.extracted_year else datetime.now().year
             
             # 格式: "11.1" -> 11月1日
             if '.' in date_str:

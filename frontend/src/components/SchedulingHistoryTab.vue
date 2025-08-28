@@ -272,7 +272,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import type { SchedulingTask } from '@/services/api'
+import { SchedulingAPI, type SchedulingTask } from '@/services/api'
 
 const router = useRouter()
 
@@ -301,113 +301,120 @@ const pagination = reactive({
 const loadHistoryData = async () => {
   loading.value = true
   try {
-    // 模拟API调用 - 实际应该调用后端API
     console.log('加载排产历史数据...')
     
-    // 生成模拟历史数据
-    const mockData: SchedulingTask[] = [
-      {
-        task_id: 'SCHEDULE_20250828_145614_4858b735',
-        import_batch_id: 'BATCH_20250828_120000',
-        task_name: '卷包旬计划智能排产 - 8月第4周',
-        status: 'COMPLETED',
-        current_stage: '任务完成',
-        progress: 100,
-        total_records: 25,
-        processed_records: 25,
-        start_time: '2025-08-28T14:56:14',
-        end_time: '2025-08-28T15:12:33',
-        execution_duration: 979,
-        algorithm_config: {
-          merge_enabled: true,
-          split_enabled: true,
-          correction_enabled: true,
-          parallel_enabled: true
-        },
-        result_summary: {
-          total_work_orders: 42,
-          packing_orders: 25,
-          feeding_orders: 17
-        }
-      },
-      {
-        task_id: 'SCHEDULE_20250827_093221_a1b2c3d4',
-        import_batch_id: 'BATCH_20250827_090000',
-        task_name: '卷包旬计划智能排产 - 8月第3周',
-        status: 'COMPLETED',
-        current_stage: '任务完成',
-        progress: 100,
-        total_records: 18,
-        processed_records: 18,
-        start_time: '2025-08-27T09:32:21',
-        end_time: '2025-08-27T09:45:12',
-        execution_duration: 771,
-        algorithm_config: {
-          merge_enabled: true,
-          split_enabled: false,
-          correction_enabled: true,
-          parallel_enabled: true
-        },
-        result_summary: {
-          total_work_orders: 28,
-          packing_orders: 18,
-          feeding_orders: 10
-        }
-      },
-      {
-        task_id: 'SCHEDULE_20250826_161455_e5f6g7h8',
-        import_batch_id: 'BATCH_20250826_160000',
-        task_name: '卷包旬计划智能排产 - 8月第2周补充',
-        status: 'FAILED',
-        current_stage: '数据预处理',
-        progress: 15,
-        total_records: 32,
-        processed_records: 5,
-        start_time: '2025-08-26T16:14:55',
-        end_time: '2025-08-26T16:18:22',
-        execution_duration: 207,
-        error_message: '数据验证失败：发现无效的机台代码 "C99"，请检查原始数据',
-        algorithm_config: {
-          merge_enabled: true,
-          split_enabled: true,
-          correction_enabled: true,
-          parallel_enabled: false
-        }
-      }
-    ]
-    
-    // 应用筛选
-    let filteredData = mockData
+    // 构建查询参数
+    const params: any = {
+      page: pagination.page,
+      page_size: pagination.pageSize
+      // 不设置scheduling_status以获取所有记录，然后在前端过滤
+    }
     
     if (filterOptions.status) {
-      filteredData = filteredData.filter(item => item.status === filterOptions.status)
+      params.status = filterOptions.status
     }
     
     if (filterOptions.batchId) {
-      filteredData = filteredData.filter(item => 
-        item.import_batch_id.includes(filterOptions.batchId)
-      )
+      params.batch_id = filterOptions.batchId
     }
     
     if (filterOptions.taskId) {
-      filteredData = filteredData.filter(item => 
-        item.task_id.includes(filterOptions.taskId)
-      )
+      params.task_id = filterOptions.taskId
     }
     
-    // 分页处理
-    const startIndex = (pagination.page - 1) * pagination.pageSize
-    const endIndex = startIndex + pagination.pageSize
+    // 调用API获取真实数据
+    const response = await SchedulingAPI.getSchedulingHistory(params)
     
-    historyData.value = filteredData.slice(startIndex, endIndex)
-    total.value = filteredData.length
+    if (response.code === 200) {
+      // 转换数据格式为 SchedulingTask 格式
+      const convertedData: SchedulingTask[] = response.data.records
+        .filter((record: any) => record.task_id) // 只显示有排产任务的记录
+        .map((record: any) => ({
+          task_id: record.task_id,
+          import_batch_id: record.batch_id,
+          task_name: `${record.file_name} - 排产任务`,
+          status: mapSchedulingStatus(record.scheduling_status),
+          current_stage: getStageByStatus(record.scheduling_status),
+          progress: getProgressByStatus(record.scheduling_status),
+          total_records: record.total_records || 0,
+          processed_records: record.valid_records || 0,
+          start_time: record.import_start_time,
+          end_time: record.import_end_time,
+          execution_duration: calculateDuration(record.import_start_time, record.import_end_time),
+          algorithm_config: {
+            merge_enabled: true,
+            split_enabled: true,
+            correction_enabled: true,
+            parallel_enabled: true
+          },
+          result_summary: {
+            total_work_orders: record.work_orders_summary || 0,
+            packing_orders: Math.floor((record.work_orders_summary || 0) * 0.6),
+            feeding_orders: Math.floor((record.work_orders_summary || 0) * 0.4)
+          }
+        }))
+      
+      historyData.value = convertedData
+      total.value = response.data.pagination.total_count
+    } else {
+      throw new Error(response.message || '获取数据失败')
+    }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载历史数据失败:', error)
-    ElMessage.error('加载历史数据失败')
+    ElMessage.error(error.message || '加载历史数据失败')
+    
+    // 如果API调用失败，显示空数据
+    historyData.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
+}
+
+// 辅助函数：映射排产状态
+const mapSchedulingStatus = (status: string): SchedulingTask['status'] => {
+  const statusMap: Record<string, SchedulingTask['status']> = {
+    'completed': 'COMPLETED',
+    'failed': 'FAILED',
+    'cancelled': 'CANCELLED',
+    'running': 'RUNNING',
+    'pending': 'PENDING'
+  }
+  return statusMap[status] || 'COMPLETED'
+}
+
+// 辅助函数：根据状态获取阶段描述
+const getStageByStatus = (status: string): string => {
+  const stageMap: Record<string, string> = {
+    'completed': '任务完成',
+    'failed': '执行失败',
+    'cancelled': '已取消',
+    'running': '排产中',
+    'pending': '等待中'
+  }
+  return stageMap[status] || '任务完成'
+}
+
+// 辅助函数：根据状态获取进度
+const getProgressByStatus = (status: string): number => {
+  const progressMap: Record<string, number> = {
+    'completed': 100,
+    'failed': 0,
+    'cancelled': 0,
+    'running': 50,
+    'pending': 0
+  }
+  return progressMap[status] || 100
+}
+
+// 辅助函数：计算执行时长（秒）
+const calculateDuration = (startTime?: string, endTime?: string): number => {
+  if (!startTime || !endTime) return 0
+  
+  const start = new Date(startTime).getTime()
+  const end = new Date(endTime).getTime()
+  return Math.floor((end - start) / 1000)
 }
 
 const onFilterChange = () => {
