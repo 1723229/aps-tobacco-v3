@@ -25,6 +25,10 @@
                 <el-icon><House /></el-icon>
                 <span>首页</span>
               </el-menu-item>
+              <el-menu-item index="/machine-config">
+                <el-icon><Setting /></el-icon>
+                <span>机台配置</span>
+              </el-menu-item>
               <el-sub-menu index="production">
                 <template #title>
                   <el-icon><Setting /></el-icon>
@@ -37,10 +41,6 @@
                 <el-menu-item index="/scheduling">
                   <el-icon><Operation /></el-icon>
                   <span>智能排产管理</span>
-                </el-menu-item>
-                <el-menu-item index="/machine-config">
-                  <el-icon><Setting /></el-icon>
-                  <span>机台配置管理</span>
                 </el-menu-item>
               </el-sub-menu>
             </el-menu>
