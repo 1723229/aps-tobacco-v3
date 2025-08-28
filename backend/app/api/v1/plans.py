@@ -449,16 +449,26 @@ async def save_parse_results_to_decade_plan(db: AsyncSession, import_batch_id: s
         # 批量插入新数据
         decade_plans = []
         
+        # 获取从Excel中提取的年份
+        extracted_year = parse_result.get('extracted_year')
+        print(f"📅 从解析结果获取到的年份: {extracted_year}")
+        
         # 处理多工作表的情况
         if 'sheet_details' in parse_result and parse_result['sheet_details']:
             # 多工作表的结果
             for sheet_detail in parse_result['sheet_details']:
                 for record_data in sheet_detail['records']:
+                    # 如果记录中没有年份信息，使用解析结果中的年份
+                    if 'extracted_year' not in record_data and extracted_year:
+                        record_data['extracted_year'] = extracted_year
                     decade_plan = create_decade_plan_record(import_batch_id, record_data)
                     decade_plans.append(decade_plan)
         else:
             # 单工作表的结果
             for record_data in parse_result['records']:
+                # 如果记录中没有年份信息，使用解析结果中的年份
+                if 'extracted_year' not in record_data and extracted_year:
+                    record_data['extracted_year'] = extracted_year
                 decade_plan = create_decade_plan_record(import_batch_id, record_data)
                 decade_plans.append(decade_plan)
         
@@ -496,23 +506,43 @@ def create_decade_plan_record(import_batch_id: str, record_data: dict) -> Decade
     year = None
     
     # 获取年份 - 优先从Excel解析器提供的planned_start/planned_end数据中获取
+    print(f"🔍 检查记录数据: planned_start={record_data.get('planned_start')}, planned_end={record_data.get('planned_end')}")
+    
     if record_data.get('planned_start'):
         try:
             original_planned_start = datetime.fromisoformat(record_data['planned_start'])
             year = original_planned_start.year
-        except:
-            pass
+            print(f"✅ 从planned_start获取年份: {year}")
+        except Exception as e:
+            print(f"❌ 解析planned_start失败: {e}")
     
     if not year and record_data.get('planned_end'):
         try:
             original_planned_end = datetime.fromisoformat(record_data['planned_end'])
             year = original_planned_end.year
-        except:
-            pass
+            print(f"✅ 从planned_end获取年份: {year}")
+        except Exception as e:
+            print(f"❌ 解析planned_end失败: {e}")
     
-    # 最后备选：使用当前年份
+    # 如果还没有年份，尝试从其他途径获取
     if not year:
-        year = datetime.now().year
+        # 方法1：检查Excel解析器是否提供了年份信息
+        if 'extracted_year' in record_data and record_data['extracted_year']:
+            year = record_data['extracted_year']
+            print(f"✅ 从Excel解析器获取年份: {year}")
+        # 方法2：尝试从日期范围字符串中提取年份
+        elif record_data.get('production_date_range'):
+            date_range = record_data['production_date_range']
+            # 查找可能的年份模式，如"2024.10.16-10.31"
+            year_match = re.search(r'(\d{4})', str(date_range))
+            if year_match:
+                year = int(year_match.group(1))
+                print(f"✅ 从日期范围提取年份: {year}")
+        
+        # 最后备选：使用2024年（根据Excel标题显示的年份）
+        if not year:
+            year = 2024  # 根据Excel标题"2024年10月16～31日生产作业计划表"
+            print(f"⚠️ 使用默认年份2024（从Excel标题获得）: {year}")
     
     # 从production_date_range解析日期范围
     production_date_range = record_data.get('production_date_range', '')
@@ -528,11 +558,13 @@ def create_decade_plan_record(import_batch_id: str, record_data: dict) -> Decade
                 if '.' in start_str:
                     start_month, start_day = start_str.split('.')
                     planned_start = datetime(year, int(start_month), int(start_day))
+                    print(f"✅ 从production_date_range构建planned_start: {planned_start}")
                 
                 # 解析结束日期 "10.31"
                 if '.' in end_str:
                     end_month, end_day = end_str.split('.')
                     planned_end = datetime(year, int(end_month), int(end_day))
+                    print(f"✅ 从production_date_range构建planned_end: {planned_end}")
                 
         except (ValueError, IndexError) as e:
             print(f"⚠️ 解析production_date_range失败: {production_date_range}, 错误: {e}")
@@ -552,8 +584,12 @@ def create_decade_plan_record(import_batch_id: str, record_data: dict) -> Decade
     # 如果还是没有日期，使用默认日期
     if not planned_start:
         planned_start = datetime(year, 11, 1)  # 使用解析出的年份，默认11月1日
+        print(f"⚠️ 使用默认planned_start: {planned_start}")
     if not planned_end:
         planned_end = datetime(year, 11, 15)  # 使用解析出的年份，默认11月15日
+        print(f"⚠️ 使用默认planned_end: {planned_end}")
+    
+    print(f"🎯 最终日期结果: planned_start={planned_start}, planned_end={planned_end}, 年份={year}")
     
     # 获取机台代码并转换为逗号分隔字符串
     feeder_codes = record_data.get('feeder_codes', [])

@@ -160,6 +160,7 @@ class ProductionPlanExcelParser:
                         'warnings': self.warnings.copy(),
                         'total_records': len(self.records),
                         'valid_records': len([r for r in self.records if self._is_valid_record(r)]),
+                        'extracted_year': self.extracted_year,  # 添加提取的年份信息
                     }
                     all_results.append(sheet_result)
                     
@@ -171,8 +172,18 @@ class ProductionPlanExcelParser:
             final_records = []
             final_errors = []
             final_warnings = []
+            extracted_year = None
             
             for sheet_result in all_results:
+                # 获取提取的年份（优先使用第一个工作表的年份）
+                if extracted_year is None and 'extracted_year' in sheet_result:
+                    extracted_year = sheet_result['extracted_year']
+                
+                # 将年份信息添加到每个记录中
+                for record in sheet_result['records']:
+                    if extracted_year and 'extracted_year' not in record:
+                        record['extracted_year'] = extracted_year
+                
                 final_records.extend(sheet_result['records'])
                 final_errors.extend(sheet_result['errors'])
                 final_warnings.extend(sheet_result['warnings'])
@@ -186,7 +197,8 @@ class ProductionPlanExcelParser:
                 'errors': final_errors,
                 'warnings': final_warnings,
                 'sheets_processed': len(all_results),
-                'sheet_details': all_results
+                'sheet_details': all_results,
+                'extracted_year': extracted_year,  # 添加提取的年份到最终结果
             }
             
             logger.info(f"解析完成: 处理{result['sheets_processed']}个工作表, {result['total_records']}条记录, {result['valid_records']}条有效")
@@ -247,42 +259,74 @@ class ProductionPlanExcelParser:
     def _extract_year_from_title(self, worksheet: Worksheet) -> None:
         """从Excel表格标题中提取年份信息"""
         try:
-            # 搜索前3行中的标题信息
-            for row_idx in range(1, min(4, worksheet.max_row + 1)):
-                for col_idx in range(1, min(6, worksheet.max_column + 1)):  # 只搜索前5列
+            # 优先从第一行标题"2024年10月16～31日生产作业计划表"中提取年份
+            logger.info("开始从Excel标题中提取年份信息...")
+            
+            max_row = worksheet.max_row
+            max_col = worksheet.max_column
+            
+            logger.info(f"工作表尺寸: {max_row}行 x {max_col}列")
+            
+            # 搜索策略：优先级排序
+            # 1. 第一行（主标题）
+            # 2. 前5行（其他标题信息）
+            # 3. 如果还没找到，搜索包含"有效期限"等关键词的行
+            
+            search_ranges = []
+            
+            # 第一优先级：第1行
+            if max_row >= 1:
+                search_ranges.append(1)
+            
+            # 第二优先级：前5行（除了第1行）
+            search_ranges.extend(range(2, min(6, max_row + 1)))
+            
+            # 第三优先级：如果前面没找到，搜索所有行来查找"有效期限"等
+            if max_row > 5:
+                search_ranges.extend(range(6, max_row + 1))
+            
+            logger.info(f"搜索策略: 优先第1行，然后前5行，最后搜索其他行")
+            
+            for row_idx in search_ranges:
+                for col_idx in range(1, min(8, max_col + 1)):  # 限制在前7列
                     cell_value = worksheet.cell(row_idx, col_idx).value
                     if cell_value:
                         cell_text = str(cell_value).strip()
+                        logger.info(f"检查单元格 ({row_idx}, {col_idx}): '{cell_text}'")
                         
-                        # 匹配包含年份的标题格式，如：
-                        # "2024年10月16～31日生产作业计划表"
-                        # "2024年10月16-31日" 
-                        # "2024.10.16-31"
+                        # 扩展的年份匹配模式，包括"有效期限：2024.11.1～11.15"格式
                         year_patterns = [
-                            r'(\d{4})年',           # 2024年
-                            r'(\d{4})\.',           # 2024.
-                            r'(\d{4})-',            # 2024-
-                            r'(\d{4})/',            # 2024/
-                            r'^(\d{4})$'            # 单独的年份
+                            r'(\d{4})年',                    # 2024年
+                            r'(\d{4})\.',                    # 2024.
+                            r'(\d{4})-',                     # 2024-
+                            r'(\d{4})/',                     # 2024/
+                            r'(\d{4})～',                    # 2024～
+                            r'(\d{4})~',                     # 2024~
+                            r'^(\d{4})$',                    # 单独的年份
+                            r'(\d{4})\s',                    # 2024 (后面有空格)
+                            r'有效期限.*?(\d{4})\.',         # 有效期限：2024.11.1～11.15
+                            r'期限.*?(\d{4})\.',             # 期限：2024.11.1～11.15
+                            r'：(\d{4})\.',                  # ：2024.11.1
                         ]
                         
                         for pattern in year_patterns:
                             match = re.search(pattern, cell_text)
                             if match:
                                 year = int(match.group(1))
+                                logger.info(f"匹配到年份模式 '{pattern}': {year}")
                                 # 验证年份合理性（1990-2050）
                                 if 1990 <= year <= 2050:
                                     self.extracted_year = year
-                                    logger.info(f"从标题 '{cell_text}' 中提取年份: {year}")
-                                    return
+                                    logger.info(f"✅ 从第{row_idx}行标题 '{cell_text}' 中成功提取年份: {year}")
+                                    return  # 找到年份后立即返回，不再继续搜索
             
             # 如果没有找到年份，使用当前年份作为默认值
             current_year = datetime.now().year
             self.extracted_year = current_year
-            logger.warning(f"未在Excel标题中找到年份信息，使用当前年份: {current_year}")
+            logger.warning(f"⚠️ 未在Excel标题中找到年份信息，使用当前年份: {current_year}")
             
         except Exception as e:
-            logger.error(f"提取年份信息时出错: {e}")
+            logger.error(f"❌ 提取年份信息时出错: {e}")
             self.extracted_year = datetime.now().year
     
     def _parse_header_columns(self, worksheet: Worksheet, header_row: int) -> Dict[int, str]:
@@ -573,6 +617,7 @@ class ProductionPlanExcelParser:
         try:
             # 使用从Excel标题中提取的年份，如果没有则使用当前年份
             year = self.extracted_year if self.extracted_year else datetime.now().year
+            logger.info(f"解析日期 '{date_str}' 使用年份: {year}")
             
             # 格式: "11.1" -> 11月1日
             if '.' in date_str:
@@ -580,10 +625,13 @@ class ProductionPlanExcelParser:
                 if len(month_day) == 2:
                     month = int(month_day[0])
                     day = int(month_day[1])
-                    return datetime(year, month, day)
+                    parsed_date = datetime(year, month, day)
+                    logger.info(f"解析日期结果: {parsed_date}")
+                    return parsed_date
             
             return None
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            logger.error(f"日期解析失败: {date_str}, 错误: {e}")
             return None
     
     def _is_valid_record(self, record: ProductionPlanRecord) -> bool:
