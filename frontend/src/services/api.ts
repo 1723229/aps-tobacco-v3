@@ -40,7 +40,7 @@ export interface SchedulingTask {
 // 工单接口
 export interface WorkOrder {
     work_order_nr: string;
-    work_order_type: "MAKER" | "FEEDER"; // 后端实际返回的类型
+    work_order_type: "HJB" | "HWS"; // 后端实际返回的类型
     machine_type: "卷包机" | "喂丝机"; // 后端实际返回的类型
     machine_code: string;
     product_code: string;
@@ -426,7 +426,7 @@ export class WorkOrderAPI {
     static async getWorkOrders(params?: {
         task_id?: string;
         import_batch_id?: string;
-        order_type?: "MAKER" | "FEEDER"; // 与后端API一致
+        order_type?: "HJB" | "HWS"; // 与后端API一致
         status?: string;
         machine_code?: string;
         product_code?: string;

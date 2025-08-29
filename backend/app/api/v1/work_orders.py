@@ -20,7 +20,7 @@ router = APIRouter(prefix="/work-orders", tags=["工单管理"])
 async def get_work_orders(
     task_id: Optional[str] = Query(None, description="排产任务ID过滤"),
     import_batch_id: Optional[str] = Query(None, description="导入批次ID过滤"),
-    order_type: Optional[str] = Query(None, description="工单类型过滤 (MAKER-卷包机, FEEDER-喂丝机)"),
+    order_type: Optional[str] = Query(None, description="工单类型过滤 (HJB-卷包机, HWS-喂丝机)"),
     orderType: Optional[str] = Query(None, description="工单类型过滤别名"),
     time_range: Optional[str] = Query(None, description="时间范围过滤"),
     timeRange: Optional[str] = Query(None, description="时间范围过滤别名"),
@@ -37,7 +37,7 @@ async def get_work_orders(
     Args:
         task_id: 排产任务ID过滤
         import_batch_id: 导入批次ID过滤
-        order_type: 工单类型过滤 (MAKER-卷包机, FEEDER-喂丝机)
+        order_type: 工单类型过滤 (HJB-卷包机, HWS-喂丝机)
         orderType: 工单类型过滤别名
         time_range: 时间范围过滤
         timeRange: 时间范围过滤别名
@@ -60,7 +60,7 @@ async def get_work_orders(
         total_count = 0
         
         # 查询卷包机工单
-        if not effective_order_type or effective_order_type == 'MAKER':
+        if not effective_order_type or effective_order_type == 'HJB':
             packing_query = select(PackingOrder)
             conditions = []
             
@@ -80,7 +80,7 @@ async def get_work_orders(
             for order in packing_orders:
                 work_orders.append({
                     "work_order_nr": order.work_order_nr,
-                    "work_order_type": "MAKER",
+                    "work_order_type": "HJB",
                     "machine_type": "卷包机",
                     "machine_code": order.machine_code,
                     "product_code": order.product_code,
@@ -95,7 +95,7 @@ async def get_work_orders(
                 })
         
         # 查询喂丝机工单
-        if not effective_order_type or effective_order_type == 'FEEDER':
+        if not effective_order_type or effective_order_type == 'HWS':
             feeding_query = select(FeedingOrder)
             conditions = []
             
@@ -115,7 +115,7 @@ async def get_work_orders(
             for order in feeding_orders:
                 work_orders.append({
                     "work_order_nr": order.work_order_nr,
-                    "work_order_type": "FEEDER",
+                    "work_order_type": "HWS",
                     "machine_type": "喂丝机",
                     "machine_code": order.machine_code,
                     "product_code": order.product_code,
@@ -180,7 +180,7 @@ async def get_work_order_detail(
                 message="查询成功",
                 data={
                     "work_order_nr": packing_order.work_order_nr,
-                    "work_order_type": "MAKER",
+                    "work_order_type": "HJB",
                     "machine_type": "卷包机",
                     "machine_code": packing_order.machine_code,
                     "product_code": packing_order.product_code,
@@ -207,7 +207,7 @@ async def get_work_order_detail(
                 message="查询成功",
                 data={
                     "work_order_nr": feeding_order.work_order_nr,
-                    "work_order_type": "FEEDER",
+                    "work_order_type": "HWS",
                     "machine_type": "喂丝机",
                     "machine_code": feeding_order.machine_code,
                     "product_code": feeding_order.product_code,
@@ -289,8 +289,8 @@ async def get_work_order_statistics(
                     "status_breakdown": feeding_status_stats
                 },
                 "by_type": {
-                    "MAKER": packing_count,
-                    "FEEDER": feeding_count
+                    "HJB": packing_count,
+                    "HWS": feeding_count
                 }
             }
         )

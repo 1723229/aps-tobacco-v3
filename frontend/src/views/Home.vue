@@ -318,8 +318,8 @@ const loadStatistics = async () => {
     
     if (workOrdersResponse.code === 200 && workOrdersResponse.data?.work_orders) {
       const workOrders = workOrdersResponse.data.work_orders
-      const makerOrders = workOrders.filter((order: any) => order.work_order_type === 'MAKER')
-      const feederOrders = workOrders.filter((order: any) => order.work_order_type === 'FEEDER')
+      const makerOrders = workOrders.filter((order: any) => order.work_order_type === 'HJB')
+      const feederOrders = workOrders.filter((order: any) => order.work_order_type === 'HWS')
       
       statistics.value = {
         // 保留原始统计

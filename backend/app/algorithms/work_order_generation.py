@@ -155,9 +155,9 @@ class WorkOrderGeneration(AlgorithmBase):
         
         work_order = {
             # 基础信息
-            'work_order_nr': self._generate_work_order_number('FEEDER'),
+            'work_order_nr': self._generate_work_order_number('HWS'),
             'work_order_type': 'FEEDER_PRODUCTION',
-            'machine_type': 'FEEDER',
+            'machine_type': 'HWS',
             'machine_code': feeder_code,
             'product_code': product_code,
             'product_name': first_order.get('article_nr', ''),
@@ -325,9 +325,9 @@ class WorkOrderGeneration(AlgorithmBase):
         
         work_order = {
             # 基础信息
-            'work_order_nr': self._generate_work_order_number('FEEDER'),
+            'work_order_nr': self._generate_work_order_number('HWS'),
             'work_order_type': 'FEEDER_PRODUCTION',
-            'machine_type': 'FEEDER',
+            'machine_type': 'HWS',
             'machine_code': order_data.get('maker_code'),
             'product_code': product_code,
             'product_name': order_data.get('product_name', ''),
@@ -412,9 +412,9 @@ class WorkOrderGeneration(AlgorithmBase):
         
         work_order = {
             # 基础信息
-            'work_order_nr': self._generate_work_order_number('MAKER'),
+            'work_order_nr': self._generate_work_order_number('HJB'),
             'work_order_type': 'MAKER_PRODUCTION',
-            'machine_type': 'MAKER',
+            'machine_type': 'HJB',
             'machine_code': order_data.get('maker_code'),
             'product_code': product_code,
             'product_name': order_data.get('article_nr', ''),  # 修正字段名
@@ -632,12 +632,12 @@ def add_database_persistence_methods():
                     # 提取公共字段
                     common_fields = self._extract_common_work_order_fields(work_order, task_id)
                     
-                    if work_order.get('machine_type') == 'MAKER':
+                    if work_order.get('machine_type') == 'HJB':
                         # 保存卷包工单
                         await self._save_packing_order(db, common_fields, work_order)
                         packing_orders_saved += 1
                         
-                    elif work_order.get('machine_type') == 'FEEDER':
+                    elif work_order.get('machine_type') == 'HWS':
                         # 保存喂丝工单
                         await self._save_feeding_order(db, common_fields, work_order)
                         feeding_orders_saved += 1
@@ -721,7 +721,7 @@ def add_database_persistence_methods():
             'planned_end': planned_end,
             'sequence': safe_int(work_order.get('sequence'), 1),
             'plan_date': safe_date(planned_start),
-            'work_order_type': work_order.get('work_order_type', 'MAKER')[:10],
+            'work_order_type': work_order.get('work_order_type')[:10],
             'machine_code': work_order.get('machine_code', '')[:20],
             'product_code': work_order.get('product_code', '')[:100],
             'plan_quantity': safe_int(work_order.get('plan_quantity')),
@@ -739,7 +739,7 @@ def add_database_persistence_methods():
         packing_fields = common_fields.copy()
         packing_fields.update({
             'maker_code': work_order.get('machine_code', '')[:20],
-            'machine_type': 'MAKER',
+            'machine_type': 'HJB',
             'unit': work_order.get('plan_unit', '箱')[:20],
             'production_speed': int(work_order.get('production_speed', 0)) if work_order.get('production_speed') else None,
             'feeder_code': work_order.get('feeder_code', '')[:20] if work_order.get('feeder_code') else '',
@@ -775,7 +775,7 @@ def add_database_persistence_methods():
             'base_quantity': feeding_fields['quantity_total'],
             'feeder_code': work_order.get('machine_code', '')[:20],
             'feeder_type': work_order.get('feeder_type', '')[:50] if work_order.get('feeder_type') else None,
-            'machine_type': 'FEEDER',
+            'machine_type': 'HWS',
             'unit': work_order.get('plan_unit', '公斤')[:20],
             'feeding_speed': float(work_order.get('feeding_rate', 0)) if work_order.get('feeding_rate') else None,
             'related_packing_orders': json.dumps(work_order.get('related_packing_orders', [])),

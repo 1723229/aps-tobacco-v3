@@ -410,9 +410,9 @@ const convertToGanttData = () => {
   ganttTasks.value = workOrders.value.map(order => {
     // 根据实际API返回的work_order_type映射
     let ganttType: 'HJB' | 'HWS' | 'MAINTENANCE' = 'HJB'
-    if (order.work_order_type === 'FEEDER' || order.machine_type === '喂丝机') {
+    if (order.work_order_type === 'HWS' || order.machine_type === '喂丝机') {
       ganttType = 'HWS'
-    } else if (order.work_order_type === 'MAKER' || order.machine_type === '卷包机') {
+    } else if (order.work_order_type === 'HJB' || order.machine_type === '卷包机') {
       ganttType = 'HJB'
     }
     
@@ -466,13 +466,13 @@ const convertToGanttData = () => {
 
 const calculateStatistics = () => {
   statistics.totalOrders = workOrders.value.length
-  // 根据实际API数据计算卷包机工单（work_order_type为MAKER）
+  // 根据实际API数据计算卷包机工单（work_order_type为HJB）
   statistics.makerOrders = workOrders.value.filter(o => 
-    o.work_order_type === 'MAKER' || o.machine_type === '卷包机'
+    o.work_order_type === 'HJB' || o.machine_type === '卷包机'
   ).length
-  // 根据实际API数据计算喂丝机工单（work_order_type为FEEDER）
+  // 根据实际API数据计算喂丝机工单（work_order_type为HWS）
   statistics.feederOrders = workOrders.value.filter(o => 
-    o.work_order_type === 'FEEDER' || o.machine_type === '喂丝机'
+    o.work_order_type === 'HWS' || o.machine_type === '喂丝机'
   ).length
   statistics.totalQuantity = workOrders.value.reduce((sum, o) => sum + (o.plan_quantity || 0), 0)
   

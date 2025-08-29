@@ -64,11 +64,11 @@ class DataPreprocessor(AlgorithmBase):
             if maker_code:
                 # 卷包机代码通常以C开头或包含数字
                 if maker_code.startswith('C') or any(c.isdigit() for c in maker_code):
-                    cleaned_record['machine_type'] = 'MAKER'
+                    cleaned_record['machine_type'] = 'HJB'
                 else:
-                    cleaned_record['machine_type'] = 'FEEDER'
+                    cleaned_record['machine_type'] = 'HWS'
             else:
-                cleaned_record['machine_type'] = 'MAKER'  # 默认卷包机
+                cleaned_record['machine_type'] = 'HJB'  # 默认卷包机
             
             # 3. 数量字段标准化（添加类型检查）
             try:

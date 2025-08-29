@@ -38,8 +38,8 @@
             @change="fetchWorkOrders"
           >
             <el-option label="全部" value="" />
-            <el-option label="卷包机工单" value="MAKER" />
-            <el-option label="喂丝机工单" value="FEEDER" />
+            <el-option label="卷包机工单" value="HJB" />
+            <el-option label="喂丝机工单" value="HWS" />
           </el-select>
         </el-form-item>
         <el-form-item label="机台">
@@ -123,7 +123,7 @@ const filterOptions = ref({
 // 工单数据接口（根据实际API返回结构定义）
 interface WorkOrder {
   work_order_nr: string
-  work_order_type: 'MAKER' | 'FEEDER'
+  work_order_type: 'HJB' | 'HWS'
   machine_type: '卷包机' | '喂丝机'
   machine_code: string
   product_code: string
@@ -147,7 +147,7 @@ interface GanttTask {
   end: Date
   quantity: number
   status: string
-  type: 'MAKER' | 'FEEDER'
+  type: 'HJB' | 'HWS'
   progress: number
 }
 
@@ -155,11 +155,11 @@ const ganttTasks = ref<GanttTask[]>([])
 
 // 计算属性
 const makerOrdersCount = computed(() => 
-  workOrders.value.filter(order => order.work_order_type === 'MAKER').length
+  workOrders.value.filter(order => order.work_order_type === 'HJB').length
 )
 
 const feederOrdersCount = computed(() => 
-  workOrders.value.filter(order => order.work_order_type === 'FEEDER').length
+  workOrders.value.filter(order => order.work_order_type === 'HWS').length
 )
 
 const totalQuantity = computed(() => 
@@ -357,7 +357,7 @@ const createGanttChartOption = (tasks: GanttTask[]) => {
   
   // 按机台分组
   const machineGroups = tasks.reduce((acc, task) => {
-    const machineKey = `${task.machine} (${task.type === 'MAKER' ? '卷包机' : '喂丝机'})`
+    const machineKey = `${task.machine} (${task.type === 'HJB' ? '卷包机' : '喂丝机'})`
     if (!acc[machineKey]) {
       acc[machineKey] = {
         type: task.type,
@@ -396,7 +396,7 @@ const createGanttChartOption = (tasks: GanttTask[]) => {
           task.end.getTime() - task.start.getTime()
         ],
         itemStyle: {
-          color: task.type === 'MAKER' ? '#409eff' : '#67c23a'
+          color: task.type === 'HJB' ? '#409eff' : '#67c23a'
         },
         taskInfo: {
           id: task.id,
@@ -441,7 +441,7 @@ const createGanttChartOption = (tasks: GanttTask[]) => {
             <div>
               <strong>${task.id}</strong><br/>
               产品: ${task.product}<br/>
-              机台: ${task.machine} (${task.type === 'MAKER' ? '卷包机' : '喂丝机'})<br/>
+              机台: ${task.machine} (${task.type === 'HJB' ? '卷包机' : '喂丝机'})<br/>
               数量: ${task.quantity} 件<br/>
               时长: ${duration} 小时<br/>
               开始: ${task.start}<br/>

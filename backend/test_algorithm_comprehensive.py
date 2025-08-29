@@ -243,8 +243,8 @@ class AlgorithmTester:
         assert result.success, f"工单生成失败: {result.error_summary}"
         
         # 统计工单类型
-        feeder_orders = [wo for wo in result.output_data if wo.get('work_order_type') == 'FEEDER_PRODUCTION']
-        maker_orders = [wo for wo in result.output_data if wo.get('work_order_type') == 'MAKER_PRODUCTION']
+        feeder_orders = [wo for wo in result.output_data if wo.get('work_order_type') == 'HWS']
+        maker_orders = [wo for wo in result.output_data if wo.get('work_order_type') == 'HJB']
         
         print(f"✅ 工单生成通过: 输入{len(input_data)}条，输出{len(result.output_data)}条")
         print(f"   喂丝机工单: {len(feeder_orders)}个")
@@ -279,8 +279,8 @@ class AlgorithmTester:
         assert result['success'], f"完整管道执行失败: {result.get('error', 'Unknown error')}"
         
         final_work_orders = result['final_work_orders']
-        feeder_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'FEEDER_PRODUCTION']
-        maker_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'MAKER_PRODUCTION']
+        feeder_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'HWS']
+        maker_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'HJB']
         
         print(f"✅ 完整管道测试通过!")
         print(f"   执行时间: {result['execution_duration_seconds']:.2f}秒")

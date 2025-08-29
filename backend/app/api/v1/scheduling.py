@@ -140,7 +140,7 @@ async def execute_scheduling_pipeline_background(
                 for work_order in final_work_orders:
                     machine_type = work_order.get('machine_type', '')
                     
-                    if machine_type == 'MAKER' or work_order.get('work_order_type') == 'MAKER_PRODUCTION':
+                    if machine_type == 'HJB' or work_order.get('work_order_type') == 'MAKER_PRODUCTION':
                         
                         # 处理机器代码 - 如果是逗号分隔的多个机器，取第一个并映射到数据库格式
                         machine_code_raw = work_order.get('machine_code', 'C1')
@@ -155,7 +155,7 @@ async def execute_scheduling_pipeline_background(
                             work_order_nr=work_order.get('work_order_nr'),
                             task_id=task_id,
                             work_order_type=work_order.get('work_order_type', 'MAKER_PRODUCTION'),
-                            machine_type='MAKER',
+                            machine_type='HJB',
                             machine_code=maker_code,
                             product_code=work_order.get('product_code'),
                             plan_quantity=work_order.get('plan_quantity', 0),
@@ -178,7 +178,7 @@ async def execute_scheduling_pipeline_background(
                         db.add(packing_order)
                         packing_orders_count += 1
                         
-                    elif machine_type == 'FEEDER' or work_order.get('work_order_type') == 'FEEDER_PRODUCTION':
+                    elif machine_type == 'HWS' or work_order.get('work_order_type') == 'FEEDER_PRODUCTION':
                         # 处理机器代码 - 如果是逗号分隔的多个机器，取第一个并映射到数据库格式
                         machine_code_raw = work_order.get('machine_code', '15')
                         if ',' in machine_code_raw:
@@ -192,7 +192,7 @@ async def execute_scheduling_pipeline_background(
                             work_order_nr=work_order.get('work_order_nr'),
                             task_id=task_id,
                             work_order_type=work_order.get('work_order_type', 'FEEDER_PRODUCTION'),
-                            machine_type='FEEDER',
+                            machine_type='HWS',
                             machine_code=feeder_code,
                             product_code=work_order.get('product_code'),
                             plan_quantity=work_order.get('plan_quantity', 0),
@@ -757,7 +757,7 @@ async def get_work_orders(
     Args:
         task_id: 排产任务ID过滤
         import_batch_id: 导入批次ID过滤
-        order_type: 工单类型过滤 (MAKER-卷包机, FEEDER-喂丝机)
+        order_type: 工单类型过滤 (HJB-卷包机, HWS-喂丝机)
         status: 工单状态过滤
         page: 页码
         page_size: 每页大小
@@ -773,7 +773,7 @@ async def get_work_orders(
         total_count = 0
         
         # 查询卷包机工单
-        if not order_type or order_type == 'MAKER':
+        if not order_type or order_type == 'HJB':
             packing_query = select(PackingOrder)
             
             # 添加过滤条件
@@ -800,7 +800,7 @@ async def get_work_orders(
             for order in packing_orders:
                 work_orders.append({
                     "work_order_nr": order.work_order_nr,
-                    "work_order_type": "MAKER",
+                    "work_order_type": "HJB",
                     "machine_type": "卷包机",
                     "machine_code": order.machine_code,
                     "product_code": order.product_code,
@@ -815,7 +815,7 @@ async def get_work_orders(
                 })
         
         # 查询喂丝机工单
-        if not order_type or order_type == 'FEEDER':
+        if not order_type or order_type == 'HWS':
             feeding_query = select(FeedingOrder)
             
             # 添加过滤条件
@@ -842,7 +842,7 @@ async def get_work_orders(
             for order in feeding_orders:
                 work_orders.append({
                     "work_order_nr": order.work_order_nr,
-                    "work_order_type": "FEEDER",
+                    "work_order_type": "HWS",
                     "machine_type": "喂丝机",
                     "machine_code": order.machine_code,
                     "product_code": order.product_code,

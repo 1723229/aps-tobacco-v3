@@ -68,8 +68,8 @@ async def test_pipeline_with_real_data():
         
         if result['success']:
             final_work_orders = result['final_work_orders']
-            feeder_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'FEEDER_PRODUCTION']
-            maker_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'MAKER_PRODUCTION']
+            feeder_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'HWS']
+            maker_orders = [wo for wo in final_work_orders if wo.get('work_order_type') == 'HJB']
             
             print(f"✅ 真实数据管道测试成功!")
             print(f"   输入批次: {first_batch_id}")
