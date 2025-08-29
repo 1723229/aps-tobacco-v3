@@ -64,6 +64,8 @@ async def get_work_orders(
             packing_query = select(PackingOrder)
             conditions = []
             
+            if task_id:
+                conditions.append(PackingOrder.task_id == task_id)
             if status:
                 conditions.append(PackingOrder.work_order_status == status)
             if machine_code:
@@ -99,6 +101,8 @@ async def get_work_orders(
             feeding_query = select(FeedingOrder)
             conditions = []
             
+            if task_id:
+                conditions.append(FeedingOrder.task_id == task_id)
             if status:
                 conditions.append(FeedingOrder.work_order_status == status)
             if machine_code:

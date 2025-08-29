@@ -240,6 +240,7 @@ const fetchWorkOrders = async () => {
     // 添加筛选条件
     if (filterOptions.value.task_id) {
       params.task_id = filterOptions.value.task_id
+      console.log('📍 使用任务ID筛选:', filterOptions.value.task_id)
     }
     if (filterOptions.value.import_batch_id) {
       params.import_batch_id = filterOptions.value.import_batch_id
@@ -258,12 +259,24 @@ const fetchWorkOrders = async () => {
       code: response.code,
       message: response.message,
       total_count: response.data?.total_count,
-      work_orders_count: response.data?.work_orders?.length
+      work_orders_count: response.data?.work_orders?.length,
+      task_id_filter: filterOptions.value.task_id
     })
     
     if (response.code === 200 && response.data?.work_orders) {
       workOrders.value = response.data.work_orders as WorkOrder[]
       console.log('📦 工单数据样本:', workOrders.value.slice(0, 2))
+      
+      // 检查是否有任务ID筛选但没有结果
+      if (filterOptions.value.task_id && workOrders.value.length === 0) {
+        console.warn('⚠️ 指定任务ID无关联工单:', filterOptions.value.task_id)
+        error.value = `任务 ${filterOptions.value.task_id} 暂无关联的工单数据。这可能是因为工单生成过程中未正确关联任务ID。`
+        ganttTasks.value = []
+        setTimeout(() => {
+          renderGanttChart()
+        }, 100)
+        return
+      }
       
       ganttTasks.value = transformToGanttTasks(workOrders.value)
       
@@ -321,7 +334,10 @@ const renderGanttChart = () => {
   
   if (tasks.length === 0) {
     console.warn('⚠️ 没有任务数据，显示空状态')
-    container.innerHTML = '<div class="no-data">暂无工单数据，请先选择排产任务或批次</div>'
+    const message = filterOptions.value.task_id 
+      ? `任务 ${filterOptions.value.task_id} 暂无关联的工单数据`
+      : '暂无工单数据，请先选择排产任务或批次'
+    container.innerHTML = `<div class="no-data">${message}</div>`
     return
   }
   
@@ -562,6 +578,8 @@ const refreshData = () => {
 // 生命周期钩子
 onMounted(() => {
   console.log('📊 甘特图页面已挂载')
+  console.log('🔍 路由查询参数:', route.query)
+  console.log('📝 筛选条件:', filterOptions.value)
   fetchWorkOrders()
 })
 
