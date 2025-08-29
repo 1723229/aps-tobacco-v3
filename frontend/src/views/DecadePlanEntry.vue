@@ -3,12 +3,20 @@
     <!-- 页面标题区 -->
     <div class="page-title-section">
       <div class="title-content">
-        <div class="title-icon">
-          <el-icon><UploadFilled /></el-icon>
+        <div class="title-left">
+          <div class="title-icon">
+            <el-icon><UploadFilled /></el-icon>
+          </div>
+          <div class="title-text">
+            <h1>卷包旬计划录入</h1>
+            <p>上传Excel文件进行卷包旬计划数据录入与解析</p>
+          </div>
         </div>
-        <div class="title-text">
-          <h1>卷包旬计划录入</h1>
-          <p>上传Excel文件进行卷包旬计划数据录入与解析</p>
+        <div class="title-actions">
+          <el-button type="primary" @click="goToScheduling">
+            <el-icon><Lightning /></el-icon>
+            智能排产管理
+          </el-button>
         </div>
       </div>
     </div>
@@ -126,7 +134,8 @@ import {
   Clock, 
   ArrowDown,
   Refresh,
-  View
+  View,
+  Lightning
 } from '@element-plus/icons-vue'
 import DecadePlanUpload from '@/components/DecadePlanUpload.vue'
 import { useDecadePlanStore } from '@/stores/decade-plan'
@@ -187,6 +196,10 @@ const uploadHistory = ref<HistoryRecord[]>([
 // 计算属性 - 移除了不再需要的currentBatchId和步骤相关逻辑
 
 // 方法
+const goToScheduling = () => {
+  router.push('/scheduling')
+}
+
 const viewHistory = () => {
   showHistory.value = !showHistory.value
   if (showHistory.value && uploadHistory.value.length === 0) {
@@ -320,6 +333,13 @@ onMounted(() => {
   gap: 20px;
   position: relative;
   z-index: 1;
+}
+
+.title-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
 }
 
 .title-icon {
