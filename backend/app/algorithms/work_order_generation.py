@@ -40,49 +40,168 @@ class WorkOrderGeneration(AlgorithmBase):
         
         generated_work_orders = []
         
-        for order_data in input_data:
+        # 按照设计文档实现：先按喂丝机分组，然后生成喂丝机工单和对应的卷包机工单
+        feeder_groups = self._group_by_feeder_code(input_data)
+        logger.info(f"按喂丝机分组结果: {len(feeder_groups)}组")
+        for feeder_code, orders in feeder_groups.items():
+            logger.info(f"  {feeder_code}: {len(orders)}个工单")
+        
+        for feeder_code, feeder_group_orders in feeder_groups.items():
             try:
-                # 根据机台类型生成不同的工单
-                machine_type = order_data.get('machine_type', 'MAKER')
+                # 为每个喂丝机生成一个喂丝机工单
+                logger.info(f"为喂丝机 {feeder_code} 生成工单...")
+                feeder_work_order = self._generate_feeder_work_order_from_group(
+                    feeder_code, feeder_group_orders, product_specs, quality_standards
+                )
+                logger.info(f"生成喂丝机工单: {feeder_work_order['work_order_nr']}")
+                generated_work_orders.append(feeder_work_order)
                 
-                if machine_type == 'FEEDER':
-                    work_order = self._generate_feeder_work_order(
+                # 为每个卷包机生成对应的卷包机工单
+                for order_data in feeder_group_orders:
+                    maker_work_order = self._generate_maker_work_order(
                         order_data, product_specs, quality_standards
                     )
-                elif machine_type == 'MAKER':
-                    work_order = self._generate_maker_work_order(
-                        order_data, product_specs, quality_standards
-                    )
-                else:
-                    # 未知机台类型，生成通用工单
-                    work_order = self._generate_generic_work_order(order_data)
-                
-                generated_work_orders.append(work_order)
+                    # 关联到喂丝机工单
+                    maker_work_order['related_feeder_order'] = feeder_work_order['work_order_nr']
+                    generated_work_orders.append(maker_work_order)
                 
             except Exception as e:
-                logger.error(f"工单生成失败 - 排产数据 {order_data.get('id', 'unknown')}: {str(e)}")
-                result.add_error(f"工单生成失败: {str(e)}", {'order_data': order_data})
+                logger.error(f"工单生成失败 - 喂丝机 {feeder_code}: {str(e)}")
+                result.add_error(f"工单生成失败: {str(e)}", {'feeder_code': feeder_code})
                 
                 # 生成基础工单以免中断流程
-                fallback_order = self._generate_fallback_work_order(order_data)
-                generated_work_orders.append(fallback_order)
+                for order_data in feeder_group_orders:
+                    fallback_order = self._generate_fallback_work_order(order_data)
+                    generated_work_orders.append(fallback_order)
         
         result.output_data = generated_work_orders
         
         # 计算生成统计
-        feeder_orders = len([wo for wo in generated_work_orders if wo.get('machine_type') == 'FEEDER'])
-        maker_orders = len([wo for wo in generated_work_orders if wo.get('machine_type') == 'MAKER'])
+        feeder_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'FEEDER_PRODUCTION'])
+        maker_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'MAKER_PRODUCTION'])
         sync_orders = len([wo for wo in generated_work_orders if wo.get('is_synchronized')])
         
         result.metrics.custom_metrics = {
             'feeder_work_orders': feeder_orders,
             'maker_work_orders': maker_orders,
             'synchronized_work_orders': sync_orders,
-            'generation_success_rate': len(generated_work_orders) / len(input_data) if input_data else 0
+            'generation_success_rate': len(generated_work_orders) / len(input_data) if input_data else 0,
+            'feeder_groups_processed': len(feeder_groups)
         }
         
         logger.info(f"工单生成完成: 喂丝机{feeder_orders}个，卷包机{maker_orders}个，同步{sync_orders}个")
         return self.finalize_result(result)
+    
+    def _group_by_feeder_code(self, input_data: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        按喂丝机代码分组
+        
+        Args:
+            input_data: 输入工单数据
+            
+        Returns:
+            Dict[str, List]: {喂丝机代码: 工单列表}
+        """
+        from collections import defaultdict
+        
+        feeder_groups = defaultdict(list)
+        
+        for order_data in input_data:
+            feeder_code = order_data.get('feeder_code')
+            if feeder_code:
+                feeder_groups[feeder_code].append(order_data)
+            else:
+                # 没有喂丝机代码的单独处理
+                feeder_groups['UNKNOWN_FEEDER'].append(order_data)
+        
+        return dict(feeder_groups)
+    
+    def _generate_feeder_work_order_from_group(
+        self,
+        feeder_code: str,
+        group_orders: List[Dict[str, Any]],
+        product_specs: Dict[str, Dict[str, Any]],
+        quality_standards: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        从工单组生成喂丝机工单
+        
+        Args:
+            feeder_code: 喂丝机代码
+            group_orders: 同一喂丝机的工单列表
+            product_specs: 产品规格配置
+            quality_standards: 质量标准配置
+            
+        Returns:
+            Dict: 喂丝机工单
+        """
+        if not group_orders:
+            raise ValueError(f"喂丝机 {feeder_code} 没有关联工单")
+        
+        # 合并工单数据计算总量和时间范围
+        total_quantity = sum(order.get('quantity_total', 0) for order in group_orders)
+        earliest_start = min(order.get('planned_start') for order in group_orders if order.get('planned_start'))
+        latest_end = max(order.get('planned_end') for order in group_orders if order.get('planned_end'))
+        
+        # 获取产品信息（使用第一个工单的产品信息）
+        first_order = group_orders[0]
+        product_code = first_order.get('article_nr', '')
+        product_spec = product_specs.get(product_code, {})
+        quality_std = quality_standards.get(product_code, {})
+        
+        # 添加安全库存（5%）
+        safety_stock_ratio = 0.05
+        safe_quantity = int(total_quantity * (1 + safety_stock_ratio))
+        
+        work_order = {
+            # 基础信息
+            'work_order_nr': self._generate_work_order_number('FEEDER'),
+            'work_order_type': 'FEEDER_PRODUCTION',
+            'machine_type': 'FEEDER',
+            'machine_code': feeder_code,
+            'product_code': product_code,
+            'product_name': first_order.get('article_nr', ''),
+            
+            # 计划信息
+            'plan_quantity': safe_quantity,
+            'base_quantity': total_quantity,
+            'safety_stock': safe_quantity - total_quantity,
+            'plan_unit': 'KG',
+            'planned_start_time': earliest_start,
+            'planned_end_time': latest_end,
+            
+            # 关联的卷包机工单
+            'related_maker_orders': [order.get('work_order_nr') for order in group_orders],
+            'maker_machines': list(set(order.get('maker_code') for order in group_orders if order.get('maker_code'))),
+            
+            # 喂丝机特有参数
+            'tobacco_blend_formula': product_spec.get('blend_formula', 'STANDARD'),
+            'moisture_target': product_spec.get('moisture_target', 13.5),
+            'moisture_tolerance': product_spec.get('moisture_tolerance', 0.5),
+            'cut_width': product_spec.get('cut_width', 0.8),
+            'feeding_rate': product_spec.get('feeding_rate', 120),  # kg/h
+            
+            # 质量检查点
+            'quality_checkpoints': [
+                {
+                    'checkpoint_name': '配方准确性检查',
+                    'check_frequency': 'BATCH_START',
+                    'standard': quality_std.get('blend_accuracy', '±2%')
+                },
+                {
+                    'checkpoint_name': '水分含量检查',
+                    'check_frequency': 'HOURLY',
+                    'standard': f"{product_spec.get('moisture_target', 13.5)}±{product_spec.get('moisture_tolerance', 0.5)}%"
+                }
+            ],
+            
+            # 审计信息
+            'created_time': datetime.now(),
+            'created_by': 'APS_SYSTEM',
+            'generation_source': 'GROUP_BASED'
+        }
+        
+        return work_order
     
     async def process_with_real_data(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
@@ -115,36 +234,45 @@ class WorkOrderGeneration(AlgorithmBase):
         
         generated_work_orders = []
         
-        for order_data in input_data:
+        # 使用与process方法相同的逻辑：按喂丝机分组
+        feeder_groups = self._group_by_feeder_code(input_data)
+        logger.info(f"真实数据工单生成 - 按喂丝机分组结果: {len(feeder_groups)}组")
+        for feeder_code, orders in feeder_groups.items():
+            logger.info(f"  {feeder_code}: {len(orders)}个工单")
+        
+        for feeder_code, feeder_group_orders in feeder_groups.items():
             try:
-                # 根据机台类型生成不同的工单
-                machine_type = order_data.get('machine_type', 'MAKER')
+                # 为每个喂丝机生成一个喂丝机工单
+                logger.info(f"为喂丝机 {feeder_code} 生成工单...")
+                feeder_work_order = self._generate_feeder_work_order_from_group(
+                    feeder_code, feeder_group_orders, product_specs, quality_standards
+                )
+                logger.info(f"生成喂丝机工单: {feeder_work_order['work_order_nr']}")
+                generated_work_orders.append(feeder_work_order)
                 
-                if machine_type == 'FEEDER':
-                    work_order = self._generate_feeder_work_order(
+                # 为每个卷包机生成对应的卷包机工单
+                for order_data in feeder_group_orders:
+                    maker_work_order = self._generate_maker_work_order(
                         order_data, product_specs, quality_standards
                     )
-                elif machine_type == 'MAKER':
-                    work_order = self._generate_maker_work_order(
-                        order_data, product_specs, quality_standards
-                    )
-                else:
-                    work_order = self._generate_generic_work_order(order_data)
-                
-                generated_work_orders.append(work_order)
+                    # 关联到喂丝机工单
+                    maker_work_order['related_feeder_order'] = feeder_work_order['work_order_nr']
+                    generated_work_orders.append(maker_work_order)
                 
             except Exception as e:
-                logger.error(f"工单生成失败 - 排产数据 {order_data.get('id', 'unknown')}: {str(e)}")
-                result.add_error(f"工单生成失败: {str(e)}", {'order_data': order_data})
+                logger.error(f"真实数据工单生成失败 - 喂丝机 {feeder_code}: {str(e)}")
+                result.add_error(f"工单生成失败: {str(e)}", {'feeder_code': feeder_code})
                 
-                fallback_order = self._generate_fallback_work_order(order_data)
-                generated_work_orders.append(fallback_order)
+                # 生成基础工单以免中断流程
+                for order_data in feeder_group_orders:
+                    fallback_order = self._generate_fallback_work_order(order_data)
+                    generated_work_orders.append(fallback_order)
         
         result.output_data = generated_work_orders
         
         # 计算生成统计
-        feeder_orders = len([wo for wo in generated_work_orders if wo.get('machine_type') == 'FEEDER'])
-        maker_orders = len([wo for wo in generated_work_orders if wo.get('machine_type') == 'MAKER'])
+        feeder_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'FEEDER_PRODUCTION'])
+        maker_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'MAKER_PRODUCTION'])
         sync_orders = len([wo for wo in generated_work_orders if wo.get('is_synchronized')])
         
         result.metrics.custom_metrics.update({
@@ -278,7 +406,7 @@ class WorkOrderGeneration(AlgorithmBase):
         Returns:
             Dict: 卷包机工单
         """
-        product_code = order_data.get('product_code', '')
+        product_code = order_data.get('article_nr', '')  # 修正字段名
         product_spec = product_specs.get(product_code, {})
         quality_std = quality_standards.get(product_code, {})
         
@@ -289,11 +417,11 @@ class WorkOrderGeneration(AlgorithmBase):
             'machine_type': 'MAKER',
             'machine_code': order_data.get('maker_code'),
             'product_code': product_code,
-            'product_name': order_data.get('product_name', ''),
+            'product_name': order_data.get('article_nr', ''),  # 修正字段名
             
             # 计划信息
-            'plan_quantity': order_data.get('plan_quantity', 0),
-            'plan_unit': order_data.get('plan_unit', '万支'),
+            'plan_quantity': order_data.get('quantity_total', 0),  # 修正字段名
+            'plan_unit': '万支',
             'planned_start_time': order_data.get('planned_start'),
             'planned_end_time': order_data.get('planned_end'),
             

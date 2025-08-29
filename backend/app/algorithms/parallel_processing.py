@@ -179,54 +179,113 @@ class ParallelProcessing(AlgorithmBase):
         # 生成并行组ID
         parallel_group_id = f"parallel_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{id(orders)}"
         
-        # 按机台类型分离工单
-        feeder_orders = [o for o in orders if o.get('machine_type') == 'FEEDER']
-        maker_orders = [o for o in orders if o.get('machine_type') == 'MAKER']
+        # 按喂丝机分组识别需要并行处理的工单组
+        # 根据设计文档：同一工单下所有卷包机必须同时开始、同时结束
+        feeder_groups = self._group_orders_by_feeder_and_product(orders)
         
         result_orders = []
         
-        # 处理喂丝机工单
-        for feeder_order in feeder_orders:
-            feeder_code = feeder_order.get('maker_code')  # 工单中的机台代码
+        for group_key, group_orders in feeder_groups.items():
+            feeder_code, product_code = group_key
             
-            # 查找对应的卷包机
+            # 查找对应的卷包机列表
             corresponding_makers = machine_relations.get(feeder_code, [])
             
-            if corresponding_makers:
-                # 找到匹配的卷包机工单
-                matching_maker_orders = [
-                    mo for mo in maker_orders
-                    if mo.get('maker_code') in corresponding_makers and
-                       mo.get('product_code') == feeder_order.get('product_code')
-                ]
-                
-                if matching_maker_orders:
-                    # 创建同步对
-                    sync_pair = self._create_sync_pair(
-                        feeder_order, 
-                        matching_maker_orders[0],  # 选择第一个匹配的
-                        parallel_group_id,
-                        machine_speeds
-                    )
-                    result_orders.extend(sync_pair)
-                    
-                    # 从待处理列表中移除已处理的工单
-                    if matching_maker_orders[0] in maker_orders:
-                        maker_orders.remove(matching_maker_orders[0])
-                else:
-                    # 没有匹配的卷包机，独立处理
-                    standalone_order = self._create_standalone_order(feeder_order, parallel_group_id)
-                    result_orders.append(standalone_order)
+            if len(group_orders) > 1 and len(corresponding_makers) > 1:
+                # 多个工单需要并行处理 - 创建并行执行组
+                parallel_group = self._create_parallel_execution_group(
+                    group_orders, feeder_code, corresponding_makers, 
+                    parallel_group_id, machine_speeds
+                )
+                result_orders.extend(parallel_group)
             else:
-                # 没有关联机台，独立处理
-                standalone_order = self._create_standalone_order(feeder_order, parallel_group_id)
-                result_orders.append(standalone_order)
+                # 单个工单或单台机器 - 独立处理
+                for order in group_orders:
+                    standalone_order = self._create_standalone_order(order, parallel_group_id)
+                    standalone_order['feeder_code'] = feeder_code
+                    standalone_order['requires_parallel'] = False
+                    result_orders.append(standalone_order)
         
-        # 处理剩余的卷包机工单
-        for maker_order in maker_orders:
-            standalone_order = self._create_standalone_order(maker_order, parallel_group_id)
-            result_orders.append(standalone_order)
+        return result_orders
+    
+    def _group_orders_by_feeder_and_product(self, orders: List[Dict[str, Any]]) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
+        """
+        按喂丝机和产品分组工单
         
+        Args:
+            orders: 工单列表
+            
+        Returns:
+            Dict: {(喂丝机代码, 产品代码): 工单列表}
+        """
+        from collections import defaultdict
+        
+        groups = defaultdict(list)
+        
+        for order in orders:
+            feeder_code = order.get('feeder_code', 'UNKNOWN')
+            product_code = order.get('article_nr', 'UNKNOWN')
+            group_key = (feeder_code, product_code)
+            groups[group_key].append(order)
+        
+        return dict(groups)
+    
+    def _create_parallel_execution_group(
+        self,
+        group_orders: List[Dict[str, Any]],
+        feeder_code: str,
+        corresponding_makers: List[str],
+        parallel_group_id: str,
+        machine_speeds: Dict[str, Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        创建并行执行组
+        
+        Args:
+            group_orders: 需要并行的工单组
+            feeder_code: 喂丝机代码
+            corresponding_makers: 对应的卷包机列表
+            parallel_group_id: 并行组ID
+            machine_speeds: 机台速度配置
+            
+        Returns:
+            List[Dict]: 并行处理后的工单列表
+        """
+        logger.info(f"创建并行执行组: 喂丝机{feeder_code}, {len(group_orders)}个工单, {len(corresponding_makers)}台卷包机")
+        
+        # 计算统一的开始和结束时间
+        earliest_start = min(order.get('planned_start') for order in group_orders if order.get('planned_start'))
+        latest_end = max(order.get('planned_end') for order in group_orders if order.get('planned_end'))
+        
+        # 为每个工单分配对应的卷包机
+        result_orders = []
+        
+        for i, order in enumerate(group_orders):
+            # 分配卷包机（轮询分配）
+            assigned_maker = corresponding_makers[i % len(corresponding_makers)]
+            
+            parallel_order = order.copy()
+            parallel_order.update({
+                'parallel_group_id': parallel_group_id,
+                'feeder_code': feeder_code,
+                'maker_code': assigned_maker,
+                'requires_parallel': True,
+                'parallel_start_time': earliest_start,
+                'parallel_end_time': latest_end,
+                'sync_machine_code': feeder_code,
+                'parallel_index': i,
+                'total_parallel_count': len(group_orders),
+                'assigned_makers': corresponding_makers,
+                'coordination_timestamp': datetime.now()
+            })
+            
+            # 添加机台速度信息
+            if assigned_maker in machine_speeds:
+                parallel_order['machine_speed_config'] = machine_speeds[assigned_maker]
+            
+            result_orders.append(parallel_order)
+        
+        logger.info(f"并行组创建完成: 生成{len(result_orders)}个同步工单")
         return result_orders
     
     def _create_sync_pair(

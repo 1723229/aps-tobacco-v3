@@ -5,9 +5,14 @@
       <template #header>
         <div class="card-header">
           <span>甘特图数据源</span>
-          <el-button type="primary" size="small" @click="loadGanttData">
-            刷新数据
-          </el-button>
+          <div>
+            <el-button type="primary" size="small" @click="loadGanttData">
+              刷新数据
+            </el-button>
+            <el-button type="success" size="small" @click="forceReloadChart" v-if="selectedTaskId">
+              重新渲染
+            </el-button>
+          </div>
         </div>
       </template>
       
@@ -24,7 +29,7 @@
             <el-option
               v-for="task in availableTasks"
               :key="task.task_id"
-              :label="task.display_name"
+              :label="`${task.task_name} (${task.result_summary?.total_work_orders || 0}个工单)`"
               :value="task.task_id"
             >
               <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -231,6 +236,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { SchedulingAPI, WorkOrderAPI } from '@/services/api'
 import type { SchedulingTask, WorkOrder } from '@/services/api'
 
 // 响应式数据
@@ -284,66 +290,47 @@ const ganttTasks = ref<GanttTask[]>([])
 // 方法定义
 const loadAvailableTasks = async () => {
   try {
-    // 模拟获取可用的已完成排产任务
-    const mockTasks: SchedulingTask[] = [
-      {
-        task_id: 'SCHEDULE_20250828_145614_4858b735',
-        import_batch_id: 'BATCH_20250828_120000',
-        task_name: '卷包旬计划智能排产 - 8月第4周',
-        status: 'COMPLETED',
-        current_stage: '任务完成',
-        progress: 100,
-        total_records: 25,
-        processed_records: 25,
-        start_time: '2025-08-28T14:56:14',
-        end_time: '2025-08-28T15:12:33',
-        execution_duration: 979,
-        algorithm_config: {
-          merge_enabled: true,
-          split_enabled: true,
-          correction_enabled: true,
-          parallel_enabled: true
-        },
-        result_summary: {
-          total_work_orders: 42,
-          packing_orders: 25,
-          feeding_orders: 17
-        }
-      },
-      {
-        task_id: 'SCHEDULE_20250827_093221_a1b2c3d4',
-        import_batch_id: 'BATCH_20250827_090000',
-        task_name: '卷包旬计划智能排产 - 8月第3周',
-        status: 'COMPLETED',
-        current_stage: '任务完成',
-        progress: 100,
-        total_records: 18,
-        processed_records: 18,
-        start_time: '2025-08-27T09:32:21',
-        end_time: '2025-08-27T09:45:12',
-        execution_duration: 771,
-        algorithm_config: {
-          merge_enabled: true,
-          split_enabled: false,
-          correction_enabled: true,
-          parallel_enabled: true
-        },
-        result_summary: {
-          total_work_orders: 28,
-          packing_orders: 18,
-          feeding_orders: 10
-        }
-      }
-    ]
+    // 从API获取已完成的排产任务
+    const response = await fetch('/api/v1/scheduling/tasks?status=COMPLETED&page_size=50')
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
     
-    availableTasks.value = mockTasks.map(task => ({
-      ...task,
-      display_name: `${task.task_name} (${task.result_summary?.total_work_orders || 0}个工单)`
-    })) as (SchedulingTask & { display_name: string })[]
+    const result = await response.json()
+    
+    if (result.code === 200 && result.data?.tasks) {
+      availableTasks.value = result.data.tasks.map((task: any) => ({
+        task_id: task.task_id,
+        import_batch_id: task.import_batch_id,
+        task_name: task.task_name,
+        status: task.status,
+        current_stage: task.current_stage,
+        progress: task.progress,
+        total_records: task.total_records,
+        processed_records: task.processed_records,
+        start_time: task.start_time,
+        end_time: task.end_time,
+        execution_duration: task.execution_duration,
+        algorithm_config: task.algorithm_config,
+        result_summary: task.result_summary
+      })) as SchedulingTask[]
+      
+      // 自动选择第一个任务
+      if (availableTasks.value.length > 0 && !selectedTaskId.value) {
+        selectedTaskId.value = availableTasks.value[0].task_id
+        console.log('自动选择第一个任务:', selectedTaskId.value)
+        await onTaskSelected(selectedTaskId.value)
+      }
+    } else {
+      console.warn('未找到已完成的排产任务')
+      availableTasks.value = []
+    }
     
   } catch (error) {
     console.error('加载可用任务失败:', error)
     ElMessage.error('加载可用任务失败')
+    // 如果API失败，显示空状态而不是模拟数据
+    availableTasks.value = []
   }
 }
 
@@ -366,65 +353,42 @@ const loadWorkOrders = async () => {
   try {
     console.log('加载任务工单:', selectedTaskId.value)
     
-    // 模拟根据任务ID获取工单数据
-    const mockWorkOrders: WorkOrder[] = [
-      {
-        work_order_nr: 'MAKER20250828000001',
-        work_order_type: 'HJB',
-        machine_type: '卷包机',
-        machine_code: 'C01',
-        product_code: '云烟(紫)',
-        plan_quantity: 800,
-        work_order_status: 'PENDING',
-        planned_start_time: '2025-08-28T08:00:00',
-        planned_end_time: '2025-08-28T16:00:00',
-        created_time: new Date().toISOString()
-      },
-      {
-        work_order_nr: 'FEEDER20250828000001',
-        work_order_type: 'HWS',
-        machine_type: '喂丝机',
-        machine_code: 'F01',
-        product_code: '云烟(紫)',
-        plan_quantity: 650,
-        safety_stock: 50,
-        work_order_status: 'PENDING',
-        planned_start_time: '2025-08-28T07:30:00',
-        planned_end_time: '2025-08-28T15:30:00',
-        created_time: new Date().toISOString()
-      },
-      {
-        work_order_nr: 'MAKER20250828000002',
-        work_order_type: 'HJB',
-        machine_type: '卷包机',
-        machine_code: 'C02',
-        product_code: '玉溪(软)',
-        plan_quantity: 1200,
-        work_order_status: 'PENDING',
-        planned_start_time: '2025-08-28T08:30:00',
-        planned_end_time: '2025-08-28T18:30:00',
-        created_time: new Date().toISOString()
-      },
-      {
-        work_order_nr: 'FEEDER20250828000002',
-        work_order_type: 'HWS',
-        machine_type: '喂丝机',
-        machine_code: 'F02',
-        product_code: '玉溪(软)',
-        plan_quantity: 980,
-        safety_stock: 80,
-        work_order_status: 'PENDING',
-        planned_start_time: '2025-08-28T08:00:00',
-        planned_end_time: '2025-08-28T18:00:00',
-        created_time: new Date().toISOString()
-      }
-    ]
+    // 使用统一的API调用
+    const response = await WorkOrderAPI.getWorkOrders({
+      task_id: selectedTaskId.value,
+      page_size: 1000
+    })
     
-    workOrders.value = mockWorkOrders
-    console.log('✅ 成功加载工单数据:', workOrders.value.length, '条')
+    if (response.code === 200 && response.data?.work_orders) {
+      // 直接使用API返回的工单数据，确保类型一致
+      workOrders.value = response.data.work_orders.map((order: any) => ({
+        work_order_nr: order.work_order_nr,
+        work_order_type: order.work_order_type,
+        machine_type: order.machine_type,
+        machine_code: order.machine_code,
+        product_code: order.product_code,
+        plan_quantity: order.plan_quantity,
+        safety_stock: order.safety_stock || 0,
+        work_order_status: order.work_order_status,
+        planned_start_time: order.planned_start_time,
+        planned_end_time: order.planned_end_time,
+        actual_start_time: order.actual_start_time,
+        actual_end_time: order.actual_end_time,
+        created_time: order.created_time,
+        updated_time: order.updated_time
+      })) as WorkOrder[]
+      
+      console.log('✅ 成功加载工单数据:', workOrders.value.length, '条')
+      console.log('📦 工单数据样本:', workOrders.value.slice(0, 2))
+    } else {
+      console.warn('API返回数据格式异常:', response)
+      workOrders.value = []
+    }
     
     // 转换为甘特图数据
     convertToGanttData()
+    console.log('甘特图数据转换完成:', ganttTasks.value.length, '个任务')
+    console.log('前3个任务:', ganttTasks.value.slice(0, 3))
     
     // 计算统计信息
     calculateStatistics()
@@ -436,48 +400,99 @@ const loadWorkOrders = async () => {
   } catch (error) {
     console.error('加载工单数据失败:', error)
     ElMessage.error('加载工单数据失败')
+    workOrders.value = []
   } finally {
     chartLoading.value = false
   }
 }
 
 const convertToGanttData = () => {
-  ganttTasks.value = workOrders.value.map(order => ({
-    id: order.work_order_nr,
-    name: `${order.work_order_nr} - ${order.product_code}`,
-    start: order.planned_start_time ? new Date(order.planned_start_time) : new Date(),
-    end: order.planned_end_time ? new Date(order.planned_end_time) : new Date(),
-    progress: order.work_order_status === 'COMPLETED' ? 100 : 
-              order.work_order_status === 'IN_PROGRESS' ? 50 : 0,
-    type: order.work_order_type,
-    machine: order.machine_code,
-    product: order.product_code,
-    quantity: order.plan_quantity,
-    status: order.work_order_status
-  }))
+  ganttTasks.value = workOrders.value.map(order => {
+    // 根据实际API返回的work_order_type映射
+    let ganttType: 'HJB' | 'HWS' | 'MAINTENANCE' = 'HJB'
+    if (order.work_order_type === 'FEEDER' || order.machine_type === '喂丝机') {
+      ganttType = 'HWS'
+    } else if (order.work_order_type === 'MAKER' || order.machine_type === '卷包机') {
+      ganttType = 'HJB'
+    }
+    
+    // 处理时间数据
+    let startTime: Date
+    let endTime: Date
+    
+    if (order.planned_start_time) {
+      startTime = new Date(order.planned_start_time)
+    } else {
+      startTime = new Date()
+    }
+    
+    if (order.planned_end_time) {
+      endTime = new Date(order.planned_end_time)
+    } else {
+      endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000) // 默认8小时
+    }
+    
+    // 确保时间有效
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+      console.warn('无效时间数据:', order.work_order_nr, order.planned_start_time, order.planned_end_time)
+      const now = new Date()
+      startTime = now
+      endTime = new Date(now.getTime() + 8 * 60 * 60 * 1000)
+    }
+    
+    // 计算进度
+    let progress = 0
+    const status = order.work_order_status.toLowerCase()
+    if (status.includes('completed')) {
+      progress = 100
+    } else if (status.includes('progress') || status.includes('running')) {
+      progress = 50
+    }
+    
+    return {
+      id: order.work_order_nr,
+      name: `${order.work_order_nr} - ${order.product_code}`,
+      start: startTime,
+      end: endTime,
+      progress: progress,
+      type: ganttType,
+      machine: order.machine_code,
+      product: order.product_code,
+      quantity: order.plan_quantity,
+      status: status
+    }
+  })
 }
 
 const calculateStatistics = () => {
   statistics.totalOrders = workOrders.value.length
-  statistics.makerOrders = workOrders.value.filter(o => o.work_order_type === 'HJB').length
-  statistics.feederOrders = workOrders.value.filter(o => o.work_order_type === 'HWS').length
-  statistics.totalQuantity = workOrders.value.reduce((sum, o) => sum + o.plan_quantity, 0)
+  // 根据实际API数据计算卷包机工单（work_order_type为MAKER）
+  statistics.makerOrders = workOrders.value.filter(o => 
+    o.work_order_type === 'MAKER' || o.machine_type === '卷包机'
+  ).length
+  // 根据实际API数据计算喂丝机工单（work_order_type为FEEDER）
+  statistics.feederOrders = workOrders.value.filter(o => 
+    o.work_order_type === 'FEEDER' || o.machine_type === '喂丝机'
+  ).length
+  statistics.totalQuantity = workOrders.value.reduce((sum, o) => sum + (o.plan_quantity || 0), 0)
   
   // 计算平均时长（小时）
   const totalHours = workOrders.value.reduce((sum, order) => {
     if (order.planned_start_time && order.planned_end_time) {
       const start = new Date(order.planned_start_time)
       const end = new Date(order.planned_end_time)
-      return sum + (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        return sum + (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+      }
     }
     return sum
   }, 0)
   
   statistics.avgDuration = statistics.totalOrders > 0 ? totalHours / statistics.totalOrders : 0
   
-  // 简单的机台利用率计算
+  // 计算机台利用率（基于已完成工单）
   const completedOrders = workOrders.value.filter(o => 
-    o.work_order_status === 'COMPLETED'
+    o.work_order_status.toLowerCase().includes('completed')
   ).length
   statistics.machineUtilization = statistics.totalOrders > 0 ? 
     (completedOrders / statistics.totalOrders) * 100 : 0
@@ -499,7 +514,10 @@ const createSimpleGanttChart = () => {
   const container = ganttChartRef.value
   const tasks = ganttTasks.value
   
+  console.log('开始渲染甘特图，任务数量:', tasks.length)
+  
   if (tasks.length === 0) {
+    console.log('没有任务数据，显示空状态')
     container.innerHTML = '<div class="no-data">暂无工单数据</div>'
     return
   }
@@ -507,10 +525,21 @@ const createSimpleGanttChart = () => {
   // 应用筛选
   let filteredTasks = tasks
   if (filterOptions.orderType) {
-    filteredTasks = filteredTasks.filter(t => t.type === filterOptions.orderType)
+    console.log('应用筛选条件:', filterOptions.orderType)
+    filteredTasks = filteredTasks.filter(t => {
+      if (filterOptions.orderType === 'HJB') {
+        return t.type === 'HJB'
+      } else if (filterOptions.orderType === 'HWS') {
+        return t.type === 'HWS'
+      }
+      return true
+    })
   }
   
+  console.log('筛选后的任务数量:', filteredTasks.length)
+  
   if (filteredTasks.length === 0) {
+    console.log('筛选后没有任务，显示空状态')
     container.innerHTML = '<div class="no-data">没有符合筛选条件的工单</div>'
     return
   }
@@ -520,6 +549,13 @@ const createSimpleGanttChart = () => {
   const maxDate = new Date(Math.max(...filteredTasks.map(t => t.end.getTime())))
   const timeRange = maxDate.getTime() - minDate.getTime()
   
+  console.log('时间范围计算:', {
+    minDate: minDate.toISOString(),
+    maxDate: maxDate.toISOString(), 
+    timeRangeDays: timeRange / (1000 * 60 * 60 * 24),
+    sampleTask: filteredTasks[0]
+  })
+  
   // 创建甘特图HTML结构
   let chartHTML = '<div class="gantt-timeline">'
   
@@ -528,24 +564,19 @@ const createSimpleGanttChart = () => {
   chartHTML += '<div class="machine-column">机台</div>'
   chartHTML += '<div class="time-column">'
   
-  // 根据视图模式生成时间标签
-  if (viewMode.value === 'day') {
-    const hourCount = Math.ceil(timeRange / (1000 * 60 * 60))
-    for (let i = 0; i <= hourCount; i += 2) {
-      const date = new Date(minDate.getTime() + i * 1000 * 60 * 60)
-      chartHTML += `<div class="time-label">${date.getHours()}:00</div>`
-    }
-  } else {
-    const dayCount = Math.ceil(timeRange / (1000 * 60 * 60 * 24))
-    for (let i = 0; i <= dayCount; i++) {
-      const date = new Date(minDate.getTime() + i * 1000 * 60 * 60 * 24)
-      chartHTML += `<div class="time-label">${date.getMonth() + 1}/${date.getDate()}</div>`
-    }
+  // 生成时间标签 - 改进显示逻辑
+  const timeLabelCount = Math.min(20, Math.max(5, Math.ceil(timeRange / (1000 * 60 * 60 * 2)))) // 每2小时一个标签，最多20个
+  for (let i = 0; i <= timeLabelCount; i++) {
+    const date = new Date(minDate.getTime() + (i / timeLabelCount) * timeRange)
+    const label = viewMode.value === 'day' 
+      ? `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:00`
+      : `${date.getMonth() + 1}/${date.getDate()}`
+    chartHTML += `<div class="time-label" style="flex: 1; min-width: 80px;">${label}</div>`
   }
   
   chartHTML += '</div></div>'
   
-  // 获取所有机台
+  // 获取所有机台并排序
   const machines = [...new Set(filteredTasks.map(t => t.machine))].sort()
   
   // 为每台机台创建时间轴
@@ -563,15 +594,35 @@ const createSimpleGanttChart = () => {
     machineTasks.forEach(task => {
       const startPercent = ((task.start.getTime() - minDate.getTime()) / timeRange) * 100
       const duration = task.end.getTime() - task.start.getTime()
-      const widthPercent = (duration / timeRange) * 100
+      const widthPercent = Math.max(1, (duration / timeRange) * 100) // 最小宽度1%
+      
+      console.log(`工单 ${task.id} 渲染参数:`, {
+        machine: task.machine,
+        startPercent: startPercent.toFixed(2) + '%',
+        widthPercent: widthPercent.toFixed(2) + '%',
+        startTime: task.start.toISOString(),
+        endTime: task.end.toISOString()
+      })
       
       const taskClass = `task-bar task-${task.type.toLowerCase()}`
       const statusClass = `status-${task.status.toLowerCase().replace('_', '-')}`
       
+      // 改进的工单信息显示
+      const startTime = task.start.toLocaleString('zh-CN', { 
+        month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' 
+      })
+      const endTime = task.end.toLocaleString('zh-CN', { 
+        month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' 
+      })
+      const durationHours = Math.round(duration / (1000 * 60 * 60) * 10) / 10
+      
+      const tooltipInfo = `工单: ${task.id}\\n产品: ${task.product}\\n数量: ${task.quantity}\\n开始: ${startTime}\\n结束: ${endTime}\\n时长: ${durationHours}小时\\n状态: ${getTaskStatusText(task.status)}`
+      
       chartHTML += `
         <div class="${taskClass} ${statusClass}" 
-             style="left: ${startPercent}%; width: ${widthPercent}%;"
-             title="${task.name} (${task.quantity}件)">
+             style="left: ${startPercent}%; width: ${widthPercent}%; position: absolute; cursor: pointer;"
+             title="${tooltipInfo}"
+             data-task-id="${task.id}">
           <div class="task-content">
             ${displayOptions.showOrderDetails ? 
               `<span class="task-name">${task.id}</span>
@@ -579,7 +630,7 @@ const createSimpleGanttChart = () => {
               `<span class="task-name">${task.id}</span>`
             }
           </div>
-          ${displayOptions.showProgress ? 
+          ${displayOptions.showProgress && task.progress > 0 ? 
             `<div class="progress-bar" style="width: ${task.progress}%"></div>` : 
             ''
           }
@@ -592,11 +643,35 @@ const createSimpleGanttChart = () => {
   
   chartHTML += '</div>'
   
+  console.log('生成的甘特图HTML长度:', chartHTML.length)
+  console.log('HTML前500字符:', chartHTML.substring(0, 500))
+  
   container.innerHTML = chartHTML
+  
+  // 添加点击事件处理
+  container.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement
+    const taskBar = target.closest('.task-bar') as HTMLElement
+    if (taskBar && taskBar.dataset.taskId) {
+      const taskId = taskBar.dataset.taskId
+      const task = filteredTasks.find(t => t.id === taskId)
+      if (task) {
+        ElMessage.info(`工单详情: ${task.id} - ${task.product} (${task.quantity})`)
+      }
+    }
+  })
 }
 
 const updateChart = () => {
   renderGanttChart()
+}
+
+const forceReloadChart = async () => {
+  console.log('强制重新加载甘特图数据')
+  if (selectedTaskId.value) {
+    await loadWorkOrders()
+    ElMessage.success('甘特图数据已重新加载')
+  }
 }
 
 const loadGanttData = () => {
@@ -708,20 +783,23 @@ onMounted(() => {
   overflow: auto;
   border: 1px solid #ebeef5;
   border-radius: 4px;
+  position: relative;
 }
 
 .gantt-timeline {
   min-width: 800px;
   background: #fff;
+  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .timeline-header {
   display: flex;
   border-bottom: 2px solid #ebeef5;
-  background-color: #f5f7fa;
+  background: linear-gradient(135deg, #f5f7fa, #f0f2f5);
   position: sticky;
   top: 0;
   z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .machine-column {
@@ -729,26 +807,41 @@ onMounted(() => {
   padding: 12px;
   font-weight: bold;
   border-right: 1px solid #ebeef5;
-  background-color: #f5f7fa;
+  background: linear-gradient(135deg, #f5f7fa, #f0f2f5);
+  color: #333;
+  font-size: 14px;
 }
 
 .time-column {
   flex: 1;
   display: flex;
+  min-width: 600px;
 }
 
 .time-label {
-  flex: 1;
   padding: 12px 5px;
   text-align: center;
   border-right: 1px solid #ebeef5;
   font-size: 12px;
-  min-width: 60px;
+  min-width: 80px;
+  color: #666;
+  font-weight: 500;
+  background: linear-gradient(135deg, #f9fafb, #f5f7fa);
+}
+
+.time-label:hover {
+  background: linear-gradient(135deg, #e6f7ff, #f0f9ff);
+  color: #1890ff;
 }
 
 .timeline-row {
   display: flex;
   border-bottom: 1px solid #ebeef5;
+  transition: background-color 0.2s;
+}
+
+.timeline-row:hover {
+  background-color: #fafbfc;
 }
 
 .machine-label {
@@ -759,56 +852,96 @@ onMounted(() => {
   display: flex;
   align-items: center;
   background-color: #fafafa;
+  font-size: 13px;
+  color: #555;
 }
 
 .task-timeline {
   flex: 1;
   position: relative;
   height: 50px;
-  background-color: #fff;
+  background: linear-gradient(90deg, #ffffff 0%, #fafbfc 50%, #ffffff 100%);
+  min-width: 600px;
 }
 
 .task-bar {
   position: absolute;
   height: 30px;
   top: 10px;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  font-size: 11px;
+  min-width: 40px; /* 确保最小宽度 */
 }
 
 .task-bar:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  border-color: rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  z-index: 5;
 }
 
-.task-maker {
+/* 卷包机工单样式 */
+.task-hjb {
   background: linear-gradient(135deg, #409eff, #66b1ff);
+  border-color: rgba(64, 158, 255, 0.3);
 }
 
-.task-feeder {
+.task-hjb:hover {
+  background: linear-gradient(135deg, #337ecc, #5aa7ff);
+  border-color: #409eff;
+}
+
+/* 喂丝机工单样式 */
+.task-hws {
   background: linear-gradient(135deg, #67c23a, #85ce61);
+  border-color: rgba(103, 194, 58, 0.3);
 }
 
+.task-hws:hover {
+  background: linear-gradient(135deg, #529b2e, #73c755);
+  border-color: #67c23a;
+}
+
+/* 维护工单样式 */
+.task-maintenance {
+  background: linear-gradient(135deg, #f56c6c, #f78989);
+  border-color: rgba(245, 108, 108, 0.3);
+}
+
+.task-maintenance:hover {
+  background: linear-gradient(135deg, #f23030, #f56c6c);
+  border-color: #f56c6c;
+}
+
+/* 工单状态样式 */
 .status-pending {
-  opacity: 0.7;
+  opacity: 0.75;
+  filter: saturate(0.8);
 }
 
 .status-in-progress {
-  opacity: 0.9;
+  opacity: 0.95;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.95; }
+  50% { opacity: 1; }
 }
 
 .status-completed {
   opacity: 1;
-  border-color: #67c23a;
+  box-shadow: 0 0 0 2px rgba(103, 194, 58, 0.3);
 }
 
 .status-cancelled {
-  opacity: 0.5;
-  filter: grayscale(50%);
+  opacity: 0.4;
+  filter: grayscale(80%);
+  text-decoration: line-through;
 }
 
 .task-content {
@@ -822,18 +955,26 @@ onMounted(() => {
   position: relative;
   z-index: 2;
   font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .task-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  font-weight: 600;
 }
 
 .task-quantity {
   font-size: 10px;
   opacity: 0.9;
   font-weight: normal;
+  margin-left: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
 }
 
 .progress-bar {
@@ -841,9 +982,13 @@ onMounted(() => {
   top: 0;
   left: 0;
   height: 100%;
-  background-color: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(90deg, 
+    rgba(255, 255, 255, 0.3), 
+    rgba(255, 255, 255, 0.1)
+  );
   z-index: 1;
-  border-radius: 3px;
+  border-radius: 4px;
+  transition: width 0.3s ease;
 }
 
 .no-data {
@@ -853,6 +998,26 @@ onMounted(() => {
   height: 200px;
   color: #909399;
   font-size: 14px;
+  background: #f9f9f9;
+  border-radius: 4px;
+}
+
+/* 网格线效果 */
+.gantt-timeline::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 120px; /* 机台列宽度 */
+  right: 0;
+  height: 100%;
+  background-image: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(235, 238, 245, 0.5) 1px, 
+    transparent 1px
+  );
+  background-size: 80px 1px; /* 与时间标签宽度对应 */
+  pointer-events: none;
+  z-index: 1;
 }
 
 .statistics-panel :deep(.el-statistic__content) {

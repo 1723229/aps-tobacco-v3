@@ -134,42 +134,85 @@ async def execute_scheduling_pipeline_background(
                 packing_orders_count = 0
                 feeding_orders_count = 0
                 
+                # 确保date在这里导入，避免在条件分支中导入导致的作用域问题
+                from datetime import date
+                
                 for work_order in final_work_orders:
                     machine_type = work_order.get('machine_type', '')
                     
                     if machine_type == 'MAKER' or work_order.get('work_order_type') == 'MAKER_PRODUCTION':
+                        
+                        # 处理机器代码 - 如果是逗号分隔的多个机器，取第一个并映射到数据库格式
+                        machine_code_raw = work_order.get('machine_code', 'C1')
+                        if ',' in machine_code_raw:
+                            machine_code_raw = machine_code_raw.split(',')[0].strip()  # 取第一个机器代码并去掉空格
+                        
+                        # 映射机器代码到数据库格式 - 数据库中实际是C1, C2, C3而不是C01, C02, C03
+                        maker_code = machine_code_raw or 'C1'  # 直接使用原始代码，默认使用C1
+                        
                         # 卷包机工单
                         packing_order = PackingOrder(
                             work_order_nr=work_order.get('work_order_nr'),
+                            task_id=task_id,
                             work_order_type=work_order.get('work_order_type', 'MAKER_PRODUCTION'),
                             machine_type='MAKER',
-                            machine_code=work_order.get('machine_code'),
+                            machine_code=maker_code,
                             product_code=work_order.get('product_code'),
                             plan_quantity=work_order.get('plan_quantity', 0),
-                            work_order_status=work_order.get('work_order_status', 'PLANNED'),
+                            work_order_status='PENDING',  # 使用字符串，让SQLAlchemy自动转换
                             planned_start_time=work_order.get('planned_start_time'),
                             planned_end_time=work_order.get('planned_end_time'),
                             created_time=work_order.get('created_time', datetime.now()),
-                            updated_time=datetime.now()
+                            updated_time=datetime.now(),
+                            # 新增必需字段
+                            article_nr=work_order.get('product_code', 'UNKNOWN'),
+                            quantity_total=work_order.get('plan_quantity', 0),
+                            final_quantity=work_order.get('plan_quantity', 0),
+                            maker_code=maker_code,
+                            planned_start=work_order.get('planned_start_time', datetime.now()),
+                            planned_end=work_order.get('planned_end_time', datetime.now()),
+                            sequence=1,
+                            plan_date=date.today(),
+                            feeder_code=work_order.get('feeder_code', '15')  # 默认使用15
                         )
                         db.add(packing_order)
                         packing_orders_count += 1
                         
                     elif machine_type == 'FEEDER' or work_order.get('work_order_type') == 'FEEDER_PRODUCTION':
+                        # 处理机器代码 - 如果是逗号分隔的多个机器，取第一个并映射到数据库格式
+                        machine_code_raw = work_order.get('machine_code', '15')
+                        if ',' in machine_code_raw:
+                            machine_code_raw = machine_code_raw.split(',')[0].strip()  # 取第一个机器代码并去掉空格
+                        
+                        # 映射机器代码到数据库格式 - 数据库中有F01或纯数字如15,16,17...32
+                        feeder_code = machine_code_raw or '15'  # 直接使用原始代码，默认使用15
+                        
                         # 喂丝机工单
                         feeding_order = FeedingOrder(
                             work_order_nr=work_order.get('work_order_nr'),
+                            task_id=task_id,
                             work_order_type=work_order.get('work_order_type', 'FEEDER_PRODUCTION'),
                             machine_type='FEEDER',
-                            machine_code=work_order.get('machine_code'),
+                            machine_code=feeder_code,
                             product_code=work_order.get('product_code'),
                             plan_quantity=work_order.get('plan_quantity', 0),
                             safety_stock=work_order.get('safety_stock', 0),
-                            work_order_status=work_order.get('work_order_status', 'PLANNED'),
+                            work_order_status='PENDING',  # 使用字符串，让SQLAlchemy自动转换
                             planned_start_time=work_order.get('planned_start_time'),
                             planned_end_time=work_order.get('planned_end_time'),
                             created_time=work_order.get('created_time', datetime.now()),
-                            updated_time=datetime.now()
+                            updated_time=datetime.now(),
+                            # 新增必需字段
+                            article_nr=work_order.get('product_code', 'UNKNOWN'),
+                            quantity_total=work_order.get('plan_quantity', 0),
+                            base_quantity=work_order.get('plan_quantity', 0),
+                            feeder_code=feeder_code,
+                            planned_start=work_order.get('planned_start_time', datetime.now()),
+                            planned_end=work_order.get('planned_end_time', datetime.now()),
+                            sequence=1,
+                            plan_date=date.today(),
+                            related_packing_orders=[],
+                            packing_machines=[]
                         )
                         db.add(feeding_order)
                         feeding_orders_count += 1
@@ -729,39 +772,24 @@ async def get_work_orders(
         work_orders = []
         total_count = 0
         
-        # 构建任务关联过滤条件
-        task_filter_conditions = []
-        if task_id:
-            # 通过任务ID查找关联的import_batch_id
-            task_result = await db.execute(
-                select(SchedulingTask.import_batch_id).where(SchedulingTask.task_id == task_id)
-            )
-            task_import_batch = task_result.scalar_one_or_none()
-            if task_import_batch:
-                task_filter_conditions.append(task_import_batch)
-        
-        if import_batch_id:
-            task_filter_conditions.append(import_batch_id)
-        
         # 查询卷包机工单
         if not order_type or order_type == 'MAKER':
             packing_query = select(PackingOrder)
             
-            # 添加状态过滤
+            # 添加过滤条件
             conditions = []
+            if task_id:
+                conditions.append(PackingOrder.task_id == task_id)
+            if import_batch_id:
+                # 通过 import_batch_id 查找对应的任务，然后通过 task_id 匹配
+                task_result = await db.execute(
+                    select(SchedulingTask.task_id).where(SchedulingTask.import_batch_id == import_batch_id)
+                )
+                matching_task_ids = [row[0] for row in task_result.fetchall()]
+                if matching_task_ids:
+                    conditions.append(PackingOrder.task_id.in_(matching_task_ids))
             if status:
                 conditions.append(PackingOrder.work_order_status == status)
-                
-            # 添加任务关联过滤：通过工单号匹配DecadePlan的import_batch_id
-            if task_filter_conditions:
-                from app.models.base_models import DecadePlan
-                # 工单号格式为 WO_{row_number}，需要通过work_order_nr匹配DecadePlan
-                batch_conditions = []
-                for batch_id in task_filter_conditions:
-                    subquery = select(DecadePlan.work_order_nr).where(DecadePlan.import_batch_id == batch_id)
-                    batch_conditions.append(PackingOrder.work_order_nr.in_(subquery))
-                if batch_conditions:
-                    conditions.append(or_(*batch_conditions))
                     
             if conditions:
                 packing_query = packing_query.where(and_(*conditions))
@@ -790,20 +818,20 @@ async def get_work_orders(
         if not order_type or order_type == 'FEEDER':
             feeding_query = select(FeedingOrder)
             
-            # 添加状态过滤
+            # 添加过滤条件
             conditions = []
+            if task_id:
+                conditions.append(FeedingOrder.task_id == task_id)
+            if import_batch_id:
+                # 通过 import_batch_id 查找对应的任务，然后通过 task_id 匹配
+                task_result = await db.execute(
+                    select(SchedulingTask.task_id).where(SchedulingTask.import_batch_id == import_batch_id)
+                )
+                matching_task_ids = [row[0] for row in task_result.fetchall()]
+                if matching_task_ids:
+                    conditions.append(FeedingOrder.task_id.in_(matching_task_ids))
             if status:
                 conditions.append(FeedingOrder.work_order_status == status)
-                
-            # 添加任务关联过滤：通过工单号匹配DecadePlan的import_batch_id
-            if task_filter_conditions:
-                from app.models.base_models import DecadePlan
-                batch_conditions = []
-                for batch_id in task_filter_conditions:
-                    subquery = select(DecadePlan.work_order_nr).where(DecadePlan.import_batch_id == batch_id)
-                    batch_conditions.append(FeedingOrder.work_order_nr.in_(subquery))
-                if batch_conditions:
-                    conditions.append(or_(*batch_conditions))
                     
             if conditions:
                 feeding_query = feeding_query.where(and_(*conditions))

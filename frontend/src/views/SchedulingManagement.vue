@@ -615,6 +615,11 @@ const startScheduling = (plan: AvailableBatch) => {
   algorithmDialogVisible.value = true
 }
 
+const confirmAlgorithmConfig = () => {
+  algorithmDialogVisible.value = false
+  confirmScheduling()
+}
+
 const confirmScheduling = async () => {
   if (!selectedPlanForScheduling.value) return
   

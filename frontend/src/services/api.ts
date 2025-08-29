@@ -40,16 +40,19 @@ export interface SchedulingTask {
 // 工单接口
 export interface WorkOrder {
     work_order_nr: string;
-    work_order_type: "HJB" | "HWS";
-    machine_type: string;
+    work_order_type: "MAKER" | "FEEDER"; // 后端实际返回的类型
+    machine_type: "卷包机" | "喂丝机"; // 后端实际返回的类型
     machine_code: string;
     product_code: string;
     plan_quantity: number;
     safety_stock?: number;
-    work_order_status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-    planned_start_time?: string;
-    planned_end_time?: string;
-    created_time: string;
+    work_order_status: string; // 后端返回字符串格式，可能为PENDING等
+    planned_start_time: string | null;
+    planned_end_time: string | null;
+    actual_start_time?: string | null;
+    actual_end_time?: string | null;
+    created_time?: string | null;
+    updated_time?: string | null;
 }
 
 // 排产API响应接口
@@ -423,8 +426,10 @@ export class WorkOrderAPI {
     static async getWorkOrders(params?: {
         task_id?: string;
         import_batch_id?: string;
-        order_type?: "HJB" | "HWS";
+        order_type?: "MAKER" | "FEEDER"; // 与后端API一致
         status?: string;
+        machine_code?: string;
+        product_code?: string;
         page?: number;
         page_size?: number;
     }): Promise<WorkOrdersResponse> {
