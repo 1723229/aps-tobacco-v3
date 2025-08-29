@@ -47,26 +47,7 @@
           </div>
 
           <div class="header-right">
-            <el-space>
-              <el-badge :value="notificationCount" :hidden="notificationCount === 0">
-                <el-button circle size="small" @click="showNotifications">
-                  <el-icon><Bell /></el-icon>
-                </el-button>
-              </el-badge>
 
-              <el-dropdown @command="handleUserAction">
-                <el-button circle size="small">
-                  <el-icon><User /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="profile">个人中心</el-dropdown-item>
-                    <el-dropdown-item command="settings">系统设置</el-dropdown-item>
-                    <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </el-space>
           </div>
         </div>
       </el-header>
