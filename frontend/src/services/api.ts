@@ -546,8 +546,11 @@ export interface MachineSpeed {
     id: number;
     machine_code: string;
     article_nr: string;
-    standard_speed: number;
-    efficiency: number;
+    speed: number;  // 生产速度（箱/小时）
+    efficiency_rate: number;  // 效率率（百分比）
+    effective_from: string;
+    effective_to?: string;
+    status: string;
     created_time: string;
     updated_time: string;
 }
@@ -695,8 +698,10 @@ export class MachineConfigAPI {
     static async createMachineSpeed(data: {
         machine_code: string;
         article_nr: string;
-        standard_speed: number;
-        efficiency: number;
+        speed: number;  // 生产速度（箱/小时）
+        efficiency_rate: number;  // 效率率（百分比）
+        effective_from?: string;
+        status?: string;
     }): Promise<ApiResponse<{ id: number }>> {
         const response = await httpClient.post<ApiResponse<{ id: number }>>(`${API_PREFIX}/machines/machine-speeds`, data);
         return response.data;
@@ -705,8 +710,10 @@ export class MachineConfigAPI {
     static async updateMachineSpeed(id: number, data: {
         machine_code: string;
         article_nr: string;
-        standard_speed: number;
-        efficiency: number;
+        speed: number;  // 生产速度（箱/小时）
+        efficiency_rate: number;  // 效率率（百分比）
+        effective_from?: string;
+        status?: string;
     }): Promise<ApiResponse<any>> {
         const response = await httpClient.put<ApiResponse<any>>(`${API_PREFIX}/machines/machine-speeds/${id}`, data);
         return response.data;

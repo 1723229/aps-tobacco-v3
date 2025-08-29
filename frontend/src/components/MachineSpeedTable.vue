@@ -32,8 +32,8 @@
             <th>ID</th>
             <th>机台代码</th>
             <th>物料编号</th>
-            <th>标准速度</th>
-            <th>效率(%)</th>
+            <th>生产速度（箱/小时）</th>
+            <th>效率率(%)</th>
             <th>创建时间</th>
             <th>操作</th>
           </tr>
@@ -54,9 +54,9 @@
             <td>{{ speed.id }}</td>
             <td>{{ speed.machine_code }}</td>
             <td>{{ speed.article_nr }}</td>
-            <td>{{ speed.standard_speed }} / 分钟</td>
+            <td>{{ speed.speed }} 箱/小时</td>
             <td>
-              <span class="efficiency-badge">{{ speed.efficiency }}%</span>
+              <span class="efficiency-badge">{{ speed.efficiency_rate }}%</span>
             </td>
             <td>{{ formatDateTime(speed.created_time) }}</td>
             <td>
@@ -129,27 +129,28 @@
               />
             </div>
             <div class="form-group">
-              <label>标准速度 (每分钟) *</label>
+              <label>生产速度 (箱/小时) *</label>
               <input 
-                v-model.number="formData.standard_speed" 
+                v-model.number="formData.speed" 
                 type="number" 
                 required 
                 min="1"
+                step="0.01"
                 class="form-input"
-                placeholder="请输入标准速度"
+                placeholder="请输入生产速度"
               />
             </div>
             <div class="form-group">
-              <label>效率 (%) *</label>
+              <label>效率率 (%) *</label>
               <input 
-                v-model.number="formData.efficiency" 
+                v-model.number="formData.efficiency_rate" 
                 type="number" 
                 required 
                 min="0"
                 max="100"
                 step="0.01"
                 class="form-input"
-                placeholder="请输入效率百分比"
+                placeholder="请输入效率率百分比"
               />
             </div>
             <div class="form-actions">
@@ -195,12 +196,12 @@ const pagination = reactive({
 const formData = reactive({
   machine_code: '',
   article_nr: '',
-  standard_speed: 0,
-  efficiency: 0
+  speed: 0,
+  efficiency_rate: 0
 });
 
 // 防抖搜索
-let searchTimeout: NodeJS.Timeout;
+let searchTimeout: number;
 const debounceSearch = () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
@@ -221,8 +222,8 @@ const loadData = async () => {
     
     // 移除空值
     Object.keys(params).forEach(key => {
-      if (params[key] === '') {
-        delete params[key];
+      if ((params as any)[key] === '') {
+        delete (params as any)[key];
       }
     });
 
@@ -254,8 +255,8 @@ const editSpeed = (speed: MachineSpeed) => {
   Object.assign(formData, {
     machine_code: speed.machine_code,
     article_nr: speed.article_nr,
-    standard_speed: speed.standard_speed,
-    efficiency: speed.efficiency
+    speed: speed.speed,
+    efficiency_rate: speed.efficiency_rate
   });
   showEditModal.value = true;
 };
@@ -289,8 +290,8 @@ const resetForm = () => {
   Object.assign(formData, {
     machine_code: '',
     article_nr: '',
-    standard_speed: 0,
-    efficiency: 0
+    speed: 0,
+    efficiency_rate: 0
   });
 };
 

@@ -9,21 +9,6 @@ from app.db.connection import Base
 import enum
 
 
-class MachineSpeedConfig(Base):
-    """机台速度配置表 - 对应 aps_machine_speed_config"""
-    __tablename__ = "aps_machine_speed_config"
-    
-    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
-    machine_code = Column(String(20), nullable=False, comment='机台代码')
-    machine_type = Column(String(20), nullable=False, comment='机台类型')
-    standard_speed = Column(Integer, nullable=False, comment='标准速度（每分钟）')
-    max_speed = Column(Integer, nullable=False, comment='最大速度（每分钟）')
-    min_speed = Column(Integer, nullable=False, comment='最小速度（每分钟）')
-    
-    # 审计字段
-    created_time = Column(DateTime, default=func.now(), comment='创建时间')
-    updated_time = Column(DateTime, default=func.now(), onupdate=func.now(), comment='更新时间')
-
 
 class MachineRelation(Base):
     """机台关系配置表 - 对应 aps_machine_relation"""
@@ -47,7 +32,7 @@ class MachineSpeed(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
     machine_code = Column(String(20), nullable=False, comment='机台代码')
     article_nr = Column(String(100), nullable=False, comment='物料编号')
-    speed = Column(DECIMAL(10, 2), nullable=False, comment='标准速度（每分钟）')
+    speed = Column(DECIMAL(10, 2), nullable=False, comment='生产速度（箱/小时）')
     efficiency_rate = Column(DECIMAL(5, 2), nullable=True, default=85.00, comment='效率率（百分比）')
     effective_from = Column(DateTime, nullable=False, comment='生效开始日期')
     effective_to = Column(DateTime, nullable=True, comment='生效结束日期')

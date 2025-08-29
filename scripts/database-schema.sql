@@ -1,4 +1,10 @@
 
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ----------------------------
+-- Table structure for aps_business_rule
+-- ----------------------------
 DROP TABLE IF EXISTS `aps_business_rule`;
 CREATE TABLE `aps_business_rule` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -56,7 +62,7 @@ CREATE TABLE `aps_decade_plan` (
   KEY `idx_decade_plan_composite` (`import_batch_id`,`validation_status`,`planned_start`),
   CONSTRAINT `fk_decade_plan_import` FOREIGN KEY (`import_batch_id`) REFERENCES `aps_import_plan` (`import_batch_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_decade_plan_material` FOREIGN KEY (`article_nr`) REFERENCES `aps_material` (`article_nr`) ON DELETE RESTRICT
-) ENGINE=InnoDB AUTO_INCREMENT=1793 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='原始卷包旬计划表';
+) ENGINE=InnoDB AUTO_INCREMENT=3569 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='原始卷包旬计划表';
 
 -- ----------------------------
 -- Table structure for aps_feeding_order
@@ -88,7 +94,7 @@ CREATE TABLE `aps_feeding_order` (
   `created_by` varchar(100) DEFAULT 'system' COMMENT '创建者',
   `created_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  `work_order_type` varchar(10) NOT NULL COMMENT '工单类型',
+  `work_order_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '工单类型',
   `machine_type` varchar(20) NOT NULL COMMENT '机台类型',
   `machine_code` varchar(20) NOT NULL COMMENT '机台代码',
   `product_code` varchar(100) NOT NULL COMMENT '产品代码',
@@ -110,7 +116,7 @@ CREATE TABLE `aps_feeding_order` (
   CONSTRAINT `fk_feeding_feeder` FOREIGN KEY (`feeder_code`) REFERENCES `aps_machine` (`machine_code`) ON DELETE RESTRICT,
   CONSTRAINT `fk_feeding_material` FOREIGN KEY (`article_nr`) REFERENCES `aps_material` (`article_nr`) ON DELETE RESTRICT,
   CONSTRAINT `fk_feeding_task` FOREIGN KEY (`task_id`) REFERENCES `aps_scheduling_task` (`task_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='喂丝机工单表';
+) ENGINE=InnoDB AUTO_INCREMENT=418 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='喂丝机工单表';
 
 -- ----------------------------
 -- Table structure for aps_import_plan
@@ -136,7 +142,7 @@ CREATE TABLE `aps_import_plan` (
   UNIQUE KEY `uk_import_batch` (`import_batch_id`),
   KEY `idx_import_status` (`import_status`),
   KEY `idx_created_time` (`created_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=36 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='计划导入记录表';
+) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='计划导入记录表';
 
 -- ----------------------------
 -- Table structure for aps_input_batch
@@ -235,7 +241,7 @@ CREATE TABLE `aps_machine_speed` (
   KEY `fk_machine_speed_material` (`article_nr`),
   CONSTRAINT `fk_machine_speed_machine` FOREIGN KEY (`machine_code`) REFERENCES `aps_machine` (`machine_code`) ON DELETE CASCADE,
   CONSTRAINT `fk_machine_speed_material` FOREIGN KEY (`article_nr`) REFERENCES `aps_material` (`article_nr`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='机台生产速度配置表';
+) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='机台生产速度配置表';
 
 -- ----------------------------
 -- Table structure for aps_maintenance_plan
@@ -418,11 +424,11 @@ CREATE TABLE `aps_packing_order` (
   `created_by` varchar(100) DEFAULT 'system' COMMENT '创建者',
   `created_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  `work_order_type` varchar(10) NOT NULL COMMENT '工单类型',
+  `work_order_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '工单类型',
   `machine_code` varchar(20) NOT NULL COMMENT '机台代码',
   `product_code` varchar(100) NOT NULL COMMENT '产品代码',
   `plan_quantity` int NOT NULL COMMENT '计划数量',
-  `work_order_status` enum('PENDING','IN_PROGRESS','COMPLETED','CANCELLED') DEFAULT 'PENDING' COMMENT '工单状态',
+  `work_order_status` varchar(20) DEFAULT NULL,
   `planned_start_time` datetime DEFAULT NULL COMMENT '计划开始时间',
   `planned_end_time` datetime DEFAULT NULL COMMENT '计划结束时间',
   `actual_start_time` datetime DEFAULT NULL COMMENT '实际开始时间',
@@ -439,7 +445,7 @@ CREATE TABLE `aps_packing_order` (
   CONSTRAINT `fk_packing_maker` FOREIGN KEY (`maker_code`) REFERENCES `aps_machine` (`machine_code`) ON DELETE RESTRICT,
   CONSTRAINT `fk_packing_material` FOREIGN KEY (`article_nr`) REFERENCES `aps_material` (`article_nr`) ON DELETE RESTRICT,
   CONSTRAINT `fk_packing_task` FOREIGN KEY (`task_id`) REFERENCES `aps_scheduling_task` (`task_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卷包机工单表';
+) ENGINE=InnoDB AUTO_INCREMENT=753 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卷包机工单表';
 
 -- ----------------------------
 -- Table structure for aps_processing_log
@@ -494,7 +500,7 @@ CREATE TABLE `aps_scheduling_task` (
   KEY `idx_created_time` (`created_time`),
   KEY `fk_scheduling_import` (`import_batch_id`),
   CONSTRAINT `fk_scheduling_import` FOREIGN KEY (`import_batch_id`) REFERENCES `aps_import_plan` (`import_batch_id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='排产任务表';
+) ENGINE=InnoDB AUTO_INCREMENT=52 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='排产任务表';
 
 -- ----------------------------
 -- Table structure for aps_shift_config
@@ -559,5 +565,3 @@ CREATE TABLE `aps_work_order_sequence` (
   KEY `idx_sequence_date` (`sequence_date`),
   KEY `idx_order_type` (`order_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工单号序列表（支持MES规范：H+工单类型+9位流水号）';
-
-SET FOREIGN_KEY_CHECKS = 1;

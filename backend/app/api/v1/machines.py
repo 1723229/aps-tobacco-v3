@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from app.db.connection import get_async_session
 from app.schemas.base import SuccessResponse
 from app.models.base_models import Machine
-from app.models.machine_config_models import MachineRelation, MachineSpeed, MachineSpeedConfig, MaintenancePlan, ShiftConfig
+from app.models.machine_config_models import MachineRelation, MachineSpeed, MaintenancePlan, ShiftConfig
 
 router = APIRouter(prefix="/machines", tags=["机台配置管理"])
 
@@ -39,16 +39,13 @@ class MachineRelationRequest(BaseModel):
 class MachineSpeedRequest(BaseModel):
     machine_code: str = Field(..., max_length=20, description="机台代码")
     article_nr: str = Field(..., max_length=100, description="物料编号")
-    standard_speed: int = Field(..., description="标准速度（每分钟）")
-    efficiency: float = Field(..., description="效率（百分比）")
+    speed: float = Field(..., description="生产速度（箱/小时）")
+    efficiency_rate: float = Field(..., description="效率率（百分比）")
+    effective_from: Optional[datetime] = Field(None, description="生效开始日期")
+    effective_to: Optional[datetime] = Field(None, description="生效结束日期")
+    status: Optional[str] = Field("ACTIVE", description="状态")
 
 
-class MachineSpeedConfigRequest(BaseModel):
-    machine_code: str = Field(..., max_length=20, description="机台代码")
-    machine_type: str = Field(..., max_length=20, description="机台类型")
-    standard_speed: int = Field(..., description="标准速度（每分钟）")
-    max_speed: int = Field(..., description="最大速度（每分钟）")
-    min_speed: int = Field(..., description="最小速度（每分钟）")
 
 
 class MaintenancePlanRequest(BaseModel):
@@ -404,8 +401,11 @@ async def get_machine_speeds(
                         "id": s.id,
                         "machine_code": s.machine_code,
                         "article_nr": s.article_nr,
-                        "standard_speed": float(s.speed),
-                        "efficiency": float(s.efficiency_rate),
+                        "speed": float(s.speed),
+                        "efficiency_rate": float(s.efficiency_rate),
+                        "effective_from": s.effective_from,
+                        "effective_to": s.effective_to,
+                        "status": s.status,
                         "created_time": s.created_time,
                         "updated_time": s.updated_time
                     } for s in speeds
@@ -429,8 +429,11 @@ async def create_machine_speed(
         speed = MachineSpeed(
             machine_code=request.machine_code,
             article_nr=request.article_nr,
-            standard_speed=request.standard_speed,
-            efficiency=request.efficiency
+            speed=request.speed,
+            efficiency_rate=request.efficiency_rate,
+            effective_from=request.effective_from or datetime.now(),
+            effective_to=request.effective_to,
+            status=request.status or "ACTIVE"
         )
         
         db.add(speed)
@@ -458,8 +461,14 @@ async def update_machine_speed(
         
         speed.machine_code = request.machine_code
         speed.article_nr = request.article_nr
-        speed.standard_speed = request.standard_speed
-        speed.efficiency = request.efficiency
+        speed.speed = request.speed
+        speed.efficiency_rate = request.efficiency_rate
+        if request.effective_from:
+            speed.effective_from = request.effective_from
+        if request.effective_to:
+            speed.effective_to = request.effective_to
+        if request.status:
+            speed.status = request.status
         
         await db.commit()
         

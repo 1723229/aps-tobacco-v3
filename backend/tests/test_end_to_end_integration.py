@@ -143,13 +143,13 @@ class TestEndToEndIntegration:
             # 测试导入所有模型
             from app.models.scheduling_models import SchedulingTask, ProcessingLog
             from app.models.work_order_models import PackingOrder, FeedingOrder
-            from app.models.machine_config_models import MachineSpeedConfig, MachineRelation, ShiftConfig
+            from app.models.machine_config_models import MachineSpeed, MachineRelation, ShiftConfig
             
             # 验证模型属性
             assert hasattr(SchedulingTask, '__tablename__')
             assert hasattr(PackingOrder, '__tablename__')
             assert hasattr(FeedingOrder, '__tablename__')
-            assert hasattr(MachineSpeedConfig, '__tablename__')
+            assert hasattr(MachineSpeed, '__tablename__')
             
             print("✓ 数据库模型集成测试通过")
             
