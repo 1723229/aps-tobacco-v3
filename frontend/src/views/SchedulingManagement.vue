@@ -15,17 +15,41 @@
                 </div>
               </div>
               <div class="header-stats">
-                <div class="stat-item">
-                  <span class="stat-value">{{ availablePlansCount }}</span>
-                  <span class="stat-label">待排产计划</span>
+                <div class="modern-stat-card pending">
+                  <div class="stat-icon">
+                    <el-icon><Clock /></el-icon>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value">{{ availablePlansCount }}</div>
+                    <div class="stat-label">待排产计划</div>
+                  </div>
+                  <div class="stat-trend up">
+                    <el-icon><TrendCharts /></el-icon>
+                  </div>
                 </div>
-                <div class="stat-item">
-                  <span class="stat-value">{{ runningTasksCount }}</span>
-                  <span class="stat-label">进行中</span>
+                <div class="modern-stat-card running">
+                  <div class="stat-icon">
+                    <el-icon><Timer /></el-icon>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value">{{ runningTasksCount }}</div>
+                    <div class="stat-label">进行中</div>
+                  </div>
+                  <div class="stat-trend">
+                    <el-icon><Operation /></el-icon>
+                  </div>
                 </div>
-                <div class="stat-item">
-                  <span class="stat-value">{{ completedTasksCount }}</span>
-                  <span class="stat-label">已完成</span>
+                <div class="modern-stat-card completed">
+                  <div class="stat-icon">
+                    <el-icon><CircleCheck /></el-icon>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value">{{ completedTasksCount }}</div>
+                    <div class="stat-label">已完成</div>
+                  </div>
+                  <div class="stat-trend up">
+                    <el-icon><TrendCharts /></el-icon>
+                  </div>
                 </div>
               </div>
               <div class="header-actions">
@@ -396,7 +420,8 @@ import {
   Connection,
   Grid,
   Timer,
-  Share
+  Share,
+  CircleCheck
 } from '@element-plus/icons-vue'
 
 // 导入子组件
@@ -420,18 +445,10 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const totalCount = ref(0)
 
-// 计算统计数据（基于当前页数据）
-const availablePlansCount = computed(() => 
-  availablePlans.value.filter(p => (p as any).scheduling_status === 'unscheduled' && p.can_schedule).length
-)
-
-const runningTasksCount = computed(() => 
-  availablePlans.value.filter(p => ['pending', 'running'].includes((p as any).scheduling_status)).length
-)
-
-const completedTasksCount = computed(() => 
-  availablePlans.value.filter(p => (p as any).scheduling_status === 'completed').length
-)
+// 全局统计数据（基于全库数据）
+const availablePlansCount = ref(0)
+const runningTasksCount = ref(0)
+const completedTasksCount = ref(0)
 
 // 算法配置
 const algorithmConfig = reactive<SchedulingAlgorithmConfig>({
@@ -479,23 +496,53 @@ const algorithmOptions = ref([
 
 // 计算属性
 const canExecuteScheduling = computed(() => {
-  return selectedBatchId.value && !schedulingLoading.value
+  return selectedPlanForScheduling.value && !schedulingLoading.value
 })
 
 const enabledAlgorithmCount = computed(() => {
   return Object.values(algorithmConfig).filter(Boolean).length
 })
 
+// 加载全局统计数据
+const loadGlobalStatistics = async () => {
+  try {
+    console.log('📊 开始加载全局统计数据...')
+    
+    const statisticsResponse = await DecadePlanAPI.getSchedulingStatistics()
+    
+    if (statisticsResponse.code === 200) {
+      availablePlansCount.value = statisticsResponse.data.available_plans_count
+      runningTasksCount.value = statisticsResponse.data.running_tasks_count
+      completedTasksCount.value = statisticsResponse.data.completed_tasks_count
+      
+      console.log('✅ 全局统计数据加载完成:', {
+        待排产计划: availablePlansCount.value,
+        进行中: runningTasksCount.value,
+        已完成: completedTasksCount.value
+      })
+    }
+  } catch (error) {
+    console.error('❌ 加载全局统计数据失败:', error)
+    // 出错时设置为0，避免显示错误数据
+    availablePlansCount.value = 0
+    runningTasksCount.value = 0
+    completedTasksCount.value = 0
+  }
+}
+
 // 方法定义
 const refreshPlans = async () => {
   plansLoading.value = true
   try {
-    // 获取分页的历史记录（包含排产状态）
-    const historyResponse = await DecadePlanAPI.getUploadHistory(
-      currentPage.value,
-      pageSize.value, 
-      'COMPLETED' // 只获取已解析完成的记录
-    )
+    // 并行加载：列表数据 + 全局统计数据
+    const [historyResponse] = await Promise.all([
+      DecadePlanAPI.getUploadHistory(
+        currentPage.value,
+        pageSize.value, 
+        'COMPLETED' // 只获取已解析完成的记录
+      ),
+      loadGlobalStatistics() // 同时加载全局统计
+    ])
     
     const allRecords = historyResponse.data.records
     totalCount.value = historyResponse.data.pagination.total_count
@@ -527,19 +574,10 @@ const refreshPlans = async () => {
       }
     })
     
-    console.log('📊 计划列表状态统计:', {
-      total: availablePlans.value.length,
-      canSchedule: availablePlansCount.value,
-      running: runningTasksCount.value,
-      completed: completedTasksCount.value
+    console.log('📊 列表数据加载完成:', {
+      当前页记录数: availablePlans.value.length,
+      总记录数: totalCount.value
     })
-    
-    console.log('📋 详细状态分析:', availablePlans.value.map(p => ({
-      file: p.file_name.slice(-20),
-      status: (p as any).scheduling_status,
-      can_schedule: p.can_schedule,
-      task_id: p.task_id ? 'exists' : 'null'
-    })))
     
   } catch (error) {
     ElMessage.error('获取计划列表失败')
@@ -637,8 +675,11 @@ const confirmScheduling = async () => {
     // 开始轮询任务状态
     await pollTaskStatus(response.data.task_id)
     
-    // 刷新计划列表
-    await refreshPlans()
+    // 刷新计划列表和全局统计
+    await Promise.all([
+      refreshPlans(),
+      loadGlobalStatistics()
+    ])
     
   } catch (error) {
     ElMessage.error('排产任务创建失败')
@@ -681,21 +722,29 @@ const pollTaskStatus = async (taskId: string) => {
       const response = await SchedulingAPI.getTaskStatus(taskId)
       currentTask.value = response.data
       
-      if (response.data.status === 'COMPLETED') {
-        ElMessage.success('排产完成！')
-        clearInterval(pollingTimer.value!)
-        pollingTimer.value = null
-        await refreshPlans() // 刷新列表
-        // 延迟关闭弹窗，让用户看到完成状态
-        setTimeout(() => {
-          progressDialogVisible.value = false
-        }, 2000)
-      } else if (response.data.status === 'FAILED') {
-        ElMessage.error('排产失败')
-        clearInterval(pollingTimer.value!)
-        pollingTimer.value = null
-        await refreshPlans() // 刷新列表
-      }
+              if (response.data.status === 'COMPLETED') {
+          ElMessage.success('排产完成！')
+          clearInterval(pollingTimer.value!)
+          pollingTimer.value = null
+          // 刷新列表和全局统计
+          await Promise.all([
+            refreshPlans(),
+            loadGlobalStatistics()
+          ])
+          // 延迟关闭弹窗，让用户看到完成状态
+          setTimeout(() => {
+            progressDialogVisible.value = false
+          }, 2000)
+        } else if (response.data.status === 'FAILED') {
+          ElMessage.error('排产失败')
+          clearInterval(pollingTimer.value!)
+          pollingTimer.value = null
+          // 刷新列表和全局统计
+          await Promise.all([
+            refreshPlans(),
+            loadGlobalStatistics()
+          ])
+        }
     } catch (error) {
       console.error('Poll task status error:', error)
       // 停止轮询如果出错
@@ -722,7 +771,11 @@ const closeProgressPanel = () => {
     clearInterval(pollingTimer.value)
     pollingTimer.value = null
   }
-  refreshPlans() // 刷新列表状态
+  // 刷新列表状态和全局统计
+  Promise.all([
+    refreshPlans(),
+    loadGlobalStatistics()
+  ])
 }
 
 const viewAllHistory = () => {
@@ -816,35 +869,158 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-/* Header统计样式 */
+/* Header统计样式 - 现代化设计 */
 .header-stats {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.stat-item {
+.modern-stat-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 140px;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.modern-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--card-color), var(--card-color-light));
+}
+
+.modern-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.modern-stat-card.pending {
+  --card-color: #3b82f6;
+  --card-color-light: #60a5fa;
+}
+
+.modern-stat-card.running {
+  --card-color: #f59e0b;
+  --card-color-light: #fbbf24;
+}
+
+.modern-stat-card.completed {
+  --card-color: #10b981;
+  --card-color-light: #34d399;
+}
+
+.modern-stat-card .stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--card-color), var(--card-color-light));
+  color: white;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.modern-stat-card .stat-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border-radius: 8px;
-  color: white;
-  min-width: 60px;
+  gap: 2px;
 }
 
-.stat-value {
-  font-size: 1.4rem;
+.modern-stat-card .stat-value {
+  font-size: 1.8rem;
   font-weight: 700;
-  color: white;
+  color: #1f2937;
+  line-height: 1;
+  position: relative;
+  overflow: hidden;
 }
 
-.stat-label {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.9);
+.modern-stat-card .stat-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 500;
   white-space: nowrap;
+}
+
+.modern-stat-card .stat-trend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(var(--card-color-rgb), 0.1);
+  color: var(--card-color);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.modern-stat-card.pending {
+  --card-color-rgb: 59, 130, 246;
+}
+
+.modern-stat-card.running {
+  --card-color-rgb: 245, 158, 11;
+}
+
+.modern-stat-card.completed {
+  --card-color-rgb: 16, 185, 129;
+}
+
+/* 添加数字动画效果 */
+
+.modern-stat-card .stat-value::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--card-color), var(--card-color-light));
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+  transform-origin: left;
+}
+
+.modern-stat-card:hover .stat-value::after {
+  transform: scaleX(1);
+}
+
+/* 卡片阴影层次已在上面定义 */
+
+.modern-stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(var(--card-color-rgb), 0.03), rgba(var(--card-color-rgb), 0.01));
+  border-radius: 16px;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+  opacity: 0;
+}
+
+.modern-stat-card:hover::after {
+  opacity: 1;
 }
 
 /* 计划列表样式 */
@@ -1205,22 +1381,7 @@ onUnmounted(() => {
   gap: 20px;
 }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stat-label {
-  font-size: 0.8rem;
-  color: #999;
-}
-
-.stat-value {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #333;
-}
+/* 移除旧的stat样式，使用新的modern-stat-card样式 */
 
 /* 算法配置样式 */
 .algorithm-summary {
@@ -1541,22 +1702,30 @@ onUnmounted(() => {
 /* 响应式设计 */
 @media (max-width: 768px) {
   .header-stats {
-    flex-direction: row;
+    flex-direction: column;
     gap: 12px;
     width: 100%;
-    justify-content: center;
+    align-items: stretch;
   }
   
-  .stat-item {
-    min-width: 50px;
+  .modern-stat-card {
+    min-width: auto;
+    width: 100%;
+    justify-content: space-between;
   }
   
-  .stat-value {
-    font-size: 1.2rem;
+  .modern-stat-card .stat-value {
+    font-size: 1.6rem;
   }
   
-  .stat-label {
-    font-size: 0.6rem;
+  .modern-stat-card .stat-label {
+    font-size: 0.75rem;
+  }
+  
+  .modern-stat-card .stat-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
   }
   
   .card-header {

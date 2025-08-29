@@ -6,48 +6,67 @@
         <div class="header-content">
           <div class="header-left">
             <div class="logo-section" @click="goHome">
-              <el-icon class="logo-icon"><DataAnalysis /></el-icon>
-              <span class="logo-text">APS 系统</span>
+              <div class="logo-container">
+                <el-icon class="logo-icon"><DataAnalysis /></el-icon>
+              </div>
+              <div class="logo-text-group">
+                <span class="logo-title">APS系统</span>
+                <span class="logo-subtitle">烟草生产计划</span>
+              </div>
             </div>
           </div>
 
           <div class="header-center">
-            <el-menu
-              :default-active="activeMenuIndex"
-              mode="horizontal"
-              background-color="transparent"
-              text-color="#ffffff"
-              active-text-color="#ffd04b"
-              :ellipsis="false"
-              @select="handleMenuSelect"
-            >
-              <el-menu-item index="/">
-                <el-icon><House /></el-icon>
-                <span>首页</span>
-              </el-menu-item>
-              <el-menu-item index="/machine-config">
-                <el-icon><Setting /></el-icon>
-                <span>机台配置</span>
-              </el-menu-item>
-              <el-sub-menu index="production">
-                <template #title>
+            <nav class="modern-nav">
+              <div class="nav-item" :class="{ active: activeMenuIndex === '/' }" @click="handleMenuSelect('/')">
+                <div class="nav-icon">
+                  <el-icon><House /></el-icon>
+                </div>
+                <span class="nav-text">首页</span>
+              </div>
+              
+              <div class="nav-item" :class="{ active: activeMenuIndex === '/machine-config' }" @click="handleMenuSelect('/machine-config')">
+                <div class="nav-icon">
                   <el-icon><Setting /></el-icon>
-                  <span>排产作业</span>
-                </template>
-                <el-menu-item index="/decade-plan/entry">
-                  <el-icon><UploadFilled /></el-icon>
-                  <span>卷包旬计划录入</span>
-                </el-menu-item>
-                <el-menu-item index="/scheduling">
-                  <el-icon><Operation /></el-icon>
-                  <span>智能排产管理</span>
-                </el-menu-item>
-              </el-sub-menu>
-            </el-menu>
+                </div>
+                <span class="nav-text">机台配置</span>
+              </div>
+              
+              <div class="nav-dropdown" :class="{ active: activeMenuIndex.includes('/decade-plan') || activeMenuIndex.includes('/scheduling') }">
+                <div class="nav-item dropdown-trigger">
+                  <div class="nav-icon">
+                    <el-icon><Operation /></el-icon>
+                  </div>
+                  <span class="nav-text">排产作业</span>
+                  <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+                </div>
+                <div class="dropdown-menu">
+                  <div class="dropdown-item" @click="handleMenuSelect('/decade-plan/entry')">
+                    <el-icon><UploadFilled /></el-icon>
+                    <span>卷包旬计划录入</span>
+                  </div>
+                  <div class="dropdown-item" @click="handleMenuSelect('/scheduling')">
+                    <el-icon><TrendCharts /></el-icon>
+                    <span>智能排产管理</span>
+                  </div>
+                </div>
+              </div>
+            </nav>
           </div>
 
           <div class="header-right">
-
+            <div class="header-actions">
+              <div class="action-item notification" @click="notificationDrawer = true">
+                <el-icon><Bell /></el-icon>
+                <span class="notification-badge" v-if="notifications.length > 0">{{ notifications.length }}</span>
+              </div>
+              <div class="user-section">
+                <div class="user-avatar">
+                  <el-icon><User /></el-icon>
+                </div>
+                <span class="user-name">管理员</span>
+              </div>
+            </div>
           </div>
         </div>
       </el-header>
@@ -106,7 +125,11 @@ import {
   House,
   UploadFilled,
   Setting,
-  Operation
+  Operation,
+  ArrowDown,
+  Bell,
+  User,
+  TrendCharts
 } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 
@@ -175,11 +198,16 @@ const handleMenuSelect = (index: string) => {
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
 }
 
+/* 现代化导航栏样式 */
 .app-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #ffffff;
   padding: 0;
-  height: 60px !important;
-  line-height: 60px;
+  height: 72px !important;
+  line-height: normal;
+  border-bottom: 1px solid #e8eaed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+  z-index: 1000;
 }
 
 .header-content {
@@ -187,58 +215,290 @@ const handleMenuSelect = (index: string) => {
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  padding: 0 20px;
+  padding: 0 32px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
+/* Logo区域样式 */
 .header-left {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .logo-section {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   cursor: pointer;
-  color: white;
-  font-size: 18px;
-  font-weight: 600;
-  transition: opacity 0.3s ease;
+  padding: 8px 12px;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .logo-section:hover {
-  opacity: 0.8;
+  background: rgba(59, 130, 246, 0.06);
+  transform: translateY(-1px);
+}
+
+.logo-container {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .logo-icon {
   font-size: 24px;
+  color: white;
 }
 
+.logo-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logo-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1;
+}
+
+.logo-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1;
+}
+
+/* 导航中心区域 */
 .header-center {
   flex: 1;
   display: flex;
   justify-content: center;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
+.modern-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  font-weight: 500;
+  color: #64748b;
+  min-width: 110px;
+  justify-content: center;
+}
+
+.nav-item:hover {
+  background: #ffffff;
+  color: #3b82f6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.nav-item.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.nav-item.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+}
+
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.nav-text {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* 下拉菜单样式 */
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown.active .nav-item {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.dropdown-trigger {
+  position: relative;
+}
+
+.dropdown-arrow {
+  font-size: 12px;
+  margin-left: 4px;
+  transition: transform 0.3s ease;
+}
+
+.nav-dropdown:hover .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  min-width: 200px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+}
+
+.nav-dropdown:hover .dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #374151;
+  font-weight: 500;
+}
+
+.dropdown-item:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  transform: translateX(4px);
+}
+
+/* 右侧操作区域 */
 .header-right {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
-.header-right .el-button {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.action-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #6b7280;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.action-item:hover {
+  background: #3b82f6;
   color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
 }
 
-.header-right .el-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
+.notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.user-section:hover {
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 16px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
 }
 
 .app-main {
-  background-color: #f5f5f5;
-  min-height: calc(100vh - 120px);
+  background-color: #f8fafc;
+  min-height: calc(100vh - 132px);
   padding: 0;
 }
 
@@ -297,221 +557,55 @@ const handleMenuSelect = (index: string) => {
   line-height: 1.5;
 }
 
-/* Element Plus 样式覆盖 */
-:deep(.el-menu--horizontal) {
-  border-bottom: none !important;
-}
-
-:deep(.el-menu--horizontal .el-menu-item) {
-  border-bottom: none !important;
-  color: rgba(255, 255, 255, 0.8) !important;
-}
-
-:deep(.el-menu--horizontal .el-menu-item:hover) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: white !important;
-}
-
-:deep(.el-menu--horizontal .el-menu-item.is-active) {
-  border-bottom: 2px solid #ffd04b !important;
-  color: #ffd04b !important;
-}
-
-:deep(.el-sub-menu .el-sub-menu__title) {
-  border-bottom: none !important;
-  color: rgba(255, 255, 255, 0.8) !important;
-}
-
-:deep(.el-sub-menu .el-sub-menu__title:hover) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: white !important;
-}
-
-:deep(.el-sub-menu.is-active .el-sub-menu__title) {
-  color: #ffd04b !important;
-}
-
-/* 子菜单下拉面板样式 - 使用更强的选择器优先级和动态类名 */
-:deep(.el-popper),
-:deep(.el-popper.el-menu--popup),
-:deep(.el-menu--popup),
-:deep(.el-popper[data-popper-placement]),
-:deep(.el-popper[data-popper-placement^="bottom"]),
-:deep(.el-menu.el-menu--popup),
-:deep([role="menu"]),
-:deep([class*="popper"]) {
-  background: #ffffff !important;
-  border: 1px solid #e8eaed !important;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12) !important;
-  border-radius: 12px !important;
-  padding: 8px !important;
-  margin-top: 8px !important;
-  min-width: 180px !important;
-  z-index: 9999 !important;
-}
-
-:deep(.el-popper .el-menu),
-:deep(.el-popper.el-menu--popup .el-menu),
-:deep(.el-menu--popup .el-menu),
-:deep(.el-menu.el-menu--popup),
-:deep([role="menu"] ul),
-:deep([class*="popper"] ul) {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* 子菜单项样式 - 使用超高优先级和通用选择器 */
-:deep(.el-popper .el-menu-item),
-:deep(.el-popper.el-menu--popup .el-menu-item),
-:deep(.el-menu--popup .el-menu-item),
-:deep(.el-popper[data-popper-placement] .el-menu-item),
-:deep(.el-popper[data-popper-placement^="bottom"] .el-menu-item),
-:deep(.el-menu.el-menu--popup .el-menu-item),
-:deep(.el-menu .el-menu-item),
-:deep([role="menu"] li),
-:deep([role="menuitem"]),
-:deep([class*="popper"] li),
-:deep(li[role="menuitem"]) {
-  color: #2c3e50 !important;
-  border-bottom: none !important;
-  margin: 2px 0 !important;
-  border-radius: 8px !important;
-  padding: 12px 16px !important;
-  transition: all 0.3s ease !important;
-  background: transparent !important;
-  font-weight: 500 !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-  height: auto !important;
-  line-height: 1.5 !important;
-  font-size: 14px !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  text-align: left !important;
-  white-space: nowrap !important;
-}
-
-/* 子菜单项悬停效果 */
-:deep(.el-popper .el-menu-item:hover),
-:deep(.el-popper.el-menu--popup .el-menu-item:hover),
-:deep(.el-menu--popup .el-menu-item:hover),
-:deep(.el-popper[data-popper-placement] .el-menu-item:hover),
-:deep(.el-popper[data-popper-placement^="bottom"] .el-menu-item:hover),
-:deep(.el-menu.el-menu--popup .el-menu-item:hover),
-:deep(.el-menu .el-menu-item:hover),
-:deep([role="menu"] li:hover),
-:deep([role="menuitem"]:hover),
-:deep([class*="popper"] li:hover),
-:deep(li[role="menuitem"]:hover) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  color: white !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
-}
-
-/* 子菜单项激活状态 */
-:deep(.el-popper .el-menu-item.is-active),
-:deep(.el-popper.el-menu--popup .el-menu-item.is-active),
-:deep(.el-menu--popup .el-menu-item.is-active),
-:deep(.el-popper[data-popper-placement] .el-menu-item.is-active),
-:deep(.el-popper[data-popper-placement^="bottom"] .el-menu-item.is-active),
-:deep(.el-menu.el-menu--popup .el-menu-item.is-active),
-:deep(.el-menu .el-menu-item.is-active),
-:deep([role="menu"] li.is-active),
-:deep([role="menuitem"].is-active),
-:deep([class*="popper"] li.is-active),
-:deep(li[role="menuitem"].is-active) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  color: white !important;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
-}
-
-/* 子菜单图标样式 */
-:deep(.el-popper .el-menu-item .el-icon),
-:deep(.el-popper.el-menu--popup .el-menu-item .el-icon),
-:deep(.el-menu--popup .el-menu-item .el-icon),
-:deep(.el-popper[data-popper-placement] .el-menu-item .el-icon),
-:deep(.el-popper[data-popper-placement^="bottom"] .el-menu-item .el-icon),
-:deep(.el-menu.el-menu--popup .el-menu-item .el-icon),
-:deep(.el-menu .el-menu-item .el-icon),
-:deep([role="menu"] li .el-icon),
-:deep([role="menuitem"] .el-icon),
-:deep([class*="popper"] li .el-icon),
-:deep(li[role="menuitem"] .el-icon) {
-  font-size: 16px !important;
-  width: 16px !important;
-  margin-right: 0 !important;
-  color: inherit !important;
-}
-
-/* 隐藏箭头 */
-:deep(.el-popper .el-popper__arrow),
-:deep(.el-popper[data-popper-placement] .el-popper__arrow),
-:deep(.el-popper[data-popper-placement^="bottom"] .el-popper__arrow) {
-  display: none !important;
-}
-
-/* 添加顶部装饰箭头 */
-:deep(.el-popper::before),
-:deep(.el-popper.el-menu--popup::before),
-:deep(.el-menu--popup::before),
-:deep(.el-popper[data-popper-placement]::before),
-:deep(.el-popper[data-popper-placement^="bottom"]::before),
-:deep(.el-menu.el-menu--popup::before),
-:deep([role="menu"]::before),
-:deep([class*="popper"]::before) {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid #ffffff;
-  filter: drop-shadow(0 -2px 4px rgba(0, 0, 0, 0.1));
-  z-index: 1;
-}
-
-/* 强制确保所有Element Plus子菜单组件可见 - 使用通配符和属性选择器 */
-:deep([class*="el-menu"]) {
-  color: #2c3e50 !important;
-}
-
-:deep([class*="el-menu"]:not(.el-menu--horizontal) .el-menu-item) {
-  color: #2c3e50 !important;
-  background: transparent !important;
-}
-
-:deep([class*="el-menu"]:not(.el-menu--horizontal) .el-menu-item:hover) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  color: white !important;
-}
-
-/* 针对可能的动态生成类名的全局覆盖 */
-:deep(*[class*="menu"]) {
-  color: #2c3e50 !important;
-}
-
-:deep(*[class*="menu"]:hover) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  color: white !important;
-}
-
-/* 使用最高优先级的内联样式覆盖 */
-.el-menu .el-menu-item {
-  color: #2c3e50 !important;
-  background: transparent !important;
-}
-
-.el-menu .el-menu-item:hover {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  color: white !important;
-}
-:deep(.el-badge__content){
-  top: 10px !important;
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .header-content {
+    padding: 0 16px;
+  }
+  
+  .logo-container {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .logo-title {
+    font-size: 16px;
+  }
+  
+  .logo-subtitle {
+    font-size: 10px;
+  }
+  
+  .modern-nav {
+    gap: 4px;
+    padding: 4px;
+  }
+  
+  .nav-item {
+    padding: 8px 12px;
+    min-width: 80px;
+  }
+  
+  .nav-text {
+    font-size: 12px;
+  }
+  
+  .header-actions {
+    gap: 8px;
+  }
+  
+  .user-name {
+    display: none;
+  }
+  
+  .action-item {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+  }
 }
 </style>

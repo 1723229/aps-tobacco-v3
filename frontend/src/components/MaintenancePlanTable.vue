@@ -148,23 +148,36 @@
             </div>
             <div class="form-group">
               <label>机台代码 *</label>
-              <input 
+              <select 
                 v-model="formData.machine_code" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入机台代码"
-              />
+                class="form-select"
+              >
+                <option value="">请选择机台代码</option>
+                <option 
+                  v-for="machine in machines" 
+                  :key="machine.id" 
+                  :value="machine.machine_code"
+                >
+                  {{ machine.machine_code }} - {{ machine.machine_name }}
+                </option>
+              </select>
             </div>
             <div class="form-group">
               <label>维护类型 *</label>
-              <input 
+              <select 
                 v-model="formData.maintenance_type" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入维护类型"
-              />
+                class="form-select"
+              >
+                <option value="">请选择维护类型</option>
+                <option value="日常保养">日常保养</option>
+                <option value="预防性维护">预防性维护</option>
+                <option value="故障维修">故障维修</option>
+                <option value="大修">大修</option>
+                <option value="清洁维护">清洁维护</option>
+                <option value="安全检查">安全检查</option>
+              </select>
             </div>
             <div class="form-group">
               <label>计划开始时间 *</label>
@@ -235,12 +248,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { MachineConfigAPI, type MaintenancePlan } from '@/services/api';
+import { ElMessage } from 'element-plus';
+import { MachineConfigAPI, type MaintenancePlan, type Machine } from '@/services/api';
 
 // 状态管理
 const loading = ref(false);
 const submitting = ref(false);
 const plans = ref<MaintenancePlan[]>([]);
+const machines = ref<Machine[]>([]);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const editingPlan = ref<MaintenancePlan | null>(null);
@@ -304,7 +319,7 @@ const loadData = async () => {
     pagination.total = response.data.total;
   } catch (error) {
     console.error('加载维护计划数据失败:', error);
-    alert('加载数据失败，请稍后重试');
+    ElMessage.error('加载数据失败，请稍后重试');
   } finally {
     loading.value = false;
   }
@@ -357,11 +372,11 @@ const deletePlan = async (id: number) => {
 
   try {
     await MachineConfigAPI.deleteMaintenancePlan(id);
-    alert('删除成功');
+    ElMessage.success('删除成功');
     loadData();
   } catch (error) {
     console.error('删除失败:', error);
-    alert('删除失败，请稍后重试');
+    ElMessage.error('删除失败，请稍后重试');
   }
 };
 
@@ -410,24 +425,35 @@ const submitForm = async () => {
 
     if (showCreateModal.value) {
       await MachineConfigAPI.createMaintenancePlan(submitData);
-      alert('创建成功');
+      ElMessage.success('创建成功');
     } else if (showEditModal.value && editingPlan.value) {
       await MachineConfigAPI.updateMaintenancePlan(editingPlan.value.id, submitData);
-      alert('更新成功');
+      ElMessage.success('更新成功');
     }
     closeModal();
     loadData();
   } catch (error) {
     console.error('提交失败:', error);
-    alert('操作失败，请稍后重试');
+    ElMessage.error('操作失败，请稍后重试');
   } finally {
     submitting.value = false;
+  }
+};
+
+// 加载机台列表
+const loadMachines = async () => {
+  try {
+    const response = await MachineConfigAPI.getMachines({ page: 1, page_size: 100 });
+    machines.value = response.data.items;
+  } catch (error) {
+    console.error('加载机台列表失败:', error);
   }
 };
 
 // 初始化
 onMounted(() => {
   loadData();
+  loadMachines();
 });
 </script>
 
@@ -707,9 +733,11 @@ onMounted(() => {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 14px;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+  background-color: #fff;
 }
 
 .form-input:focus,
@@ -717,6 +745,21 @@ onMounted(() => {
 .form-textarea:focus {
   outline: none;
   border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-select {
+  cursor: pointer;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23666" d="M2 0L0 2h4zm0 5L0 3h4z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.form-select:hover {
+  border-color: #80bdff;
 }
 
 .form-textarea {

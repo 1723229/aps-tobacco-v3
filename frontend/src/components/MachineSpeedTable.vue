@@ -110,23 +110,37 @@
           <form @submit.prevent="submitForm">
             <div class="form-group">
               <label>机台代码 *</label>
-              <input 
+              <select 
                 v-model="formData.machine_code" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入机台代码"
-              />
+                class="form-select"
+              >
+                <option value="">请选择机台代码</option>
+                <option 
+                  v-for="machine in machines" 
+                  :key="machine.id" 
+                  :value="machine.machine_code"
+                >
+                  {{ machine.machine_code }} - {{ machine.machine_name }}
+                </option>
+              </select>
             </div>
             <div class="form-group">
               <label>物料编号 *</label>
-              <input 
+              <select 
                 v-model="formData.article_nr" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入物料编号"
-              />
+                class="form-select"
+              >
+                <option value="">请选择物料编号</option>
+                <option value="*">* (通用)</option>
+                <option value="A01">A01</option>
+                <option value="A02">A02</option>
+                <option value="B01">B01</option>
+                <option value="B02">B02</option>
+                <option value="C01">C01</option>
+                <option value="D01">D01</option>
+              </select>
             </div>
             <div class="form-group">
               <label>生产速度 (箱/小时) *</label>
@@ -169,12 +183,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { MachineConfigAPI, type MachineSpeed } from '@/services/api';
+import { ElMessage } from 'element-plus';
+import { MachineConfigAPI, type MachineSpeed, type Machine } from '@/services/api';
 
 // 状态管理
 const loading = ref(false);
 const submitting = ref(false);
 const speeds = ref<MachineSpeed[]>([]);
+const machines = ref<Machine[]>([]);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const editingSpeed = ref<MachineSpeed | null>(null);
@@ -232,7 +248,7 @@ const loadData = async () => {
     pagination.total = response.data.total;
   } catch (error) {
     console.error('加载机台速度数据失败:', error);
-    alert('加载数据失败，请稍后重试');
+    ElMessage.error('加载数据失败，请稍后重试');
   } finally {
     loading.value = false;
   }
@@ -269,11 +285,11 @@ const deleteSpeed = async (id: number) => {
 
   try {
     await MachineConfigAPI.deleteMachineSpeed(id);
-    alert('删除成功');
+    ElMessage.success('删除成功');
     loadData();
   } catch (error) {
     console.error('删除失败:', error);
-    alert('删除失败，请稍后重试');
+    ElMessage.error('删除失败，请稍后重试');
   }
 };
 
@@ -301,24 +317,35 @@ const submitForm = async () => {
   try {
     if (showCreateModal.value) {
       await MachineConfigAPI.createMachineSpeed(formData);
-      alert('创建成功');
+      ElMessage.success('创建成功');
     } else if (showEditModal.value && editingSpeed.value) {
       await MachineConfigAPI.updateMachineSpeed(editingSpeed.value.id, formData);
-      alert('更新成功');
+      ElMessage.success('更新成功');
     }
     closeModal();
     loadData();
   } catch (error) {
     console.error('提交失败:', error);
-    alert('操作失败，请稍后重试');
+    ElMessage.error('操作失败，请稍后重试');
   } finally {
     submitting.value = false;
+  }
+};
+
+// 加载机台列表
+const loadMachines = async () => {
+  try {
+    const response = await MachineConfigAPI.getMachines({ page: 1, page_size: 100 });
+    machines.value = response.data.items;
+  } catch (error) {
+    console.error('加载机台列表失败:', error);
   }
 };
 
 // 初始化
 onMounted(() => {
   loadData();
+  loadMachines();
 });
 </script>
 
@@ -559,18 +586,37 @@ onMounted(() => {
   color: #495057;
 }
 
-.form-input {
+.form-input,
+.form-select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 14px;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+  background-color: #fff;
 }
 
-.form-input:focus {
+.form-input:focus,
+.form-select:focus {
   outline: none;
   border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-select {
+  cursor: pointer;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23666" d="M2 0L0 2h4zm0 5L0 3h4z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.form-select:hover {
+  border-color: #80bdff;
 }
 
 .form-actions {

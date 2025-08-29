@@ -47,8 +47,29 @@ httpClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // 其他错误使用统一错误处理器
-    handleError(error, "HTTP请求");
+    // 构建更清晰的错误消息
+    let errorMessage = '未知错误';
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail;
+    } else if (error.message) {
+      errorMessage = error.message;
+    } else if (error.response?.status) {
+      errorMessage = `HTTP ${error.response.status} 错误`;
+    }
+
+    // 只显示清晰的错误信息，避免 [object Object]
+    ElMessage.error(`HTTP请求失败: ${errorMessage}`);
+    
+    console.error('HTTP请求错误详情:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    
     return Promise.reject(error);
   },
 );

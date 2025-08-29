@@ -22,19 +22,13 @@
             @change="fetchWorkOrders"
           />
         </el-form-item>
-        <el-form-item label="批次ID">
-          <el-input 
-            v-model="filterOptions.import_batch_id" 
-            placeholder="输入批次ID"
-            clearable 
-            @change="fetchWorkOrders"
-          />
-        </el-form-item>
+        <!-- 批次ID输入框已隐藏 -->
         <el-form-item label="工单类型">
           <el-select 
             v-model="filterOptions.order_type" 
             placeholder="选择类型"
             clearable
+            style="width: 160px"
             @change="fetchWorkOrders"
           >
             <el-option label="全部" value="" />
@@ -43,12 +37,22 @@
           </el-select>
         </el-form-item>
         <el-form-item label="机台">
-          <el-input 
+          <el-select 
             v-model="filterOptions.machine_code" 
-            placeholder="输入机台代码"
-            clearable 
+            placeholder="选择机台"
+            clearable
+            filterable
+            style="width: 180px"
             @change="fetchWorkOrders"
-          />
+          >
+            <el-option label="全部" value="" />
+            <el-option 
+              v-for="machine in machineOptions" 
+              :key="machine.machine_code"
+              :label="`${machine.machine_code} - ${machine.machine_name}`"
+              :value="machine.machine_code"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
     </div>
@@ -99,7 +103,7 @@ import { ref, onMounted, nextTick, computed, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Loading } from '@element-plus/icons-vue'
-import { WorkOrderAPI } from '@/services/api'
+import { WorkOrderAPI, MachineConfigAPI } from '@/services/api'
 import * as echarts from 'echarts'
 
 // 路由信息
@@ -110,6 +114,7 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const ganttChartRef = ref<HTMLElement | null>(null)
 const workOrders = ref<WorkOrder[]>([])
+const machineOptions = ref<Array<{ machine_code: string; machine_name: string }>>([])
 let chartInstance: echarts.ECharts | null = null
 
 // 筛选条件
@@ -221,6 +226,72 @@ const transformToGanttTasks = (orders: WorkOrder[]): GanttTask[] => {
     
     return task
   })
+}
+
+// 获取机台列表
+const fetchMachineOptions = async () => {
+  try {
+    console.log('🔍 获取机台列表...')
+    
+    // 分页获取所有活跃机台
+    const allMachines: any[] = []
+    let currentPage = 1
+    const pageSize = 100 // 后端限制最大100
+    
+    while (true) {
+      const response = await MachineConfigAPI.getMachines({
+        page: currentPage,
+        page_size: pageSize,
+        status: 'ACTIVE' // 只获取活跃的机台
+      })
+      
+      console.log(`📄 第${currentPage}页API响应:`, {
+        code: (response as any).code,
+        message: (response as any).message,
+        dataExists: !!(response as any).data,
+        itemsExists: !!(response as any).data?.items,
+        itemsLength: (response as any).data?.items?.length
+      })
+      
+      // 修复API响应结构访问
+      const responseData = response as any
+      if (responseData.data && Array.isArray(responseData.data.items)) {
+        allMachines.push(...responseData.data.items)
+        
+        // 检查是否还有更多数据
+        if (responseData.data.items.length < pageSize) {
+          console.log(`✅ 第${currentPage}页是最后一页，共获取${responseData.data.items.length}台机台`)
+          break
+        }
+        
+        console.log(`📄 第${currentPage}页获取${responseData.data.items.length}台机台，继续下一页`)
+      } else {
+        console.warn('⚠️ API响应格式异常:', responseData)
+        break
+      }
+      
+      currentPage++
+      
+      // 安全保护：避免无限循环
+      if (currentPage > 50) {
+        console.warn('⚠️ 机台分页超过50页，停止获取')
+        break
+      }
+    }
+    
+    // 转换为下拉选项格式
+    machineOptions.value = allMachines.map((machine: any) => ({
+      machine_code: machine.machine_code,
+      machine_name: machine.machine_name
+    }))
+    
+    console.log('✅ 机台列表加载完成:', machineOptions.value.length, '台机台')
+  } catch (error) {
+    console.error('❌ 获取机台列表失败:', error)
+    // 改进错误显示，避免 [object Object]
+    const errorMessage = error instanceof Error ? error.message : '未知错误'
+    ElMessage.warning(`获取机台列表失败: ${errorMessage}`)
+  }
 }
 
 // 获取工单数据
@@ -572,7 +643,10 @@ const renderGanttItem = (params: any, api: any) => {
 
 // 刷新数据
 const refreshData = () => {
-  fetchWorkOrders()
+  Promise.all([
+    fetchMachineOptions(),
+    fetchWorkOrders()
+  ])
 }
 
 // 生命周期钩子
@@ -580,7 +654,11 @@ onMounted(() => {
   console.log('📊 甘特图页面已挂载')
   console.log('🔍 路由查询参数:', route.query)
   console.log('📝 筛选条件:', filterOptions.value)
-  fetchWorkOrders()
+  // 并行加载机台列表和工单数据
+  Promise.all([
+    fetchMachineOptions(),
+    fetchWorkOrders()
+  ])
 })
 
 onUnmounted(() => {

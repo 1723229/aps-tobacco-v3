@@ -752,7 +752,9 @@ async def get_upload_history(
                 "scheduling_status": scheduling_status_value,
                 "scheduling_text": scheduling_text,
                 "work_orders_summary": result_summary.get('total_work_orders', 0) if result_summary else 0,
-                "can_schedule": plan.import_status == 'COMPLETED' and not task_id,  # 已解析且未排产
+                "can_schedule": (plan.import_status == 'COMPLETED' and 
+                               not task_id and 
+                               plan.valid_records > 0),  # 已解析、未排产且有有效记录
             })
         
         # 计算分页信息
@@ -859,6 +861,61 @@ async def get_upload_statistics(
         raise HTTPException(status_code=500, detail=f"获取统计信息失败：{str(e)}")
 
 
+@router.get("/scheduling-statistics")
+async def get_scheduling_statistics(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取排产相关的全局统计信息
+    """
+    try:
+        from sqlalchemy import select, func, and_, outerjoin
+        from app.models.scheduling_models import SchedulingTask, SchedulingTaskStatus
+        
+        # 构建联合查询：ImportPlan + SchedulingTask
+        base_query = select(
+            ImportPlan,
+            SchedulingTask.task_id,
+            SchedulingTask.task_status
+        ).outerjoin(
+            SchedulingTask, 
+            ImportPlan.import_batch_id == SchedulingTask.import_batch_id
+        ).where(ImportPlan.import_status == 'COMPLETED')  # 只统计已解析完成的
+        
+        result = await db.execute(base_query)
+        all_plans = result.fetchall()
+        
+        # 统计各种状态
+        available_plans_count = 0  # 待排产计划
+        running_tasks_count = 0    # 进行中
+        completed_tasks_count = 0  # 已完成
+        
+        for plan, task_id, task_status in all_plans:
+            if not task_id:
+                # 未排产的记录
+                if plan.valid_records > 0:  # 只有有有效记录的才算待排产
+                    available_plans_count += 1
+            else:
+                # 已排产的记录，根据任务状态分类
+                if task_status in [SchedulingTaskStatus.PENDING, SchedulingTaskStatus.RUNNING]:
+                    running_tasks_count += 1
+                elif task_status == SchedulingTaskStatus.COMPLETED:
+                    completed_tasks_count += 1
+        
+        return SuccessResponse(
+            code=200,
+            message="排产统计信息获取成功",
+            data={
+                "available_plans_count": available_plans_count,
+                "running_tasks_count": running_tasks_count,
+                "completed_tasks_count": completed_tasks_count
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取排产统计信息失败：{str(e)}")
+
+
 @router.get("/{import_batch_id}/decade-plans")
 async def get_decade_plans(
     import_batch_id: str,
@@ -924,12 +981,13 @@ async def get_available_batches_for_scheduling(
         from sqlalchemy import select, and_, desc, outerjoin
         from app.models.scheduling_models import SchedulingTask
         
-        # 查询已解析完成但未排产的批次
+        # 查询已解析完成但未排产的批次（必须有有效记录）
         query = select(ImportPlan).outerjoin(
             SchedulingTask, 
             ImportPlan.import_batch_id == SchedulingTask.import_batch_id
         ).where(and_(
             ImportPlan.import_status == 'COMPLETED',
+            ImportPlan.valid_records > 0,  # 必须有有效记录
             SchedulingTask.task_id == None  # 未排产
         )).order_by(desc(ImportPlan.created_time))
         

@@ -201,6 +201,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 import { MachineConfigAPI, type Machine, type MachineRequest } from '@/services/api';
 
 // 状态管理
@@ -267,7 +268,7 @@ const loadData = async () => {
     pagination.total = response.data.total;
   } catch (error) {
     console.error('加载机台数据失败:', error);
-    alert('加载数据失败，请稍后重试');
+    ElMessage.error('加载数据失败，请稍后重试');
   } finally {
     loading.value = false;
   }
@@ -316,11 +317,11 @@ const deleteMachine = async (id: number) => {
 
   try {
     await MachineConfigAPI.deleteMachine(id);
-    alert('删除成功');
+    ElMessage.success('删除成功');
     loadData();
   } catch (error) {
     console.error('删除失败:', error);
-    alert('删除失败，请稍后重试');
+    ElMessage.error('删除失败，请稍后重试');
   }
 };
 
@@ -350,16 +351,16 @@ const submitForm = async () => {
   try {
     if (showCreateModal.value) {
       await MachineConfigAPI.createMachine(formData);
-      alert('创建成功');
+      ElMessage.success('创建成功');
     } else if (showEditModal.value && editingMachine.value) {
       await MachineConfigAPI.updateMachine(editingMachine.value.id, formData);
-      alert('更新成功');
+      ElMessage.success('更新成功');
     }
     closeModal();
     loadData();
   } catch (error) {
     console.error('提交失败:', error);
-    alert('操作失败，请稍后重试');
+    ElMessage.error('操作失败，请稍后重试');
   } finally {
     submitting.value = false;
   }

@@ -578,21 +578,23 @@ async def create_maintenance_plan(
     try:
         # 检查计划编号是否重复
         existing = await db.execute(
-            select(MaintenancePlan).where(MaintenancePlan.plan_code == request.plan_code)
+            select(MaintenancePlan).where(MaintenancePlan.maint_plan_no == request.plan_code)
         )
         if existing.scalar():
             raise HTTPException(status_code=400, detail="维护计划编号已存在")
         
         plan = MaintenancePlan(
-            plan_code=request.plan_code,
+            maint_plan_no=request.plan_code,
+            schedule_date=request.planned_start_time,
+            equipment_position="生产线",  # 默认设备位置
             machine_code=request.machine_code,
-            maintenance_type=request.maintenance_type,
-            planned_start_time=request.planned_start_time,
-            planned_end_time=request.planned_end_time,
+            maint_start_time=request.planned_start_time,
+            maint_end_time=request.planned_end_time,
             actual_start_time=request.actual_start_time,
             actual_end_time=request.actual_end_time,
-            status=request.status,
-            description=request.description
+            maint_type=request.maintenance_type,
+            maint_description=request.description,
+            plan_status=request.status
         )
         
         db.add(plan)
@@ -623,21 +625,22 @@ async def update_maintenance_plan(
         # 检查计划编号是否重复（排除自己）
         existing = await db.execute(
             select(MaintenancePlan).where(
-                and_(MaintenancePlan.plan_code == request.plan_code, MaintenancePlan.id != plan_id)
+                and_(MaintenancePlan.maint_plan_no == request.plan_code, MaintenancePlan.id != plan_id)
             )
         )
         if existing.scalar():
             raise HTTPException(status_code=400, detail="维护计划编号已存在")
         
-        plan.plan_code = request.plan_code
+        plan.maint_plan_no = request.plan_code
+        plan.schedule_date = request.planned_start_time
         plan.machine_code = request.machine_code
-        plan.maintenance_type = request.maintenance_type
-        plan.planned_start_time = request.planned_start_time
-        plan.planned_end_time = request.planned_end_time
+        plan.maint_type = request.maintenance_type
+        plan.maint_start_time = request.planned_start_time
+        plan.maint_end_time = request.planned_end_time
         plan.actual_start_time = request.actual_start_time
         plan.actual_end_time = request.actual_end_time
-        plan.status = request.status
-        plan.description = request.description
+        plan.plan_status = request.status
+        plan.maint_description = request.description
         
         await db.commit()
         
@@ -738,12 +741,15 @@ async def create_shift_config(
 ):
     """创建班次配置"""
     try:
+        from datetime import datetime
+        
         config = ShiftConfig(
             shift_name=request.shift_name,
-            shift_code=request.shift_code,
+            machine_name=request.shift_code,  # 使用 machine_name 字段存储班次代码
             start_time=request.start_time,
             end_time=request.end_time,
-            is_active=request.is_active
+            effective_from=datetime.now(),  # 设置必需的生效开始时间
+            status='ACTIVE' if request.is_active else 'INACTIVE'
         )
         
         db.add(config)
@@ -770,10 +776,10 @@ async def update_shift_config(
             raise HTTPException(status_code=404, detail="班次配置不存在")
         
         config.shift_name = request.shift_name
-        config.shift_code = request.shift_code
+        config.machine_name = request.shift_code  # 使用 machine_name 字段存储班次代码
         config.start_time = request.start_time
         config.end_time = request.end_time
-        config.is_active = request.is_active
+        config.status = 'ACTIVE' if request.is_active else 'INACTIVE'
         
         await db.commit()
         

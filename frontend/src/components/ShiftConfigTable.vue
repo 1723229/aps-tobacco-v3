@@ -118,13 +118,19 @@
           <form @submit.prevent="submitForm">
             <div class="form-group">
               <label>班次名称 *</label>
-              <input 
+              <select 
                 v-model="formData.shift_name" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入班次名称"
-              />
+                class="form-select"
+                @change="updateShiftCode"
+              >
+                <option value="">请选择班次名称</option>
+                <option value="早班">早班</option>
+                <option value="中班">中班</option>
+                <option value="晚班">晚班</option>
+                <option value="夜班">夜班</option>
+                <option value="全天班">全天班</option>
+              </select>
             </div>
             <div class="form-group">
               <label>班次代码 *</label>
@@ -132,8 +138,9 @@
                 v-model="formData.shift_code" 
                 type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入班次代码"
+                class="form-input readonly-input"
+                readonly
+                placeholder="系统自动生成"
               />
             </div>
             <div class="form-group">
@@ -183,6 +190,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 import { MachineConfigAPI, type ShiftConfig } from '@/services/api';
 
 // 状态管理
@@ -247,7 +255,7 @@ const loadData = async () => {
     pagination.total = response.data.total;
   } catch (error) {
     console.error('加载班次配置数据失败:', error);
-    alert('加载数据失败，请稍后重试');
+    ElMessage.error('加载数据失败，请稍后重试');
   } finally {
     loading.value = false;
   }
@@ -257,6 +265,21 @@ const loadData = async () => {
 const changePage = (page: number) => {
   pagination.page = page;
   loadData();
+};
+
+// 更新班次代码
+const updateShiftCode = () => {
+  const shiftCodeMap: { [key: string]: string } = {
+    '早班': 'MORNING',
+    '中班': 'AFTERNOON', 
+    '晚班': 'EVENING',
+    '夜班': 'NIGHT',
+    '全天班': 'FULLDAY'
+  };
+  
+  if (formData.shift_name && shiftCodeMap[formData.shift_name]) {
+    formData.shift_code = shiftCodeMap[formData.shift_name];
+  }
 };
 
 // 计算时长
@@ -304,11 +327,11 @@ const deleteConfig = async (id: number) => {
 
   try {
     await MachineConfigAPI.deleteShiftConfig(id);
-    alert('删除成功');
+    ElMessage.success('删除成功');
     loadData();
   } catch (error) {
     console.error('删除失败:', error);
-    alert('删除失败，请稍后重试');
+    ElMessage.error('删除失败，请稍后重试');
   }
 };
 
@@ -337,16 +360,16 @@ const submitForm = async () => {
   try {
     if (showCreateModal.value) {
       await MachineConfigAPI.createShiftConfig(formData);
-      alert('创建成功');
+      ElMessage.success('创建成功');
     } else if (showEditModal.value && editingConfig.value) {
       await MachineConfigAPI.updateShiftConfig(editingConfig.value.id, formData);
-      alert('更新成功');
+      ElMessage.success('更新成功');
     }
     closeModal();
     loadData();
   } catch (error) {
     console.error('提交失败:', error);
-    alert('操作失败，请稍后重试');
+    ElMessage.error('操作失败，请稍后重试');
   } finally {
     submitting.value = false;
   }
@@ -608,15 +631,38 @@ onMounted(() => {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 14px;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+  background-color: #fff;
 }
 
 .form-input:focus,
 .form-select:focus {
   outline: none;
   border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-select {
+  cursor: pointer;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23666" d="M2 0L0 2h4zm0 5L0 3h4z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.form-select:hover {
+  border-color: #80bdff;
+}
+
+.readonly-input {
+  background-color: #f8f9fa !important;
+  color: #6c757d !important;
+  cursor: not-allowed;
 }
 
 .duration-display {

@@ -110,33 +110,51 @@
           <form @submit.prevent="submitForm">
             <div class="form-group">
               <label>喂丝机代码 *</label>
-              <input 
+              <select 
                 v-model="formData.feeder_code" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入喂丝机代码"
-              />
+                class="form-select"
+              >
+                <option value="">请选择喂丝机代码</option>
+                <option 
+                  v-for="machine in feederMachines" 
+                  :key="machine.id" 
+                  :value="machine.id.toString()"
+                >
+                  {{ machine.id }} - {{ machine.machine_name }} ({{ machine.machine_code }})
+                </option>
+              </select>
             </div>
             <div class="form-group">
               <label>卷包机代码 *</label>
-              <input 
+              <select 
                 v-model="formData.maker_code" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入卷包机代码"
-              />
+                class="form-select"
+              >
+                <option value="">请选择卷包机代码</option>
+                <option 
+                  v-for="machine in machines.filter(m => m.machine_type === 'PACKING')" 
+                  :key="machine.id" 
+                  :value="machine.machine_code"
+                >
+                  {{ machine.machine_code }} - {{ machine.machine_name }}
+                </option>
+              </select>
             </div>
             <div class="form-group">
               <label>关系类型 *</label>
-              <input 
+              <select 
                 v-model="formData.relation_type" 
-                type="text" 
                 required 
-                class="form-input"
-                placeholder="请输入关系类型"
-              />
+                class="form-select"
+              >
+                <option value="">请选择关系类型</option>
+                <option value="ONE_TO_ONE">一对一 (ONE_TO_ONE)</option>
+                <option value="ONE_TO_MANY">一对多 (ONE_TO_MANY)</option>
+                <option value="MANY_TO_ONE">多对一 (MANY_TO_ONE)</option>
+                <option value="MANY_TO_MANY">多对多 (MANY_TO_MANY)</option>
+              </select>
             </div>
             <div class="form-group">
               <label>优先级 *</label>
@@ -165,12 +183,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { MachineConfigAPI, type MachineRelation } from '@/services/api';
+import { ElMessage } from 'element-plus';
+import { MachineConfigAPI, type MachineRelation, type Machine } from '@/services/api';
 
 // 状态管理
 const loading = ref(false);
 const submitting = ref(false);
 const relations = ref<MachineRelation[]>([]);
+const machines = ref<Machine[]>([]);
+const feederMachines = ref<Machine[]>([]);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const editingRelation = ref<MachineRelation | null>(null);
@@ -228,7 +249,7 @@ const loadData = async () => {
     pagination.total = response.data.total;
   } catch (error) {
     console.error('加载机台关系数据失败:', error);
-    alert('加载数据失败，请稍后重试');
+    ElMessage.error('加载数据失败，请稍后重试');
   } finally {
     loading.value = false;
   }
@@ -265,11 +286,11 @@ const deleteRelation = async (id: number) => {
 
   try {
     await MachineConfigAPI.deleteMachineRelation(id);
-    alert('删除成功');
+    ElMessage.success('删除成功');
     loadData();
   } catch (error) {
     console.error('删除失败:', error);
-    alert('删除失败，请稍后重试');
+    ElMessage.error('删除失败，请稍后重试');
   }
 };
 
@@ -297,24 +318,37 @@ const submitForm = async () => {
   try {
     if (showCreateModal.value) {
       await MachineConfigAPI.createMachineRelation(formData);
-      alert('创建成功');
+      ElMessage.success('创建成功');
     } else if (showEditModal.value && editingRelation.value) {
       await MachineConfigAPI.updateMachineRelation(editingRelation.value.id, formData);
-      alert('更新成功');
+      ElMessage.success('更新成功');
     }
     closeModal();
     loadData();
   } catch (error) {
     console.error('提交失败:', error);
-    alert('操作失败，请稍后重试');
+    ElMessage.error('操作失败，请稍后重试');
   } finally {
     submitting.value = false;
+  }
+};
+
+// 加载机台列表
+const loadMachines = async () => {
+  try {
+    const response = await MachineConfigAPI.getMachines({ page: 1, page_size: 100 });
+    machines.value = response.data.items;
+    // 过滤喂丝机类型的机台
+    feederMachines.value = response.data.items.filter(m => m.machine_type === 'FEEDING');
+  } catch (error) {
+    console.error('加载机台列表失败:', error);
   }
 };
 
 // 初始化
 onMounted(() => {
   loadData();
+  loadMachines();
 });
 </script>
 
@@ -555,18 +589,37 @@ onMounted(() => {
   color: #495057;
 }
 
-.form-input {
+.form-input,
+.form-select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 14px;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+  background-color: #fff;
 }
 
-.form-input:focus {
+.form-input:focus,
+.form-select:focus {
   outline: none;
   border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-select {
+  cursor: pointer;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23666" d="M2 0L0 2h4zm0 5L0 3h4z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.form-select:hover {
+  border-color: #80bdff;
 }
 
 .form-actions {

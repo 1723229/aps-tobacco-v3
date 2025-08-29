@@ -271,6 +271,24 @@ export class DecadePlanAPI {
     }
 
     /**
+     * 获取排产相关统计信息（全局）
+     * @returns 排产统计数据
+     */
+    static async getSchedulingStatistics(): Promise<ApiResponse<{
+        available_plans_count: number;
+        running_tasks_count: number;
+        completed_tasks_count: number;
+    }>> {
+        const response = await httpClient.get<ApiResponse<{
+            available_plans_count: number;
+            running_tasks_count: number;
+            completed_tasks_count: number;
+        }>>(`${API_PREFIX}/plans/scheduling-statistics`);
+
+        return response.data;
+    }
+
+    /**
      * 获取可用于排产的批次列表
      * @returns 可排产批次列表
      */

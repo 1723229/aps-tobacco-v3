@@ -60,6 +60,8 @@ class MaintenancePlan(Base):
     maint_type = Column(String(50), nullable=True, comment='维护类型')
     maint_level = Column(String(50), nullable=True, comment='维护级别')
     maint_description = Column(Text, nullable=True, comment='维护描述')
+    actual_start_time = Column(DateTime, nullable=True, comment='实际开始时间')
+    actual_end_time = Column(DateTime, nullable=True, comment='实际结束时间')
     plan_status = Column(String(20), default='PLANNED', comment='计划状态')
     sync_from_mes = Column(Boolean, default=True, comment='是否从MES同步')
     sync_time = Column(DateTime, nullable=True, comment='同步时间')
