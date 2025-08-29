@@ -19,7 +19,7 @@
       <el-row :gutter="24">
         <el-col :span="6">
           <el-card class="stat-card">
-            <el-statistic title="今日上传" :value="statistics.today_uploads" suffix="个文件">
+            <el-statistic title="今日上传" :value="statistics.today_uploads || 0" suffix="个文件">
               <template #prefix>
                 <el-icon class="stat-icon upload-icon"><Upload /></el-icon>
               </template>
@@ -28,7 +28,7 @@
         </el-col>
         <el-col :span="6">
           <el-card class="stat-card">
-            <el-statistic title="本月处理" :value="statistics.monthly_processed" suffix="条记录">
+            <el-statistic title="本月处理" :value="statistics.monthly_processed || 0" suffix="条记录">
               <template #prefix>
                 <el-icon class="stat-icon process-icon"><DataLine /></el-icon>
               </template>
@@ -36,19 +36,31 @@
           </el-card>
         </el-col>
         <el-col :span="6">
-          <el-card class="stat-card">
-            <el-statistic title="成功率" :value="statistics.success_rate" suffix="%">
-              <template #prefix>
-                <el-icon class="stat-icon success-icon"><CircleCheck /></el-icon>
-              </template>
-            </el-statistic>
+          <el-card class="stat-card work-orders-card">
+            <div class="work-orders-stats">
+              <div class="main-stat">
+                <el-icon class="stat-icon batch-icon"><Document /></el-icon>
+                <div class="main-number">{{ statistics.total_work_orders || 0 }}</div>
+                <div class="main-label">总工单</div>
+              </div>
+              <div class="sub-stats">
+                <div class="sub-stat maker">
+                  <span class="sub-number">{{ statistics.maker_orders || 0 }}</span>
+                  <span class="sub-label">卷包</span>
+                </div>
+                <div class="sub-stat feeder">
+                  <span class="sub-number">{{ statistics.feeder_orders || 0 }}</span>
+                  <span class="sub-label">喂丝</span>
+                </div>
+              </div>
+            </div>
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card class="stat-card">
-            <el-statistic title="活跃批次" :value="statistics.active_batches" suffix="个">
+            <el-statistic title="排产任务" :value="statistics.scheduling_tasks || 0" suffix="个">
               <template #prefix>
-                <el-icon class="stat-icon batch-icon"><Grid /></el-icon>
+                <el-icon class="stat-icon batch-icon"><TrendCharts /></el-icon>
               </template>
             </el-statistic>
           </el-card>
@@ -212,7 +224,11 @@ import {
   ArrowRight,
   List,
   Refresh,
-  Setting
+  Setting,
+  Document,
+  Box,
+  Operation,
+  TrendCharts
 } from '@element-plus/icons-vue'
 import { formatDateTime, getStatusColor, getStatusText } from '@/utils'
 import { useDecadePlanStore } from '@/stores/decade-plan'
@@ -223,11 +239,13 @@ const router = useRouter()
 const decadePlanStore = useDecadePlanStore()
 
 // 响应式数据
-const statistics = ref<StatisticsData>({
+const statistics = ref({
   today_uploads: 0,
   monthly_processed: 0,
-  success_rate: 0,
-  active_batches: 0
+  total_work_orders: 0,
+  maker_orders: 0,
+  feeder_orders: 0,
+  scheduling_tasks: 0
 })
 
 const recentActivity = ref<HistoryRecord[]>([])
@@ -273,10 +291,70 @@ const refreshActivity = async () => {
 // 加载统计数据
 const loadStatistics = async () => {
   try {
-    const statsResponse = await DecadePlanAPI.getStatistics()
-    statistics.value = statsResponse.data
+    console.log('📊 开始加载统计数据...')
+    
+    // 并发获取各项统计数据
+    const [originalStatsResponse, workOrdersResponse, tasksResponse] = await Promise.all([
+      // 获取原始统计数据（文件上传相关）
+      DecadePlanAPI.getStatistics(),
+      // 获取工单统计
+      fetch('/api/v1/scheduling/work-orders?page=1&page_size=1000').then(res => res.json()),
+      // 获取排产任务统计  
+      fetch('/api/v1/scheduling/tasks?page=1&page_size=100').then(res => res.json())
+    ])
+    
+    console.log('📦 原始统计响应:', originalStatsResponse.data)
+    console.log('📦 工单数据响应:', {
+      code: workOrdersResponse.code,
+      total_count: workOrdersResponse.data?.total_count
+    })
+    console.log('🎯 任务数据响应:', {
+      code: tasksResponse.code,
+      total_count: tasksResponse.data?.pagination?.total_count
+    })
+    
+    // 合并所有统计数据
+    const baseStats = originalStatsResponse.data
+    
+    if (workOrdersResponse.code === 200 && workOrdersResponse.data?.work_orders) {
+      const workOrders = workOrdersResponse.data.work_orders
+      const makerOrders = workOrders.filter((order: any) => order.work_order_type === 'MAKER')
+      const feederOrders = workOrders.filter((order: any) => order.work_order_type === 'FEEDER')
+      
+      statistics.value = {
+        // 保留原始统计
+        today_uploads: baseStats.today_uploads || 0,
+        monthly_processed: baseStats.monthly_processed || 0,
+        // 新增工单统计
+        total_work_orders: workOrders.length,
+        maker_orders: makerOrders.length,
+        feeder_orders: feederOrders.length,
+        scheduling_tasks: tasksResponse.code === 200 ? (tasksResponse.data?.pagination?.total_count || 0) : 0
+      }
+      
+      console.log('✅ 合并统计数据更新完成:', statistics.value)
+    } else {
+      // 只保留原始统计数据
+      statistics.value = {
+        today_uploads: baseStats.today_uploads || 0,
+        monthly_processed: baseStats.monthly_processed || 0,
+        total_work_orders: 0,
+        maker_orders: 0,
+        feeder_orders: 0,
+        scheduling_tasks: tasksResponse.code === 200 ? (tasksResponse.data?.pagination?.total_count || 0) : 0
+      }
+    }
+    
   } catch (error) {
-    console.error('加载统计数据失败:', error)
+    console.error('❌ 加载统计数据失败:', error)
+    statistics.value = {
+      today_uploads: 0,
+      monthly_processed: 0,
+      total_work_orders: 0,
+      maker_orders: 0,
+      feeder_orders: 0,
+      scheduling_tasks: 0
+    }
   }
 }
 
@@ -355,6 +433,67 @@ onMounted(async () => {
   border-radius: 12px;
   border: none;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* 工单统计卡片样式 */
+.work-orders-card {
+  position: relative;
+  height: 140px !important;
+}
+
+.work-orders-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 24px;
+  padding: 8px;
+}
+
+.main-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.main-number {
+  font-size: 24px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1;
+}
+
+.main-label {
+  font-size: 13px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.sub-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sub-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sub-number {
+  font-size: 16px;
+  font-weight: 600;
+  color: #409eff;
+  min-width: 20px;
+  text-align: right;
+}
+
+.sub-label {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 500;
 }
 
 .stat-card:hover {
@@ -496,18 +635,18 @@ onMounted(async () => {
 
 /* 快速操作卡片图标样式 */
 .upload-action {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, #e6f0ff 0%, #d9e8ff 100%);
+  color: #606266;
 }
 
 .config-action {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
+  background: linear-gradient(135deg, #fad4d1 0%, #f8c8c8 100%);
+  color: #606266;
 }
 
 .scheduling-action {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  color: white;
+  background: linear-gradient(135deg, #e8f5e8 0%, #d4f1d4 100%);
+  color: #606266;
 }
 
 /* 机台配置卡片特殊样式 */
@@ -522,12 +661,12 @@ onMounted(async () => {
   left: 0;
   right: 0;
   height: 40px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #fad4d1 0%, #f8c8c8 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
-  color: white;
+  color: #606266;
   font-size: 12px;
   z-index: 1;
   border-radius: 8px 8px 0 0;
@@ -564,12 +703,12 @@ onMounted(async () => {
   left: 0;
   right: 0;
   height: 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #e6f0ff 0%, #d9e8ff 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
-  color: white;
+  color: #606266;
   font-size: 12px;
   z-index: 1;
   border-radius: 8px 8px 0 0;
@@ -606,12 +745,12 @@ onMounted(async () => {
   left: 0;
   right: 0;
   height: 40px;
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: linear-gradient(135deg, #e8f5e8 0%, #d4f1d4 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
-  color: white;
+  color: #606266;
   font-size: 12px;
   z-index: 1;
   border-radius: 8px 8px 0 0;
