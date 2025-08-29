@@ -529,13 +529,20 @@ class WorkOrderGeneration(AlgorithmBase):
         """
         生成工单编号
         
-        格式: {机台类型}{YYYYMMDD}{6位序号}
-        例如: FEEDER20241201000001, MAKER20241201000001
+        格式: {机台类型}{YYYYMMDD}{HHMMSS}{4位随机码}
+        例如: FEEDER20241201143052A1B2, MAKER20241201143052C3D4
+        增强了唯一性保证，避免高并发时的重复
         """
-        date_part = datetime.now().strftime('%Y%m%d')
-        sequence = str(uuid.uuid4().int)[-6:]  # 使用UUID的最后6位作为序号
+        import random
+        import string
         
-        return f"{machine_type}{date_part}{sequence}"
+        now = datetime.now()
+        date_part = now.strftime('%Y%m%d')
+        time_part = now.strftime('%H%M%S')
+        # 使用4位随机字母数字组合增加唯一性
+        random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        
+        return f"{machine_type}{date_part}{time_part}{random_part}"
     
     async def _get_product_specs_from_db(self) -> Dict[str, Dict[str, Any]]:
         """从数据库查询产品规格配置"""
@@ -714,6 +721,7 @@ def add_database_persistence_methods():
         return {
             'work_order_nr': work_order.get('work_order_nr', ''),
             'task_id': task_id,
+            'original_order_nr': work_order.get('original_work_order_nr', work_order.get('work_order_nr', '')),
             'article_nr': work_order.get('product_code', ''),
             'quantity_total': safe_int(work_order.get('plan_quantity')),
             'final_quantity': safe_int(work_order.get('plan_quantity')),
@@ -744,6 +752,9 @@ def add_database_persistence_methods():
             'production_speed': int(work_order.get('production_speed', 0)) if work_order.get('production_speed') else None,
             'feeder_code': work_order.get('feeder_code', '')[:20] if work_order.get('feeder_code') else '',
             'estimated_duration': int((packing_fields['planned_end'] - packing_fields['planned_start']).total_seconds() / 60) if packing_fields['planned_end'] and packing_fields['planned_start'] else None,
+            # 设置冗余时间字段为NULL，使用planned_start/planned_end作为主要时间字段
+            'planned_start_time': None,
+            'planned_end_time': None,
         })
         
         insert_sql = text('''
@@ -754,7 +765,7 @@ def add_database_persistence_methods():
                 product_code, plan_quantity, work_order_status, planned_start_time, planned_end_time,
                 created_by
             ) VALUES (
-                :work_order_nr, :task_id, :work_order_nr, :article_nr, :quantity_total, :final_quantity,
+                :work_order_nr, :task_id, :original_order_nr, :article_nr, :quantity_total, :final_quantity,
                 :maker_code, :machine_type, :planned_start, :planned_end, :estimated_duration, :sequence,
                 :unit, :plan_date, :production_speed, :feeder_code, :work_order_type, :machine_code,
                 :product_code, :plan_quantity, :work_order_status, :planned_start_time, :planned_end_time,
@@ -781,6 +792,9 @@ def add_database_persistence_methods():
             'related_packing_orders': json.dumps(work_order.get('related_packing_orders', [])),
             'packing_machines': json.dumps(work_order.get('packing_machines', [])),
             'estimated_duration': int((feeding_fields['planned_end'] - feeding_fields['planned_start']).total_seconds() / 60) if feeding_fields['planned_end'] and feeding_fields['planned_start'] else None,
+            # 设置冗余时间字段为NULL，使用planned_start/planned_end作为主要时间字段
+            'planned_start_time': None,
+            'planned_end_time': None,
         })
         
         insert_sql = text('''
