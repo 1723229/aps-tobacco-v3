@@ -511,7 +511,7 @@ const createGanttChartOption = (tasks: GanttTask[]) => {
         color: '#929ABA',
         formatter: (value: number) => {
           const date = new Date(value)
-          return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+          return `${date.getMonth() + 1}/${date.getDate()}`
         }
       }
     },

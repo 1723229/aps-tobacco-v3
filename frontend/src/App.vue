@@ -105,13 +105,8 @@ import {
   DataAnalysis,
   House,
   UploadFilled,
-  Clock,
-  InfoFilled,
-  Bell,
-  User,
   Setting,
-  Operation,
-  Monitor
+  Operation
 } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 
@@ -156,13 +151,8 @@ const activeMenuIndex = computed(() => {
   if (path.startsWith('/machine-config')) {
     return '/machine-config'
   }
-  if (path.startsWith('/about')) {
-    return '/about'
-  }
   return '/'
 })
-
-const notificationCount = computed(() => notifications.value.length)
 
 // 方法
 const goHome = () => {
@@ -175,24 +165,6 @@ const handleMenuSelect = (index: string) => {
   } else {
     // 处理其他菜单项
     ElMessage.info(`${index} 功能开发中...`)
-  }
-}
-
-const showNotifications = () => {
-  notificationDrawer.value = true
-}
-
-const handleUserAction = (command: string) => {
-  switch (command) {
-    case 'profile':
-      ElMessage.info('个人中心功能开发中...')
-      break
-    case 'settings':
-      ElMessage.info('系统设置功能开发中...')
-      break
-    case 'logout':
-      ElMessage.info('退出登录功能开发中...')
-      break
   }
 }
 </script>
