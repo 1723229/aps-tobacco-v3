@@ -138,20 +138,7 @@ const route = useRoute()
 
 // 响应式数据
 const notificationDrawer = ref(false)
-const notifications = ref([
-  {
-    id: 1,
-    title: '文件解析完成',
-    content: '批次 BATCH_20241216_001 文件解析成功，共处理156条记录',
-    time: '2024-12-16 14:31:05'
-  },
-  {
-    id: 2,
-    title: '系统更新',
-    content: '系统已更新至 v1.0.0，新增了数据导出功能',
-    time: '2024-12-16 09:00:00'
-  }
-])
+const notifications = ref([])
 
 // 计算属性
 const activeMenuIndex = computed(() => {
