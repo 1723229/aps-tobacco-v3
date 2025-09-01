@@ -226,7 +226,7 @@ DROP TABLE IF EXISTS `aps_machine_speed`;
 CREATE TABLE `aps_machine_speed` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `machine_code` varchar(20) NOT NULL COMMENT '机台代码',
-  `article_nr` varchar(100) NOT NULL COMMENT '物料编号',
+  `article_nr` varchar(100) NOT NULL COMMENT '成品烟牌号',
   `speed` decimal(10,2) NOT NULL COMMENT '生产速度（箱/小时）',
   `efficiency_rate` decimal(5,2) DEFAULT '85.00' COMMENT '效率系数（%）',
   `effective_from` date NOT NULL COMMENT '生效日期',

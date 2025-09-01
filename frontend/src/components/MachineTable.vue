@@ -83,12 +83,8 @@
             <td>{{ formatDateTime(machine.created_time) }}</td>
             <td>
               <div class="action-buttons">
-                <button @click="editMachine(machine)" class="btn-action btn-edit">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button @click="deleteMachine(machine.id)" class="btn-action btn-delete">
-                  <i class="fas fa-trash"></i>
-                </button>
+                <button @click="editMachine(machine)" class="btn btn-small btn-secondary">编辑</button>
+                <button @click="deleteMachine(machine.id)" class="btn btn-small btn-danger">删除</button>
               </div>
             </td>
           </tr>
@@ -311,8 +307,21 @@ const editMachine = (machine: Machine) => {
 
 // 删除机台
 const deleteMachine = async (id: number) => {
-  if (!confirm('确定要删除这台机台吗？')) {
-    return;
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这台机台吗？',
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+  } catch (action) {
+    if (action === 'cancel') {
+      return;
+    }
+    throw action;
   }
 
   try {
@@ -502,6 +511,68 @@ onMounted(() => {
 .status-badge.maintenance {
   background: #f8d7da;
   color: #721c24;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-primary {
+  background: #409eff;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #337ecc;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #545b62;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #c82333;
 }
 
 .action-buttons {

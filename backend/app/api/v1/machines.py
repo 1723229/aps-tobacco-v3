@@ -552,8 +552,6 @@ async def get_maintenance_plans(
                         "maintenance_type": p.maint_type,
                         "planned_start_time": p.maint_start_time,
                         "planned_end_time": p.maint_end_time,
-                        "actual_start_time": p.actual_start_time,
-                        "actual_end_time": p.actual_end_time,
                         "status": p.plan_status,
                         "description": p.maint_description,
                         "created_time": p.created_time,
@@ -590,8 +588,6 @@ async def create_maintenance_plan(
             machine_code=request.machine_code,
             maint_start_time=request.planned_start_time,
             maint_end_time=request.planned_end_time,
-            actual_start_time=request.actual_start_time,
-            actual_end_time=request.actual_end_time,
             maint_type=request.maintenance_type,
             maint_description=request.description,
             plan_status=request.status
