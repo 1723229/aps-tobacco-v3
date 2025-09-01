@@ -1,11 +1,12 @@
 """
-APS智慧排产系统 - 并行切分算法
+APS智慧排产系统 - 并行处理算法（简化重构版）
 
-实现同工单在多机台的并行处理调度逻辑
-确保喂丝机和卷包机的同步协调执行
+实现同工单在多机台的同步执行逻辑
+核心业务：同一工单的不同机台必须同时开始、同时结束
 """
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from collections import defaultdict
 from .base import AlgorithmBase, ProcessingStage, AlgorithmResult
 import logging
 
@@ -13,434 +14,230 @@ logger = logging.getLogger(__name__)
 
 
 class ParallelProcessing(AlgorithmBase):
-    """并行切分算法"""
+    """并行处理算法 - 简化版，专注于同工单机台同步"""
     
     def __init__(self):
         super().__init__(ProcessingStage.PARALLEL_PROCESSING)
         
-    def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
+    async def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
-        执行并行切分处理
+        执行并行处理 - 简化版
         
-        Args:
-            input_data: 时间校正后的工单数据
-            machine_relations: 机台关系映射 {喂丝机: [卷包机列表]}
-            machine_speeds: 机台速度配置 {机台代码: {速度信息}}
-            
-        Returns:
-            AlgorithmResult: 并行切分结果
-        """
-        result = self.create_result()
-        result.input_data = input_data
-        result.metrics.processed_records = len(input_data)
-        
-        machine_relations = kwargs.get('machine_relations', {})
-        machine_speeds = kwargs.get('machine_speeds', {})
-        
-        # 按产品和月份分组工单
-        grouped_orders = self._group_orders_by_product_month(input_data)
-        
-        parallel_orders = []
-        
-        for group_key, orders in grouped_orders.items():
-            try:
-                # 为每组工单生成并行执行计划
-                parallel_group = self._create_parallel_execution_plan(
-                    orders, machine_relations, machine_speeds
-                )
-                parallel_orders.extend(parallel_group)
-                
-            except Exception as e:
-                logger.error(f"并行切分失败 - 组 {group_key}: {str(e)}")
-                result.add_error(f"组并行切分失败: {str(e)}", {'group': group_key})
-                # 失败时保留原工单
-                parallel_orders.extend(orders)
-        
-        result.output_data = parallel_orders
-        
-        # 计算并行处理统计
-        parallel_groups = len(set(order.get('parallel_group_id') for order in parallel_orders if order.get('parallel_group_id')))
-        sync_pairs = sum(1 for order in parallel_orders if order.get('sync_machine_code'))
-        
-        result.metrics.custom_metrics = {
-            'parallel_groups_created': parallel_groups,
-            'synchronized_pairs': sync_pairs,
-            'parallel_efficiency': sync_pairs / len(input_data) if input_data else 0
-        }
-        
-        logger.info(f"并行切分完成: 创建{parallel_groups}个并行组，{sync_pairs}个同步对")
-        return self.finalize_result(result)
-    
-    async def process_with_real_data(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
-        """
-        使用真实数据库数据执行并行切分
+        核心逻辑：
+        1. 按work_order_nr分组（相同工单的不同机台）
+        2. 每组内同步所有机台的开始和结束时间
+        3. 确保同一工单的所有机台同时开始、同时结束
         
         Args:
             input_data: 时间校正后的工单数据
             
         Returns:
-            AlgorithmResult: 并行切分结果
+            AlgorithmResult: 并行处理结果
         """
-        from app.services.database_query_service import DatabaseQueryService
-        
         result = self.create_result()
         result.input_data = input_data
         result.metrics.processed_records = len(input_data)
         
-        # 从数据库查询机台关系和速度配置
-        machine_relations = await DatabaseQueryService.get_machine_relations()
-        machine_speeds = await DatabaseQueryService.get_machine_speeds()
+        if not input_data:
+            result.output_data = []
+            return self.finalize_result(result)
         
-        # 标记使用了真实数据库数据
+        # 按工单号分组
+        work_order_groups = self._group_by_work_order(input_data)
+        
+        synchronized_orders = []
+        sync_groups_count = 0
+        
+        for work_order_nr, orders in work_order_groups.items():
+            if len(orders) > 1:
+                # 多台机台需要同步
+                sync_group = self._synchronize_machines(orders)
+                synchronized_orders.extend(sync_group)
+                sync_groups_count += 1
+                logger.info(f"同步工单{work_order_nr}的{len(orders)}台机台")
+            else:
+                # 单台机台，直接添加
+                order = orders[0].copy()
+                order['is_synchronized'] = False
+                order['sync_reason'] = '单台机台，无需同步'
+                synchronized_orders.append(order)
+        
+        result.output_data = synchronized_orders
+        
+        # 更新统计信息
         result.metrics.custom_metrics = {
-            'used_real_database_data': True,
-            'machine_relations_count': len(machine_relations),
-            'machine_speeds_count': len(machine_speeds)
+            'sync_groups_created': sync_groups_count,
+            'total_machines_synchronized': sum(len(orders) for orders in work_order_groups.values() if len(orders) > 1),
+            'sync_efficiency': sync_groups_count / len(work_order_groups) if work_order_groups else 0
         }
         
-        # 按产品和月份分组工单
-        grouped_orders = self._group_orders_by_product_month(input_data)
-        
-        parallel_orders = []
-        
-        for group_key, orders in grouped_orders.items():
-            try:
-                # 为每组工单生成并行执行计划
-                parallel_group = self._create_parallel_execution_plan(
-                    orders, machine_relations, machine_speeds
-                )
-                parallel_orders.extend(parallel_group)
-                
-            except Exception as e:
-                logger.error(f"并行切分失败 - 组 {group_key}: {str(e)}")
-                result.add_error(f"组并行切分失败: {str(e)}", {'group': group_key})
-                parallel_orders.extend(orders)
-        
-        result.output_data = parallel_orders
-        
-        # 计算并行处理统计
-        parallel_groups = len(set(order.get('parallel_group_id') for order in parallel_orders if order.get('parallel_group_id')))
-        sync_pairs = sum(1 for order in parallel_orders if order.get('sync_machine_code'))
-        
-        result.metrics.custom_metrics.update({
-            'parallel_groups_created': parallel_groups,
-            'synchronized_pairs': sync_pairs,
-            'parallel_efficiency': sync_pairs / len(input_data) if input_data else 0
-        })
-        
-        logger.info(f"并行切分完成(真实数据): 创建{parallel_groups}个并行组，{sync_pairs}个同步对")
+        logger.info(f"并行处理完成: 创建{sync_groups_count}个同步组，处理{len(synchronized_orders)}个工单")
         return self.finalize_result(result)
     
-    def _group_orders_by_product_month(
-        self, 
-        orders: List[Dict[str, Any]]
-    ) -> Dict[str, List[Dict[str, Any]]]:
-        """按产品和月份分组工单"""
-        groups = {}
-        
-        for order in orders:
-            product_code = order.get('product_code', 'unknown')
-            planned_start = order.get('planned_start')
-            
-            if planned_start:
-                month_key = planned_start.strftime('%Y-%m')
-            else:
-                month_key = 'unknown'
-            
-            group_key = f"{product_code}_{month_key}"
-            
-            if group_key not in groups:
-                groups[group_key] = []
-            
-            groups[group_key].append(order)
-        
-        return groups
-    
-    def _create_parallel_execution_plan(
-        self,
-        orders: List[Dict[str, Any]],
-        machine_relations: Dict[str, List[str]],
-        machine_speeds: Dict[str, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _group_by_work_order(self, orders: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
-        为工单组创建并行执行计划
-        
-        Args:
-            orders: 同组工单列表
-            machine_relations: 机台关系映射
-            machine_speeds: 机台速度配置
-            
-        Returns:
-            List[Dict]: 带并行信息的工单列表
-        """
-        if not orders:
-            return []
-        
-        # 生成并行组ID
-        parallel_group_id = f"parallel_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{id(orders)}"
-        
-        # 按喂丝机分组识别需要并行处理的工单组
-        # 根据设计文档：同一工单下所有卷包机必须同时开始、同时结束
-        feeder_groups = self._group_orders_by_feeder_and_product(orders)
-        
-        result_orders = []
-        
-        for group_key, group_orders in feeder_groups.items():
-            feeder_code, product_code = group_key
-            
-            # 查找对应的卷包机列表
-            corresponding_makers = machine_relations.get(feeder_code, [])
-            
-            if len(group_orders) > 1 and len(corresponding_makers) > 1:
-                # 多个工单需要并行处理 - 创建并行执行组
-                parallel_group = self._create_parallel_execution_group(
-                    group_orders, feeder_code, corresponding_makers, 
-                    parallel_group_id, machine_speeds
-                )
-                result_orders.extend(parallel_group)
-            else:
-                # 单个工单或单台机器 - 独立处理
-                for order in group_orders:
-                    standalone_order = self._create_standalone_order(order, parallel_group_id)
-                    standalone_order['feeder_code'] = feeder_code
-                    standalone_order['requires_parallel'] = False
-                    result_orders.append(standalone_order)
-        
-        return result_orders
-    
-    def _group_orders_by_feeder_and_product(self, orders: List[Dict[str, Any]]) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
-        """
-        按喂丝机和产品分组工单
+        按工单号分组
         
         Args:
             orders: 工单列表
             
         Returns:
-            Dict: {(喂丝机代码, 产品代码): 工单列表}
+            Dict: {工单号: [工单列表]}
         """
-        from collections import defaultdict
-        
         groups = defaultdict(list)
         
         for order in orders:
-            feeder_code = order.get('feeder_code', 'UNKNOWN')
-            product_code = order.get('article_nr', 'UNKNOWN')
-            group_key = (feeder_code, product_code)
-            groups[group_key].append(order)
+            work_order_nr = order.get('work_order_nr', 'UNKNOWN')
+            groups[work_order_nr].append(order)
         
         return dict(groups)
     
-    def _create_parallel_execution_group(
-        self,
-        group_orders: List[Dict[str, Any]],
-        feeder_code: str,
-        corresponding_makers: List[str],
-        parallel_group_id: str,
-        machine_speeds: Dict[str, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _synchronize_machines(self, orders: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        创建并行执行组
+        同步一个工单下所有机台的时间
+        
+        根据用户示例，同一工单的所有机台必须：
+        - 同时开始（取最晚的开始时间）
+        - 同时结束（取最晚的结束时间）
         
         Args:
-            group_orders: 需要并行的工单组
-            feeder_code: 喂丝机代码
-            corresponding_makers: 对应的卷包机列表
-            parallel_group_id: 并行组ID
-            machine_speeds: 机台速度配置
+            orders: 同一工单的机台订单列表
             
         Returns:
-            List[Dict]: 并行处理后的工单列表
+            List[Dict[str, Any]]: 同步后的工单列表
         """
-        logger.info(f"创建并行执行组: 喂丝机{feeder_code}, {len(group_orders)}个工单, {len(corresponding_makers)}台卷包机")
+        if not orders:
+            return []
         
         # 计算统一的开始和结束时间
-        earliest_start = min(order.get('planned_start') for order in group_orders if order.get('planned_start'))
-        latest_end = max(order.get('planned_end') for order in group_orders if order.get('planned_end'))
+        start_times = [order.get('planned_start') for order in orders if order.get('planned_start')]
+        end_times = [order.get('planned_end') for order in orders if order.get('planned_end')]
         
-        # 为每个工单分配对应的卷包机
-        result_orders = []
+        if not start_times or not end_times:
+            logger.warning(f"工单{orders[0].get('work_order_nr')}缺少时间信息，跳过同步")
+            return orders
         
-        for i, order in enumerate(group_orders):
-            # 分配卷包机（轮询分配）
-            assigned_maker = corresponding_makers[i % len(corresponding_makers)]
-            
-            parallel_order = order.copy()
-            parallel_order.update({
-                'parallel_group_id': parallel_group_id,
-                'feeder_code': feeder_code,
-                'maker_code': assigned_maker,
-                'requires_parallel': True,
-                'parallel_start_time': earliest_start,
-                'parallel_end_time': latest_end,
-                'sync_machine_code': feeder_code,
-                'parallel_index': i,
-                'total_parallel_count': len(group_orders),
-                'assigned_makers': corresponding_makers,
-                'coordination_timestamp': datetime.now()
-            })
-            
-            # 添加机台速度信息
-            if assigned_maker in machine_speeds:
-                parallel_order['machine_speed_config'] = machine_speeds[assigned_maker]
-            
-            result_orders.append(parallel_order)
+        # 同时开始：取最晚的开始时间（确保所有前置条件都满足）
+        sync_start = max(start_times)
+        # 同时结束：取最晚的结束时间（确保所有工作都完成）
+        sync_end = max(end_times)
         
-        logger.info(f"并行组创建完成: 生成{len(result_orders)}个同步工单")
-        return result_orders
+        # 生成同步组ID
+        sync_group_id = f"SYNC_{orders[0].get('work_order_nr', '')}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        synchronized_orders = []
+        
+        for order in orders:
+            sync_order = order.copy()
+            
+            # 保存原始时间
+            sync_order['original_planned_start'] = order.get('planned_start')
+            sync_order['original_planned_end'] = order.get('planned_end')
+            
+            # 设置同步时间
+            sync_order['planned_start'] = sync_start
+            sync_order['planned_end'] = sync_end
+            
+            # 添加同步标识
+            sync_order['is_synchronized'] = True
+            sync_order['sync_group_id'] = sync_group_id
+            sync_order['sync_reason'] = '同工单机台同步执行'
+            sync_order['sync_timestamp'] = datetime.now()
+            sync_order['machine_count'] = len(orders)
+            
+            # 记录机台信息（用于后续跟踪）
+            sync_order['synchronized_machines'] = [
+                {
+                    'maker_code': o.get('maker_code', ''),
+                    'feeder_code': o.get('feeder_code', ''),
+                    'original_start': o.get('planned_start'),
+                    'original_end': o.get('planned_end')
+                }
+                for o in orders
+            ]
+            
+            synchronized_orders.append(sync_order)
+            
+            logger.debug(f"同步机台 {sync_order.get('maker_code', sync_order.get('feeder_code', 'UNKNOWN'))}: "
+                        f"{order.get('planned_start')} -> {sync_start}, "
+                        f"{order.get('planned_end')} -> {sync_end}")
+        
+        return synchronized_orders
     
-    def _create_sync_pair(
-        self,
-        feeder_order: Dict[str, Any],
-        maker_order: Dict[str, Any], 
-        parallel_group_id: str,
-        machine_speeds: Dict[str, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    async def process_with_real_data(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
-        创建同步执行对
+        使用真实数据库数据执行并行处理（简化版）
         
         Args:
-            feeder_order: 喂丝机工单
-            maker_order: 卷包机工单
-            parallel_group_id: 并行组ID
-            machine_speeds: 机台速度配置
+            input_data: 时间校正后的工单数据
             
         Returns:
-            List[Dict]: 同步的工单对
+            AlgorithmResult: 并行处理结果
         """
-        # 计算同步时间
-        sync_start, sync_end = self._calculate_sync_time(
-            feeder_order, maker_order, machine_speeds
-        )
+        result = self.create_result()
+        result.input_data = input_data
+        result.metrics.processed_records = len(input_data)
         
-        # 创建同步后的喂丝机工单
-        synced_feeder = feeder_order.copy()
-        synced_feeder.update({
-            'parallel_group_id': parallel_group_id,
-            'sync_machine_code': maker_order.get('maker_code'),
-            'sync_type': 'FEEDER_MAKER_PAIR',
-            'original_planned_start': feeder_order.get('planned_start'),
-            'original_planned_end': feeder_order.get('planned_end'),
-            'planned_start': sync_start,
-            'planned_end': sync_end,
-            'is_synchronized': True,
-            'sync_reason': f"与卷包机{maker_order.get('maker_code')}同步执行"
+        if not input_data:
+            result.output_data = []
+            return self.finalize_result(result)
+        
+        # 标记使用了真实数据库数据
+        result.metrics.custom_metrics = {
+            'used_real_database_data': True
+        }
+        
+        # 使用相同的简化逻辑
+        work_order_groups = self._group_by_work_order(input_data)
+        
+        synchronized_orders = []
+        sync_groups_count = 0
+        
+        for work_order_nr, orders in work_order_groups.items():
+            if len(orders) > 1:
+                sync_group = self._synchronize_machines(orders)
+                synchronized_orders.extend(sync_group)
+                sync_groups_count += 1
+                logger.info(f"同步工单{work_order_nr}的{len(orders)}台机台(真实数据)")
+            else:
+                order = orders[0].copy()
+                order['is_synchronized'] = False
+                order['sync_reason'] = '单台机台，无需同步'
+                synchronized_orders.append(order)
+        
+        result.output_data = synchronized_orders
+        
+        # 更新统计信息
+        result.metrics.custom_metrics.update({
+            'sync_groups_created': sync_groups_count,
+            'total_machines_synchronized': sum(len(orders) for orders in work_order_groups.values() if len(orders) > 1),
+            'sync_efficiency': sync_groups_count / len(work_order_groups) if work_order_groups else 0
         })
         
-        # 创建同步后的卷包机工单
-        synced_maker = maker_order.copy()
-        synced_maker.update({
-            'parallel_group_id': parallel_group_id,
-            'sync_machine_code': feeder_order.get('maker_code'),
-            'sync_type': 'FEEDER_MAKER_PAIR',
-            'original_planned_start': maker_order.get('planned_start'),
-            'original_planned_end': maker_order.get('planned_end'),
-            'planned_start': sync_start,
-            'planned_end': sync_end,
-            'is_synchronized': True,
-            'sync_reason': f"与喂丝机{feeder_order.get('maker_code')}同步执行"
-        })
-        
-        return [synced_feeder, synced_maker]
-    
-    def _create_standalone_order(
-        self, 
-        order: Dict[str, Any], 
-        parallel_group_id: str
-    ) -> Dict[str, Any]:
-        """创建独立执行工单"""
-        standalone_order = order.copy()
-        standalone_order.update({
-            'parallel_group_id': parallel_group_id,
-            'sync_type': 'STANDALONE',
-            'is_synchronized': False,
-            'sync_reason': "无可匹配的关联机台，独立执行"
-        })
-        
-        return standalone_order
-    
-    def _calculate_sync_time(
-        self,
-        feeder_order: Dict[str, Any],
-        maker_order: Dict[str, Any],
-        machine_speeds: Dict[str, Dict[str, Any]]
-    ) -> Tuple[datetime, datetime]:
-        """
-        计算同步执行时间
-        
-        Args:
-            feeder_order: 喂丝机工单
-            maker_order: 卷包机工单
-            machine_speeds: 机台速度配置
-            
-        Returns:
-            Tuple[datetime, datetime]: (同步开始时间, 同步结束时间)
-        """
-        # 获取两个工单的时间范围
-        feeder_start = feeder_order.get('planned_start')
-        feeder_end = feeder_order.get('planned_end')
-        maker_start = maker_order.get('planned_start')
-        maker_end = maker_order.get('planned_end')
-        
-        # 同步开始时间：取较晚的开始时间
-        sync_start = max(feeder_start, maker_start) if feeder_start and maker_start else (feeder_start or maker_start)
-        
-        # 根据速度配比计算同步结束时间
-        feeder_code = feeder_order.get('maker_code')
-        maker_code = maker_order.get('maker_code')
-        
-        feeder_speed = machine_speeds.get(feeder_code, {}).get('hourly_capacity', 100)
-        maker_speed = machine_speeds.get(maker_code, {}).get('hourly_capacity', 100)
-        
-        # 计算总产量
-        total_quantity = feeder_order.get('plan_quantity', 0) + maker_order.get('plan_quantity', 0)
-        
-        # 按速度较慢的机台计算时间
-        limiting_speed = min(feeder_speed, maker_speed)
-        if limiting_speed > 0:
-            required_hours = total_quantity / limiting_speed
-            sync_end = sync_start + timedelta(hours=required_hours)
-        else:
-            # 如果没有速度信息，使用较长的原计划时间
-            feeder_duration = (feeder_end - feeder_start) if feeder_end and feeder_start else timedelta(hours=8)
-            maker_duration = (maker_end - maker_start) if maker_end and maker_start else timedelta(hours=8)
-            sync_end = sync_start + max(feeder_duration, maker_duration)
-        
-        return sync_start, sync_end
+        logger.info(f"并行处理完成(真实数据): 创建{sync_groups_count}个同步组，处理{len(synchronized_orders)}个工单")
+        return self.finalize_result(result)
 
 
 def create_parallel_processing() -> ParallelProcessing:
     """
-    创建并行切分算法实例
+    创建并行处理算法实例
     
     Returns:
-        ParallelProcessing: 并行切分算法实例
+        ParallelProcessing: 并行处理算法实例
     """
     return ParallelProcessing()
 
 
-def process_parallel_execution(
-    work_orders: List[Dict[str, Any]],
-    machine_relations: Dict[str, List[str]] = None,
-    machine_speeds: Dict[str, Dict[str, Any]] = None
-) -> List[Dict[str, Any]]:
+def process_parallel_execution(work_orders: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    快速并行执行处理
+    快速并行执行处理（简化版）
     
     Args:
         work_orders: 工单列表
-        machine_relations: 机台关系映射
-        machine_speeds: 机台速度配置
         
     Returns:
         List[Dict]: 并行处理后的工单列表
     """
     processor = create_parallel_processing()
-    
-    kwargs = {}
-    if machine_relations:
-        kwargs['machine_relations'] = machine_relations
-    if machine_speeds:
-        kwargs['machine_speeds'] = machine_speeds
-    
-    result = processor.process(work_orders, **kwargs)
+    result = processor.process(work_orders)
     return result.output_data

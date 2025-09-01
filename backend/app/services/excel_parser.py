@@ -477,6 +477,9 @@ class ProductionPlanExcelParser:
                             current_material_input = parsed_value
                         except (ValueError, TypeError):
                             self._add_warning(f"行{row_idx}: 投料量格式错误: {cell_value}")
+                    elif cell_value and str(cell_value).strip() in ['--', '——']:
+                        # 明确的"--"标记表示0，不继承前面的数值
+                        current_material_input = 0
                     record.material_input = current_material_input
                 
                 elif field_name == 'final_quantity':
@@ -488,6 +491,9 @@ class ProductionPlanExcelParser:
                             current_final_quantity = parsed_value
                         except (ValueError, TypeError):
                             self._add_warning(f"行{row_idx}: 成品量格式错误: {cell_value}")
+                    elif cell_value and str(cell_value).strip() in ['--', '——']:
+                        # 明确的"--"标记表示0，不继承前面的数值
+                        current_final_quantity = 0
                     record.final_quantity = current_final_quantity
                 
                 elif field_name == 'production_date_range':

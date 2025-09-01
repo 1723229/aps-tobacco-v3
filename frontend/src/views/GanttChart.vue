@@ -23,19 +23,6 @@
           />
         </el-form-item>
         <!-- 批次ID输入框已隐藏 -->
-        <el-form-item label="工单类型">
-          <el-select 
-            v-model="filterOptions.order_type" 
-            placeholder="选择类型"
-            clearable
-            style="width: 160px"
-            @change="fetchWorkOrders"
-          >
-            <el-option label="全部" value="" />
-            <el-option label="卷包机工单" value="HJB" />
-            <el-option label="喂丝机工单" value="HWS" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="机台">
           <el-select 
             v-model="filterOptions.machine_code" 
@@ -62,12 +49,6 @@
       <el-row :gutter="20">
         <el-col :span="6">
           <el-statistic title="总工单数" :value="workOrders.length" />
-        </el-col>
-        <el-col :span="6">
-          <el-statistic title="卷包机工单" :value="makerOrdersCount" />
-        </el-col>
-        <el-col :span="6">
-          <el-statistic title="喂丝机工单" :value="feederOrdersCount" />
         </el-col>
         <el-col :span="6">
           <el-statistic title="总计划产量" :value="totalQuantity" />
@@ -121,7 +102,6 @@ let chartInstance: echarts.ECharts | null = null
 const filterOptions = ref({
   task_id: (route.query.task_id as string) || '',
   import_batch_id: (route.query.import_batch_id as string) || '',
-  order_type: '',
   machine_code: ''
 })
 
@@ -159,14 +139,6 @@ interface GanttTask {
 const ganttTasks = ref<GanttTask[]>([])
 
 // 计算属性
-const makerOrdersCount = computed(() => 
-  workOrders.value.filter(order => order.work_order_type === 'HJB').length
-)
-
-const feederOrdersCount = computed(() => 
-  workOrders.value.filter(order => order.work_order_type === 'HWS').length
-)
-
 const totalQuantity = computed(() => 
   workOrders.value.reduce((total, order) => total + (order.plan_quantity || 0), 0)
 )
@@ -315,9 +287,6 @@ const fetchWorkOrders = async () => {
     }
     if (filterOptions.value.import_batch_id) {
       params.import_batch_id = filterOptions.value.import_batch_id
-    }
-    if (filterOptions.value.order_type) {
-      params.order_type = filterOptions.value.order_type
     }
     if (filterOptions.value.machine_code) {
       params.machine_code = filterOptions.value.machine_code

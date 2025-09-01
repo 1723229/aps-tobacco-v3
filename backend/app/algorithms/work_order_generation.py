@@ -1,32 +1,36 @@
 """
-APS智慧排产系统 - 工单生成算法
+APS智慧排产系统 - 工单生成算法（MES规范重构版）
 
-基于排产结果生成卷包机和喂丝机的具体工单
-包含工单编号生成、工艺参数设定、质量检查点等
+基于排产结果生成符合MES接口规范的卷包机和喂丝机工单
+完全符合MES接口文档要求，支持工单号序列生成和InputBatch结构
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from .base import AlgorithmBase, ProcessingStage, AlgorithmResult
+from app.services.work_order_sequence_service import WorkOrderSequenceService
 import logging
-import uuid
 
 logger = logging.getLogger(__name__)
 
 
 class WorkOrderGeneration(AlgorithmBase):
-    """工单生成算法"""
+    """工单生成算法 - MES规范版"""
     
     def __init__(self):
         super().__init__(ProcessingStage.WORK_ORDER_GENERATION)
         
-    def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
+    async def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
-        执行工单生成
+        执行MES规范工单生成
+        
+        核心逻辑：
+        1. 按工单号分组，确保同一工单的不同机台关联
+        2. 为每个喂丝机生成一个HWS工单（H+WS+9位序列号）
+        3. 为每个卷包机生成一个HJB工单（H+JB+9位序列号）
+        4. 建立InputBatch关联关系
         
         Args:
             input_data: 并行处理后的工单数据
-            product_specs: 产品规格配置 {产品代码: {规格信息}}
-            quality_standards: 质量标准配置
             
         Returns:
             AlgorithmResult: 工单生成结果
@@ -35,177 +39,314 @@ class WorkOrderGeneration(AlgorithmBase):
         result.input_data = input_data
         result.metrics.processed_records = len(input_data)
         
-        product_specs = kwargs.get('product_specs', {})
-        quality_standards = kwargs.get('quality_standards', {})
+        if not input_data:
+            result.output_data = []
+            return self.finalize_result(result)
+        
+        # 按工单号分组
+        work_order_groups = self._group_by_work_order_number(input_data)
         
         generated_work_orders = []
         
-        # 按照设计文档实现：先按喂丝机分组，然后生成喂丝机工单和对应的卷包机工单
-        feeder_groups = self._group_by_feeder_code(input_data)
-        logger.info(f"按喂丝机分组结果: {len(feeder_groups)}组")
-        for feeder_code, orders in feeder_groups.items():
-            logger.info(f"  {feeder_code}: {len(orders)}个工单")
-        
-        for feeder_code, feeder_group_orders in feeder_groups.items():
+        for work_order_nr, orders in work_order_groups.items():
             try:
-                # 为每个喂丝机生成一个喂丝机工单
-                logger.info(f"为喂丝机 {feeder_code} 生成工单...")
-                feeder_work_order = self._generate_feeder_work_order_from_group(
-                    feeder_code, feeder_group_orders, product_specs, quality_standards
-                )
-                logger.info(f"生成喂丝机工单: {feeder_work_order['work_order_nr']}")
-                generated_work_orders.append(feeder_work_order)
+                # 为每组生成MES规范的工单对
+                mes_orders = await self._generate_mes_work_order_pair(work_order_nr, orders)
+                generated_work_orders.extend(mes_orders)
                 
-                # 为每个卷包机生成对应的卷包机工单
-                for order_data in feeder_group_orders:
-                    maker_work_order = self._generate_maker_work_order(
-                        order_data, product_specs, quality_standards
-                    )
-                    # 关联到喂丝机工单
-                    maker_work_order['related_feeder_order'] = feeder_work_order['work_order_nr']
-                    generated_work_orders.append(maker_work_order)
+                logger.info(f"为工单组{work_order_nr}生成{len(mes_orders)}个MES工单")
                 
             except Exception as e:
-                logger.error(f"工单生成失败 - 喂丝机 {feeder_code}: {str(e)}")
-                result.add_error(f"工单生成失败: {str(e)}", {'feeder_code': feeder_code})
+                logger.error(f"MES工单生成失败 - 工单组{work_order_nr}: {str(e)}")
+                result.add_error(f"MES工单生成失败: {str(e)}", {'work_order_group': work_order_nr})
                 
                 # 生成基础工单以免中断流程
-                for order_data in feeder_group_orders:
-                    fallback_order = self._generate_fallback_work_order(order_data)
+                for order_data in orders:
+                    fallback_order = self._generate_fallback_mes_order(order_data)
                     generated_work_orders.append(fallback_order)
         
         result.output_data = generated_work_orders
         
         # 计算生成统计
-        feeder_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'FEEDER_PRODUCTION'])
-        maker_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'MAKER_PRODUCTION'])
-        sync_orders = len([wo for wo in generated_work_orders if wo.get('is_synchronized')])
+        feeding_orders = len([wo for wo in generated_work_orders if wo.get('plan_id', '').startswith('HWS')])
+        packing_orders = len([wo for wo in generated_work_orders if wo.get('plan_id', '').startswith('HJB')])
         
         result.metrics.custom_metrics = {
-            'feeder_work_orders': feeder_orders,
-            'maker_work_orders': maker_orders,
-            'synchronized_work_orders': sync_orders,
+            'feeding_work_orders': feeding_orders,
+            'packing_work_orders': packing_orders,
+            'total_work_orders': len(generated_work_orders),
             'generation_success_rate': len(generated_work_orders) / len(input_data) if input_data else 0,
-            'feeder_groups_processed': len(feeder_groups)
+            'work_order_groups_processed': len(work_order_groups)
         }
         
-        logger.info(f"工单生成完成: 喂丝机{feeder_orders}个，卷包机{maker_orders}个，同步{sync_orders}个")
+        logger.info(f"MES工单生成完成: 喂丝机{feeding_orders}个，卷包机{packing_orders}个")
         return self.finalize_result(result)
     
-    def _group_by_feeder_code(self, input_data: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    def _group_by_work_order_number(self, input_data: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
-        按喂丝机代码分组
+        按工单号分组
         
         Args:
             input_data: 输入工单数据
             
         Returns:
-            Dict[str, List]: {喂丝机代码: 工单列表}
+            Dict: {工单号: [工单列表]}
         """
         from collections import defaultdict
         
-        feeder_groups = defaultdict(list)
+        groups = defaultdict(list)
         
         for order_data in input_data:
-            feeder_code = order_data.get('feeder_code')
-            if feeder_code:
-                feeder_groups[feeder_code].append(order_data)
-            else:
-                # 没有喂丝机代码的单独处理
-                feeder_groups['UNKNOWN_FEEDER'].append(order_data)
+            work_order_nr = order_data.get('work_order_nr', 'UNKNOWN')
+            groups[work_order_nr].append(order_data)
         
-        return dict(feeder_groups)
+        return dict(groups)
     
-    def _generate_feeder_work_order_from_group(
-        self,
-        feeder_code: str,
-        group_orders: List[Dict[str, Any]],
-        product_specs: Dict[str, Dict[str, Any]],
-        quality_standards: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    async def _generate_mes_work_order_pair(self, work_order_nr: str, orders: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        从工单组生成喂丝机工单
+        为一个工单组生成MES规范的工单对
         
         Args:
-            feeder_code: 喂丝机代码
-            group_orders: 同一喂丝机的工单列表
-            product_specs: 产品规格配置
-            quality_standards: 质量标准配置
+            work_order_nr: 工单号
+            orders: 同一工单的不同机台订单
             
         Returns:
-            Dict: 喂丝机工单
+            List[Dict[str, Any]]: MES规范的工单列表
         """
-        if not group_orders:
-            raise ValueError(f"喂丝机 {feeder_code} 没有关联工单")
+        if not orders:
+            return []
         
-        # 合并工单数据计算总量和时间范围
-        total_quantity = sum(order.get('quantity_total', 0) for order in group_orders)
-        earliest_start = min(order.get('planned_start') for order in group_orders if order.get('planned_start'))
-        latest_end = max(order.get('planned_end') for order in group_orders if order.get('planned_end'))
+        mes_orders = []
         
-        # 获取产品信息（使用第一个工单的产品信息）
-        first_order = group_orders[0]
-        product_code = first_order.get('article_nr', '')
-        product_spec = product_specs.get(product_code, {})
-        quality_std = quality_standards.get(product_code, {})
+        # 获取喂丝机和卷包机信息
+        feeder_codes = list(set(order.get('feeder_code') for order in orders if order.get('feeder_code')))
+        maker_codes = list(set(order.get('maker_code') for order in orders if order.get('maker_code')))
         
-        # 添加安全库存（5%）
-        safety_stock_ratio = 0.05
-        safe_quantity = int(total_quantity * (1 + safety_stock_ratio))
+        # 为每个喂丝机生成一个HWS工单
+        for feeder_code in feeder_codes:
+            if feeder_code:
+                feeding_order = await self._generate_mes_feeding_order(work_order_nr, feeder_code, orders)
+                mes_orders.append(feeding_order)
         
-        work_order = {
-            # 基础信息
-            'work_order_nr': self._generate_work_order_number('HWS'),
-            'work_order_type': 'FEEDER_PRODUCTION',
-            'machine_type': 'HWS',
-            'machine_code': feeder_code,
-            'product_code': product_code,
-            'product_name': first_order.get('article_nr', ''),
+        # 为每个卷包机生成一个HJB工单，并关联到喂丝机工单
+        for maker_code in maker_codes:
+            if maker_code:
+                # 找到对应的喂丝机
+                corresponding_orders = [o for o in orders if o.get('maker_code') == maker_code]
+                if corresponding_orders:
+                    feeding_plan_ids = [fo.get('plan_id') for fo in mes_orders if fo.get('plan_id', '').startswith('HWS')]
+                    packing_order = await self._generate_mes_packing_order(
+                        work_order_nr, maker_code, corresponding_orders[0], feeding_plan_ids
+                    )
+                    mes_orders.append(packing_order)
+        
+        return mes_orders
+    
+    async def _generate_mes_feeding_order(
+        self, 
+        work_order_nr: str, 
+        feeder_code: str, 
+        orders: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        生成MES规范的喂丝机工单
+        
+        Args:
+            work_order_nr: 原工单号
+            feeder_code: 喂丝机代码
+            orders: 相关订单列表
             
-            # 计划信息
-            'plan_quantity': safe_quantity,
-            'base_quantity': total_quantity,
-            'safety_stock': safe_quantity - total_quantity,
-            'plan_unit': 'KG',
-            'planned_start_time': earliest_start,
-            'planned_end_time': latest_end,
+        Returns:
+            Dict[str, Any]: MES规范的喂丝机工单
+        """
+        # 获取基础信息
+        first_order = orders[0]
+        
+        # 计算总数量和时间
+        total_final_quantity = sum(o.get('final_quantity', 0) for o in orders)
+        earliest_start = min(o.get('planned_start') for o in orders if o.get('planned_start'))
+        latest_end = max(o.get('planned_end') for o in orders if o.get('planned_end'))
+        
+        # 生成MES规范的喂丝机工单
+        feeding_order = {
+            # MES核心字段
+            'plan_id': await self._generate_mes_plan_id('HWS'),
+            'production_line': feeder_code,  # 单个喂丝机代码
+            'batch_code': None,  # 喂丝机通常为空
+            'material_code': first_order.get('article_nr', ''),  # 成品烟牌号作为物料代码
+            'bom_revision': None,  # 喂丝机没有版本号
+            'quantity': None,  # 喂丝机通常为空
+            'plan_start_time': earliest_start.strftime('%Y/%m/%d %H:%M:%S') if earliest_start else None,
+            'plan_end_time': latest_end.strftime('%Y/%m/%d %H:%M:%S') if latest_end else None,
+            'sequence': 1,
+            'shift': None,  # 喂丝机没有班次
             
-            # 关联的卷包机工单
-            'related_maker_orders': [order.get('work_order_nr') for order in group_orders],
-            'maker_machines': list(set(order.get('maker_code') for order in group_orders if order.get('maker_code'))),
+            # 工艺控制字段
+            'is_vaccum': False,
+            'is_sh93': False,
+            'is_hdt': False,
+            'is_flavor': False,
+            'unit': '公斤',
+            'plan_date': earliest_start.strftime('%Y/%m/%d') if earliest_start else None,
+            'plan_output_quantity': None,  # 通常为空
+            'is_outsourcing': False,
+            'is_backup': first_order.get('is_backup', False),
             
-            # 喂丝机特有参数
-            'tobacco_blend_formula': product_spec.get('blend_formula', 'STANDARD'),
-            'moisture_target': product_spec.get('moisture_target', 13.5),
-            'moisture_tolerance': product_spec.get('moisture_tolerance', 0.5),
-            'cut_width': product_spec.get('cut_width', 0.8),
-            'feeding_rate': product_spec.get('feeding_rate', 120),  # kg/h
-            
-            # 质量检查点
-            'quality_checkpoints': [
-                {
-                    'checkpoint_name': '配方准确性检查',
-                    'check_frequency': 'BATCH_START',
-                    'standard': quality_std.get('blend_accuracy', '±2%')
-                },
-                {
-                    'checkpoint_name': '水分含量检查',
-                    'check_frequency': 'HOURLY',
-                    'standard': f"{product_spec.get('moisture_target', 13.5)}±{product_spec.get('moisture_tolerance', 0.5)}%"
-                }
-            ],
-            
-            # 审计信息
-            'created_time': datetime.now(),
-            'created_by': 'APS_SYSTEM',
-            'generation_source': 'GROUP_BASED'
+            # 内部字段（非MES接口字段）
+            'original_work_order_nr': work_order_nr,
+            'feeder_code': feeder_code,
+            'final_quantity': total_final_quantity,
+            'related_orders': [o.get('work_order_nr') for o in orders],
+            'generation_timestamp': datetime.now(),
+            'order_type': 'FEEDING'
         }
         
-        return work_order
+        return feeding_order
     
+    async def _generate_mes_packing_order(
+        self, 
+        work_order_nr: str, 
+        maker_code: str, 
+        order: Dict[str, Any],
+        feeding_plan_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        生成MES规范的卷包机工单
+        
+        Args:
+            work_order_nr: 原工单号
+            maker_code: 卷包机代码
+            order: 订单数据
+            feeding_plan_ids: 关联的喂丝机计划ID列表
+            
+        Returns:
+            Dict[str, Any]: MES规范的卷包机工单
+        """
+        # 生成InputBatch结构
+        input_batch = None
+        if feeding_plan_ids:
+            input_batch = {
+                'input_plan_id': feeding_plan_ids[0],  # 关联的喂丝机计划号
+                'input_batch_code': None,
+                'quantity': None,  # 卷包机没有投入数量
+                'batch_sequence': None,
+                'is_whole_batch': None,
+                'is_main_channel': True,
+                'is_deleted': False,
+                'is_last_one': None,
+                'material_code': order.get('article_nr', ''),  # 投入物料代码
+                'bom_revision': None,
+                'tiled': None,
+                'remark1': None,
+                'remark2': None
+            }
+        
+        # 生成MES规范的卷包机工单
+        packing_order = {
+            # MES核心字段
+            'plan_id': await self._generate_mes_plan_id('HJB'),
+            'production_line': maker_code,  # 单个卷包机代码
+            'batch_code': None,
+            'material_code': order.get('article_nr', ''),  # 成品烟牌号
+            'bom_revision': None,
+            'quantity': order.get('final_quantity', 0),  # 成品烟产量（箱）
+            'plan_start_time': order.get('planned_start').strftime('%Y/%m/%d %H:%M:%S') if order.get('planned_start') else None,
+            'plan_end_time': order.get('planned_end').strftime('%Y/%m/%d %H:%M:%S') if order.get('planned_end') else None,
+            'sequence': 1,
+            'shift': None,
+            
+            # InputBatch前工序批次信息
+            'input_batch': input_batch,
+            
+            # 工艺控制字段
+            'is_vaccum': False,
+            'is_sh93': False,
+            'is_hdt': False,
+            'is_flavor': False,
+            'unit': '箱',
+            'plan_date': order.get('planned_start').strftime('%Y/%m/%d') if order.get('planned_start') else None,
+            'plan_output_quantity': None,
+            'is_outsourcing': False,
+            'is_backup': order.get('is_backup', False),
+            
+            # 内部字段（非MES接口字段）
+            'original_work_order_nr': work_order_nr,
+            'maker_code': maker_code,
+            'feeder_code': order.get('feeder_code', ''),
+            'final_quantity': order.get('final_quantity', 0),
+            'related_feeding_plan_ids': feeding_plan_ids,
+            'generation_timestamp': datetime.now(),
+            'order_type': 'PACKING'
+        }
+        
+        return packing_order
+    
+    async def _generate_mes_plan_id(self, order_type: str) -> str:
+        """
+        生成MES规范的计划ID（使用数据库序列服务）
+        
+        格式：H + 工单类型（2位）+ 9位流水号
+        例：HWS000000001（喂丝机）、HJB000000001（卷包机）
+        
+        Args:
+            order_type: 工单类型 'HWS' 或 'HJB'
+            
+        Returns:
+            str: MES规范的计划ID
+        """
+        try:
+            # 使用序列服务生成ID
+            plan_id = await WorkOrderSequenceService.generate_plan_id(order_type)
+            logger.info(f"生成MES计划ID: {plan_id}")
+            return plan_id
+        except Exception as e:
+            logger.error(f"MES计划ID生成失败，使用备用方案: {str(e)}")
+            # 备用方案：使用随机数
+            import random
+            sequence = random.randint(1, 999999999)
+            return f"H{order_type}{sequence:09d}"
+    
+    def _generate_fallback_mes_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        生成备用MES工单（同步版本，使用随机ID）
+        
+        Args:
+            order_data: 订单数据
+            
+        Returns:
+            Dict[str, Any]: 备用MES工单
+        """
+        import random
+        fallback_plan_id = f"HJB{random.randint(1, 999999999):09d}"
+        
+        return {
+            'plan_id': fallback_plan_id,
+            'production_line': order_data.get('maker_code', 'UNKNOWN'),
+            'batch_code': None,
+            'material_code': order_data.get('article_nr', 'UNKNOWN'),
+            'bom_revision': None,
+            'quantity': order_data.get('final_quantity', 0),
+            'plan_start_time': datetime.now().strftime('%Y/%m/%d %H:%M:%S'),
+            'plan_end_time': (datetime.now() + timedelta(hours=8)).strftime('%Y/%m/%d %H:%M:%S'),
+            'sequence': 1,
+            'shift': None,
+            'is_vaccum': False,
+            'is_sh93': False,
+            'is_hdt': False,
+            'is_flavor': False,
+            'unit': '箱',
+            'plan_date': datetime.now().strftime('%Y/%m/%d'),
+            'plan_output_quantity': None,
+            'is_outsourcing': False,
+            'is_backup': True,
+            'original_work_order_nr': order_data.get('work_order_nr', 'UNKNOWN'),
+            'generation_timestamp': datetime.now(),
+            'order_type': 'FALLBACK'
+        }
+
     async def process_with_real_data(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
-        使用真实数据库数据执行工单生成
+        使用真实数据库数据执行MES规范工单生成
         
         Args:
             input_data: 并行处理后的工单数据
@@ -214,366 +355,91 @@ class WorkOrderGeneration(AlgorithmBase):
             AlgorithmResult: 工单生成结果
         """
         from app.services.database_query_service import DatabaseQueryService
-        from app.services.mes_integration import mes_service
         
         result = self.create_result()
         result.input_data = input_data
         result.metrics.processed_records = len(input_data)
         
-        # 从数据库查询产品规格和质量标准
-        product_specs = await self._get_product_specs_from_db()
-        quality_standards = await self._get_quality_standards_from_db()
+        if not input_data:
+            result.output_data = []
+            return self.finalize_result(result)
+        
+        # 查询机台关系和速度配置
+        machine_relations = await DatabaseQueryService.get_machine_relations()
+        machine_speeds = await DatabaseQueryService.get_machine_speeds()
         
         # 标记使用了真实数据库数据
         result.metrics.custom_metrics = {
             'used_real_database_data': True,
-            'product_specs_count': len(product_specs),
-            'quality_standards_count': len(quality_standards),
-            'mes_integration_enabled': True
+            'mes_compliant': True,
+            'machine_relations_count': len(machine_relations),
+            'machine_speeds_count': len(machine_speeds)
         }
         
-        generated_work_orders = []
+        # 拆分算法已经生成了正确的MES格式工单，直接使用无需重新生成
+        generated_work_orders = input_data
         
-        # 使用与process方法相同的逻辑：按喂丝机分组
-        feeder_groups = self._group_by_feeder_code(input_data)
-        logger.info(f"真实数据工单生成 - 按喂丝机分组结果: {len(feeder_groups)}组")
-        for feeder_code, orders in feeder_groups.items():
-            logger.info(f"  {feeder_code}: {len(orders)}个工单")
-        
-        for feeder_code, feeder_group_orders in feeder_groups.items():
-            try:
-                # 为每个喂丝机生成一个喂丝机工单
-                logger.info(f"为喂丝机 {feeder_code} 生成工单...")
-                feeder_work_order = self._generate_feeder_work_order_from_group(
-                    feeder_code, feeder_group_orders, product_specs, quality_standards
-                )
-                logger.info(f"生成喂丝机工单: {feeder_work_order['work_order_nr']}")
-                generated_work_orders.append(feeder_work_order)
-                
-                # 为每个卷包机生成对应的卷包机工单
-                for order_data in feeder_group_orders:
-                    maker_work_order = self._generate_maker_work_order(
-                        order_data, product_specs, quality_standards
-                    )
-                    # 关联到喂丝机工单
-                    maker_work_order['related_feeder_order'] = feeder_work_order['work_order_nr']
-                    generated_work_orders.append(maker_work_order)
-                
-            except Exception as e:
-                logger.error(f"真实数据工单生成失败 - 喂丝机 {feeder_code}: {str(e)}")
-                result.add_error(f"工单生成失败: {str(e)}", {'feeder_code': feeder_code})
-                
-                # 生成基础工单以免中断流程
-                for order_data in feeder_group_orders:
-                    fallback_order = self._generate_fallback_work_order(order_data)
-                    generated_work_orders.append(fallback_order)
+        logger.info(f"使用拆分算法生成的{len(generated_work_orders)}个MES工单，避免重复生成")
         
         result.output_data = generated_work_orders
         
-        # 计算生成统计
-        feeder_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'FEEDER_PRODUCTION'])
-        maker_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'MAKER_PRODUCTION'])
-        sync_orders = len([wo for wo in generated_work_orders if wo.get('is_synchronized')])
+        # 计算生成统计 - 匹配拆分算法的字段格式
+        feeding_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'FEEDING'])
+        packing_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'PACKING'])
         
         result.metrics.custom_metrics.update({
-            'feeder_work_orders': feeder_orders,
-            'maker_work_orders': maker_orders,
-            'synchronized_work_orders': sync_orders,
-            'generation_success_rate': len(generated_work_orders) / len(input_data) if input_data else 0
+            'feeding_work_orders': feeding_orders,
+            'packing_work_orders': packing_orders,
+            'total_work_orders': len(generated_work_orders),
+            'generation_success_rate': 1.0 if generated_work_orders else 0.0,
+            'direct_passthrough': True  # 标记直接使用拆分算法结果
         })
         
-        # 推送工单到MES系统
-        try:
-            mes_response = await mes_service.send_work_order_to_mes(generated_work_orders)
-            result.metrics.custom_metrics.update({
-                'mes_push_success': mes_response.success,
-                'mes_accepted_orders': mes_response.data.get('accepted_count', 0) if mes_response.data else 0,
-                'mes_rejected_orders': mes_response.data.get('rejected_count', 0) if mes_response.data else 0,
-                'mes_batch_id': mes_response.data.get('mes_batch_id') if mes_response.data else None
-            })
-            logger.info(f"MES推送结果: {mes_response.message}")
-        except Exception as e:
-            logger.warning(f"MES推送失败，继续执行: {str(e)}")
-            result.metrics.custom_metrics.update({
-                'mes_push_success': False,
-                'mes_error': str(e)
-            })
-        
-        logger.info(f"工单生成完成(真实数据): 喂丝机{feeder_orders}个，卷包机{maker_orders}个，同步{sync_orders}个")
+        logger.info(f"MES工单生成完成(真实数据): 喂丝机{feeding_orders}个，卷包机{packing_orders}个")
         return self.finalize_result(result)
     
-    def _generate_feeder_work_order(
-        self,
-        order_data: Dict[str, Any],
-        product_specs: Dict[str, Dict[str, Any]],
-        quality_standards: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _validate_machine_relations_for_orders(
+        self, 
+        orders: List[Dict[str, Any]], 
+        machine_relations: Dict[str, List[str]]
+    ) -> List[Dict[str, Any]]:
         """
-        生成喂丝机工单
+        验证工单中的机台关系是否合法
         
         Args:
-            order_data: 排产工单数据
-            product_specs: 产品规格配置
-            quality_standards: 质量标准配置
+            orders: 工单列表
+            machine_relations: 机台关系映射
             
         Returns:
-            Dict: 喂丝机工单
+            List[Dict[str, Any]]: 验证后的工单列表
         """
-        product_code = order_data.get('product_code', '')
-        product_spec = product_specs.get(product_code, {})
-        quality_std = quality_standards.get(product_code, {})
+        validated_orders = []
         
-        work_order = {
-            # 基础信息
-            'work_order_nr': self._generate_work_order_number('HWS'),
-            'work_order_type': 'FEEDER_PRODUCTION',
-            'machine_type': 'HWS',
-            'machine_code': order_data.get('maker_code'),
-            'product_code': product_code,
-            'product_name': order_data.get('product_name', ''),
+        for order in orders:
+            feeder_code = order.get('feeder_code', '')
+            maker_code = order.get('maker_code', '')
             
-            # 计划信息
-            'plan_quantity': order_data.get('plan_quantity', 0),
-            'plan_unit': order_data.get('plan_unit', 'KG'),
-            'planned_start_time': order_data.get('planned_start'),
-            'planned_end_time': order_data.get('planned_end'),
+            if feeder_code and maker_code:
+                # 检查机台关系是否存在
+                if feeder_code in machine_relations:
+                    allowed_makers = machine_relations[feeder_code]
+                    if maker_code not in allowed_makers:
+                        logger.warning(
+                            f"MES工单生成警告: 工单{order.get('work_order_nr')}中的机台关系不匹配 - "
+                            f"喂丝机{feeder_code}不支持卷包机{maker_code}"
+                        )
+                        # 添加警告信息但不阻断生成
+                        order = order.copy()
+                        order['machine_relation_warning'] = f"机台关系不匹配: {feeder_code}->{maker_code}"
+                        order['suggested_makers'] = allowed_makers
+                else:
+                    logger.warning(f"喂丝机{feeder_code}未在机台关系配置中找到")
+                    order = order.copy()
+                    order['machine_relation_missing'] = f"喂丝机{feeder_code}未配置"
             
-            # 喂丝机特有参数
-            'tobacco_blend_formula': product_spec.get('blend_formula', 'STANDARD'),
-            'moisture_target': product_spec.get('moisture_target', 13.5),
-            'moisture_tolerance': product_spec.get('moisture_tolerance', 0.5),
-            'cut_width': product_spec.get('cut_width', 0.8),
-            'feeding_rate': product_spec.get('feeding_rate', 120),  # kg/h
-            
-            # 质量检查点
-            'quality_checkpoints': [
-                {
-                    'checkpoint_name': '配方准确性检查',
-                    'check_frequency': 'BATCH_START',
-                    'standard': quality_std.get('blend_accuracy', '±2%')
-                },
-                {
-                    'checkpoint_name': '水分含量检查',
-                    'check_frequency': 'HOURLY',
-                    'standard': f"{product_spec.get('moisture_target', 13.5)}±{product_spec.get('moisture_tolerance', 0.5)}%"
-                },
-                {
-                    'checkpoint_name': '切丝宽度检查',
-                    'check_frequency': 'HOURLY',
-                    'standard': f"{product_spec.get('cut_width', 0.8)}mm±0.1mm"
-                }
-            ],
-            
-            # 工艺参数
-            'process_parameters': {
-                'oven_temperature': product_spec.get('oven_temperature', 85),
-                'drying_time': product_spec.get('drying_time', 45),
-                'cooling_time': product_spec.get('cooling_time', 15),
-                'flavoring_amount': product_spec.get('flavoring_amount', 2.5)
-            },
-            
-            # 同步信息
-            'parallel_group_id': order_data.get('parallel_group_id'),
-            'sync_machine_code': order_data.get('sync_machine_code'),
-            'is_synchronized': order_data.get('is_synchronized', False),
-            'sync_type': order_data.get('sync_type'),
-            
-            # 状态和时间
-            'work_order_status': 'PLANNED',
-            'created_time': datetime.now(),
-            'created_by': 'APS_SYSTEM',
-            
-            # 备注
-            'remarks': f"APS系统生成的喂丝机工单 - {order_data.get('sync_reason', '')}"
-        }
+            validated_orders.append(order)
         
-        return work_order
-    
-    def _generate_maker_work_order(
-        self,
-        order_data: Dict[str, Any],
-        product_specs: Dict[str, Dict[str, Any]],
-        quality_standards: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """
-        生成卷包机工单
-        
-        Args:
-            order_data: 排产工单数据
-            product_specs: 产品规格配置
-            quality_standards: 质量标准配置
-            
-        Returns:
-            Dict: 卷包机工单
-        """
-        product_code = order_data.get('article_nr', '')  # 修正字段名
-        product_spec = product_specs.get(product_code, {})
-        quality_std = quality_standards.get(product_code, {})
-        
-        work_order = {
-            # 基础信息
-            'work_order_nr': self._generate_work_order_number('HJB'),
-            'work_order_type': 'MAKER_PRODUCTION',
-            'machine_type': 'HJB',
-            'machine_code': order_data.get('maker_code'),
-            'product_code': product_code,
-            'product_name': order_data.get('article_nr', ''),  # 修正字段名
-            
-            # 计划信息
-            'plan_quantity': order_data.get('quantity_total', 0),  # 修正字段名
-            'plan_unit': '万支',
-            'planned_start_time': order_data.get('planned_start'),
-            'planned_end_time': order_data.get('planned_end'),
-            
-            # 卷包机特有参数
-            'cigarette_length': product_spec.get('cigarette_length', 84),  # mm
-            'cigarette_diameter': product_spec.get('cigarette_diameter', 7.8),  # mm
-            'filter_length': product_spec.get('filter_length', 21),  # mm
-            'packing_density': product_spec.get('packing_density', 260),  # mg/cm³
-            'production_speed': product_spec.get('production_speed', 8000),  # 支/分钟
-            
-            # 包装参数
-            'package_type': product_spec.get('package_type', '20支装硬盒'),
-            'package_quantity_per_box': product_spec.get('quantity_per_box', 20),
-            'carton_quantity': product_spec.get('carton_quantity', 10),
-            
-            # 质量检查点
-            'quality_checkpoints': [
-                {
-                    'checkpoint_name': '烟支长度检查',
-                    'check_frequency': 'CONTINUOUS',
-                    'standard': f"{product_spec.get('cigarette_length', 84)}±1mm"
-                },
-                {
-                    'checkpoint_name': '圆周度检查',
-                    'check_frequency': 'HOURLY',
-                    'standard': f"{product_spec.get('cigarette_diameter', 7.8)}±0.1mm"
-                },
-                {
-                    'checkpoint_name': '充填密度检查',
-                    'check_frequency': 'HOURLY',
-                    'standard': f"{product_spec.get('packing_density', 260)}±10mg/cm³"
-                },
-                {
-                    'checkpoint_name': '外观质量检查',
-                    'check_frequency': 'BATCH_END',
-                    'standard': quality_std.get('appearance_standard', '无破损，外观整齐')
-                }
-            ],
-            
-            # 工艺参数
-            'process_parameters': {
-                'wrapping_pressure': product_spec.get('wrapping_pressure', 2.5),  # kg/cm²
-                'sealing_temperature': product_spec.get('sealing_temperature', 180),  # °C
-                'cutting_blade_speed': product_spec.get('cutting_speed', 3000),  # rpm
-                'filter_attachment_glue': product_spec.get('filter_glue', 'EVA'),
-            },
-            
-            # 同步信息
-            'parallel_group_id': order_data.get('parallel_group_id'),
-            'sync_machine_code': order_data.get('sync_machine_code'),
-            'is_synchronized': order_data.get('is_synchronized', False),
-            'sync_type': order_data.get('sync_type'),
-            
-            # 状态和时间
-            'work_order_status': 'PLANNED',
-            'created_time': datetime.now(),
-            'created_by': 'APS_SYSTEM',
-            
-            # 备注
-            'remarks': f"APS系统生成的卷包机工单 - {order_data.get('sync_reason', '')}"
-        }
-        
-        return work_order
-    
-    def _generate_generic_work_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
-        """生成通用工单"""
-        work_order = {
-            'work_order_nr': self._generate_work_order_number('GENERIC'),
-            'work_order_type': 'GENERIC_PRODUCTION',
-            'machine_type': order_data.get('machine_type', 'UNKNOWN'),
-            'machine_code': order_data.get('maker_code'),
-            'product_code': order_data.get('product_code', ''),
-            'product_name': order_data.get('product_name', ''),
-            'plan_quantity': order_data.get('plan_quantity', 0),
-            'plan_unit': order_data.get('plan_unit', 'PCS'),
-            'planned_start_time': order_data.get('planned_start'),
-            'planned_end_time': order_data.get('planned_end'),
-            'work_order_status': 'PLANNED',
-            'created_time': datetime.now(),
-            'created_by': 'APS_SYSTEM',
-            'remarks': f"通用工单 - 机台类型: {order_data.get('machine_type', 'UNKNOWN')}"
-        }
-        
-        return work_order
-    
-    def _generate_fallback_work_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
-        """生成备用工单"""
-        work_order = {
-            'work_order_nr': self._generate_work_order_number('FALLBACK'),
-            'work_order_type': 'FALLBACK_PRODUCTION',
-            'machine_code': order_data.get('maker_code', 'UNKNOWN'),
-            'product_code': order_data.get('product_code', 'UNKNOWN'),
-            'plan_quantity': order_data.get('plan_quantity', 0),
-            'planned_start_time': order_data.get('planned_start', datetime.now()),
-            'planned_end_time': order_data.get('planned_end', datetime.now() + timedelta(hours=8)),
-            'work_order_status': 'PLANNED',
-            'created_time': datetime.now(),
-            'created_by': 'APS_SYSTEM',
-            'remarks': "备用工单 - 工单生成过程中发生错误"
-        }
-        
-        return work_order
-    
-    def _generate_work_order_number(self, machine_type: str) -> str:
-        """
-        生成工单编号
-        
-        格式: {机台类型}{YYYYMMDD}{HHMMSS}{4位随机码}
-        例如: FEEDER20241201143052A1B2, MAKER20241201143052C3D4
-        增强了唯一性保证，避免高并发时的重复
-        """
-        import random
-        import string
-        
-        now = datetime.now()
-        date_part = now.strftime('%Y%m%d')
-        time_part = now.strftime('%H%M%S')
-        # 使用4位随机字母数字组合增加唯一性
-        random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-        
-        return f"{machine_type}{date_part}{time_part}{random_part}"
-    
-    async def _get_product_specs_from_db(self) -> Dict[str, Dict[str, Any]]:
-        """从数据库查询产品规格配置"""
-        # TODO: 实现真实的数据库查询
-        # 这里暂时返回默认产品规格
-        return {
-            'DEFAULT': {
-                'cigarette_length': 84,
-                'cigarette_diameter': 7.8,
-                'filter_length': 21,
-                'packing_density': 260,
-                'production_speed': 8000,
-                'moisture_target': 13.5,
-                'moisture_tolerance': 0.5,
-                'cut_width': 0.8,
-                'feeding_rate': 120
-            }
-        }
-    
-    async def _get_quality_standards_from_db(self) -> Dict[str, Dict[str, Any]]:
-        """从数据库查询质量标准配置"""
-        # TODO: 实现真实的数据库查询
-        # 这里暂时返回默认质量标准
-        return {
-            'DEFAULT': {
-                'blend_accuracy': '±2%',
-                'appearance_standard': '无破损，外观整齐',
-                'weight_tolerance': '±5mg',
-                'length_tolerance': '±1mm'
-            }
-        }
+        return validated_orders
 
 
 def create_work_order_generation() -> WorkOrderGeneration:
@@ -586,240 +452,16 @@ def create_work_order_generation() -> WorkOrderGeneration:
     return WorkOrderGeneration()
 
 
-def generate_work_orders(
-    parallel_orders: List[Dict[str, Any]],
-    product_specs: Dict[str, Dict[str, Any]] = None,
-    quality_standards: Dict[str, Dict[str, Any]] = None
-) -> List[Dict[str, Any]]:
+def generate_mes_work_orders(parallel_orders: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    快速工单生成
+    快速MES工单生成
     
     Args:
         parallel_orders: 并行处理后的工单数据
-        product_specs: 产品规格配置
-        quality_standards: 质量标准配置
         
     Returns:
-        List[Dict]: 生成的工单列表
+        List[Dict]: 生成的MES规范工单列表
     """
     generator = create_work_order_generation()
-    
-    kwargs = {}
-    if product_specs:
-        kwargs['product_specs'] = product_specs
-    if quality_standards:
-        kwargs['quality_standards'] = quality_standards
-    
-    result = generator.process(parallel_orders, **kwargs)
+    result = generator.process(parallel_orders)
     return result.output_data
-
-
-# 为WorkOrderGeneration类添加数据库持久化方法
-def add_database_persistence_methods():
-    """为WorkOrderGeneration类动态添加数据库持久化方法"""
-    import types
-    
-    async def save_work_orders_to_database(self, work_orders: List[Dict[str, Any]], task_id: str) -> AlgorithmResult:
-        """将工单保存到数据库"""
-        from app.db.connection import get_db_session
-        from sqlalchemy import text
-        from datetime import datetime, date
-        import json
-        
-        result = self.create_result()
-        result.input_data = work_orders
-        result.metrics.processed_records = len(work_orders)
-        
-        packing_orders_saved = 0
-        feeding_orders_saved = 0
-        
-        async with get_db_session() as db:
-            try:
-                for work_order in work_orders:
-                    # 提取公共字段
-                    common_fields = self._extract_common_work_order_fields(work_order, task_id)
-                    
-                    if work_order.get('machine_type') == 'HJB':
-                        # 保存卷包工单
-                        await self._save_packing_order(db, common_fields, work_order)
-                        packing_orders_saved += 1
-                        
-                    elif work_order.get('machine_type') == 'HWS':
-                        # 保存喂丝工单
-                        await self._save_feeding_order(db, common_fields, work_order)
-                        feeding_orders_saved += 1
-                        
-                    else:
-                        # 默认保存为卷包工单
-                        await self._save_packing_order(db, common_fields, work_order)
-                        packing_orders_saved += 1
-                
-                await db.commit()
-                logger.info(f"工单保存完成: 卷包工单{packing_orders_saved}个，喂丝工单{feeding_orders_saved}个")
-                
-            except Exception as e:
-                await db.rollback()
-                error_msg = f"工单保存失败: {str(e)}"
-                logger.error(error_msg)
-                result.add_error(error_msg)
-                return self.finalize_result(result)
-        
-        result.output_data = {
-            'packing_orders_saved': packing_orders_saved,
-            'feeding_orders_saved': feeding_orders_saved,
-            'total_saved': packing_orders_saved + feeding_orders_saved
-        }
-        
-        result.metrics.custom_metrics = {
-            'packing_orders_saved': packing_orders_saved,
-            'feeding_orders_saved': feeding_orders_saved,
-            'save_success_rate': (packing_orders_saved + feeding_orders_saved) / len(work_orders) if work_orders else 0
-        }
-        
-        result.success = True
-        return result
-    
-    def _extract_common_work_order_fields(self, work_order: Dict[str, Any], task_id: str) -> Dict[str, Any]:
-        """提取工单公共字段"""
-        from datetime import datetime, date
-        
-        # 处理时间字段
-        def safe_datetime(value):
-            if isinstance(value, datetime):
-                return value
-            elif isinstance(value, str):
-                try:
-                    return datetime.fromisoformat(value.replace('Z', '+00:00'))
-                except:
-                    return datetime.now()
-            else:
-                return datetime.now()
-                
-        def safe_date(value):
-            if isinstance(value, date):
-                return value
-            elif isinstance(value, datetime):
-                return value.date()
-            elif isinstance(value, str):
-                try:
-                    return datetime.fromisoformat(value.replace('Z', '+00:00')).date()
-                except:
-                    return datetime.now().date()
-            else:
-                return datetime.now().date()
-        
-        # 处理数值字段
-        def safe_int(value, default=0):
-            try:
-                return int(value) if value is not None else default
-            except (ValueError, TypeError):
-                return default
-        
-        planned_start = safe_datetime(work_order.get('planned_start_time') or work_order.get('planned_start'))
-        planned_end = safe_datetime(work_order.get('planned_end_time') or work_order.get('planned_end'))
-        
-        return {
-            'work_order_nr': work_order.get('work_order_nr', ''),
-            'task_id': task_id,
-            'original_order_nr': work_order.get('original_work_order_nr', work_order.get('work_order_nr', '')),
-            'article_nr': work_order.get('product_code', ''),
-            'quantity_total': safe_int(work_order.get('plan_quantity')),
-            'final_quantity': safe_int(work_order.get('plan_quantity')),
-            'planned_start': planned_start,
-            'planned_end': planned_end,
-            'sequence': safe_int(work_order.get('sequence'), 1),
-            'plan_date': safe_date(planned_start),
-            'work_order_type': work_order.get('work_order_type')[:10],
-            'machine_code': work_order.get('machine_code', '')[:20],
-            'product_code': work_order.get('product_code', '')[:100],
-            'plan_quantity': safe_int(work_order.get('plan_quantity')),
-            'work_order_status': 'PENDING',
-            'planned_start_time': planned_start,
-            'planned_end_time': planned_end,
-            'created_by': work_order.get('created_by', 'system')
-        }
-    
-    async def _save_packing_order(self, db, common_fields: Dict[str, Any], work_order: Dict[str, Any]):
-        """保存卷包工单到aps_packing_order表"""
-        from sqlalchemy import text
-        
-        # 卷包工单特有字段
-        packing_fields = common_fields.copy()
-        packing_fields.update({
-            'maker_code': work_order.get('machine_code', '')[:20],
-            'machine_type': 'HJB',
-            'unit': work_order.get('plan_unit', '箱')[:20],
-            'production_speed': int(work_order.get('production_speed', 0)) if work_order.get('production_speed') else None,
-            'feeder_code': work_order.get('feeder_code', '')[:20] if work_order.get('feeder_code') else '',
-            'estimated_duration': int((packing_fields['planned_end'] - packing_fields['planned_start']).total_seconds() / 60) if packing_fields['planned_end'] and packing_fields['planned_start'] else None,
-            # 设置冗余时间字段为NULL，使用planned_start/planned_end作为主要时间字段
-            'planned_start_time': None,
-            'planned_end_time': None,
-        })
-        
-        insert_sql = text('''
-            INSERT INTO aps_packing_order (
-                work_order_nr, task_id, original_order_nr, article_nr, quantity_total, final_quantity,
-                maker_code, machine_type, planned_start, planned_end, estimated_duration, sequence,
-                unit, plan_date, production_speed, feeder_code, work_order_type, machine_code,
-                product_code, plan_quantity, work_order_status, planned_start_time, planned_end_time,
-                created_by
-            ) VALUES (
-                :work_order_nr, :task_id, :original_order_nr, :article_nr, :quantity_total, :final_quantity,
-                :maker_code, :machine_type, :planned_start, :planned_end, :estimated_duration, :sequence,
-                :unit, :plan_date, :production_speed, :feeder_code, :work_order_type, :machine_code,
-                :product_code, :plan_quantity, :work_order_status, :planned_start_time, :planned_end_time,
-                :created_by
-            )
-        ''')
-        
-        await db.execute(insert_sql, packing_fields)
-    
-    async def _save_feeding_order(self, db, common_fields: Dict[str, Any], work_order: Dict[str, Any]):
-        """保存喂丝工单到aps_feeding_order表"""
-        from sqlalchemy import text
-        import json
-        
-        # 喂丝工单特有字段
-        feeding_fields = common_fields.copy()
-        feeding_fields.update({
-            'base_quantity': feeding_fields['quantity_total'],
-            'feeder_code': work_order.get('machine_code', '')[:20],
-            'feeder_type': work_order.get('feeder_type', '')[:50] if work_order.get('feeder_type') else None,
-            'machine_type': 'HWS',
-            'unit': work_order.get('plan_unit', '公斤')[:20],
-            'feeding_speed': float(work_order.get('feeding_rate', 0)) if work_order.get('feeding_rate') else None,
-            'related_packing_orders': json.dumps(work_order.get('related_packing_orders', [])),
-            'packing_machines': json.dumps(work_order.get('packing_machines', [])),
-            'estimated_duration': int((feeding_fields['planned_end'] - feeding_fields['planned_start']).total_seconds() / 60) if feeding_fields['planned_end'] and feeding_fields['planned_start'] else None,
-            # 设置冗余时间字段为NULL，使用planned_start/planned_end作为主要时间字段
-            'planned_start_time': None,
-            'planned_end_time': None,
-        })
-        
-        insert_sql = text('''
-            INSERT INTO aps_feeding_order (
-                work_order_nr, task_id, article_nr, quantity_total, base_quantity, feeder_code,
-                feeder_type, planned_start, planned_end, estimated_duration, sequence, unit,
-                plan_date, feeding_speed, related_packing_orders, packing_machines, work_order_type,
-                machine_type, machine_code, product_code, plan_quantity, work_order_status,
-                planned_start_time, planned_end_time, created_by
-            ) VALUES (
-                :work_order_nr, :task_id, :article_nr, :quantity_total, :base_quantity, :feeder_code,
-                :feeder_type, :planned_start, :planned_end, :estimated_duration, :sequence, :unit,
-                :plan_date, :feeding_speed, :related_packing_orders, :packing_machines, :work_order_type,
-                :machine_type, :machine_code, :product_code, :plan_quantity, :work_order_status,
-                :planned_start_time, :planned_end_time, :created_by
-            )
-        ''')
-        
-        await db.execute(insert_sql, feeding_fields)
-    
-    # 将方法动态添加到WorkOrderGeneration类
-    WorkOrderGeneration.save_work_orders_to_database = save_work_orders_to_database
-    WorkOrderGeneration._extract_common_work_order_fields = _extract_common_work_order_fields
-    WorkOrderGeneration._save_packing_order = _save_packing_order
-    WorkOrderGeneration._save_feeding_order = _save_feeding_order
-
-# 调用函数添加方法
-add_database_persistence_methods()

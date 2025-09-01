@@ -7,7 +7,7 @@ APS智慧排产系统 - 文件上传API
 import os
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -432,7 +432,7 @@ async def get_parse_status(
 
 async def save_parse_results_to_decade_plan(db: AsyncSession, import_batch_id: str, parse_result: dict):
     """
-    将解析结果保存到aps_decade_plan表，使用逗号分隔的机台代码字符串
+    将解析结果保存到aps_decade_plan表，处理聚合字段的分配逻辑
     
     Args:
         db: 数据库会话
@@ -446,44 +446,199 @@ async def save_parse_results_to_decade_plan(db: AsyncSession, import_batch_id: s
             delete(DecadePlan).where(DecadePlan.import_batch_id == import_batch_id)
         )
         
-        # 批量插入新数据
-        decade_plans = []
-        
         # 获取从Excel中提取的年份
         extracted_year = parse_result.get('extracted_year')
         print(f"📅 从解析结果获取到的年份: {extracted_year}")
         
-        # 处理多工作表的情况
+        # 收集所有记录数据
+        all_records = []
         if 'sheet_details' in parse_result and parse_result['sheet_details']:
             # 多工作表的结果
             for sheet_detail in parse_result['sheet_details']:
                 for record_data in sheet_detail['records']:
-                    # 如果记录中没有年份信息，使用解析结果中的年份
                     if 'extracted_year' not in record_data and extracted_year:
                         record_data['extracted_year'] = extracted_year
-                    decade_plan = create_decade_plan_record(import_batch_id, record_data)
-                    decade_plans.append(decade_plan)
+                    all_records.append(record_data)
         else:
             # 单工作表的结果
             for record_data in parse_result['records']:
-                # 如果记录中没有年份信息，使用解析结果中的年份
                 if 'extracted_year' not in record_data and extracted_year:
                     record_data['extracted_year'] = extracted_year
-                decade_plan = create_decade_plan_record(import_batch_id, record_data)
-                decade_plans.append(decade_plan)
+                all_records.append(record_data)
+        
+        # 预处理：识别和分配聚合数值
+        # Excel中同一牌号的多台机器记录需要分配聚合的"本次投料"和"本次成品"
+        processed_records = await _allocate_aggregate_values_corrected(all_records)
+        
+        # 批量创建decade_plan记录
+        decade_plans = []
+        for record_data in processed_records:
+            decade_plan = create_decade_plan_record(import_batch_id, record_data)
+            decade_plans.append(decade_plan)
         
         # 批量插入
         if decade_plans:
             db.add_all(decade_plans)
             await db.commit()
             
-        print(f"✅ 成功保存 {len(decade_plans)} 条旬计划记录到数据库")
+        print(f"✅ 成功保存 {len(decade_plans)} 条旬计划记录到数据库（已处理聚合数值分配）")
         
     except Exception as e:
         await db.rollback()
         print(f"❌ 保存旬计划数据失败: {str(e)}")
         # 不抛出异常，避免影响解析流程
         
+        
+
+async def _allocate_aggregate_values_corrected(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    修正的聚合数值分配逻辑
+    
+    关键识别规则：
+    1. 连续的相同牌号记录且有相同的投料/成品数值 = 需要分配的聚合组
+    2. 不同牌号或数值不同的记录 = 独立记录，保持原样
+    3. 只有投料或成品为0/None的记录 = 独立记录，保持原样
+    
+    Args:
+        records: 原始记录列表
+        
+    Returns:
+        处理后的记录列表
+    """
+    from collections import defaultdict
+    import copy
+    
+    print(f"🔄 开始修正的聚合数值分配，共 {len(records)} 条记录")
+    
+    if not records:
+        return []
+    
+    # 按连续的相同牌号和相同数值进行分组
+    groups = []
+    current_group = []
+    
+    for i, record in enumerate(records):
+        article_name = record.get('article_name', 'UNKNOWN')
+        material_input = record.get('material_input', 0) or 0
+        final_quantity = record.get('final_quantity', 0) or 0
+        
+        print(f"  处理记录 {i+1}: {article_name} - 投料:{material_input}, 成品:{final_quantity}")
+        
+        # 检查是否与当前组匹配
+        should_group = False
+        if current_group:
+            last_record = current_group[-1]
+            last_article = last_record.get('article_name', 'UNKNOWN')
+            last_material = last_record.get('material_input', 0) or 0
+            last_final = last_record.get('final_quantity', 0) or 0
+            
+            # 分组条件：相同牌号 AND 相同数值 AND 数值不为0 AND 行号连续
+            row_diff = record.get('row_number', 0) - last_record.get('row_number', 0)
+            should_group = (
+                article_name == last_article and
+                material_input == last_material and
+                final_quantity == last_final and
+                (material_input > 0 or final_quantity > 0) and  # 至少一个不为0
+                (last_material > 0 or last_final > 0) and  # 前一个记录也至少一个不为0
+                1 <= row_diff <= 2  # 行号必须是递增且相近的（考虑合并单元格但不允许跳跃）
+            )
+        
+        if should_group:
+            # 加入当前组
+            current_group.append(record.copy())
+            print(f"    ✓ 加入当前组（组大小: {len(current_group)}）")
+        else:
+            # 结束当前组，开始新组
+            if current_group:
+                groups.append(current_group)
+                print(f"    📦 完成组: {len(current_group)}条记录")
+            
+            current_group = [record.copy()]
+            print(f"    🆕 开始新组")
+    
+    # 添加最后一组
+    if current_group:
+        groups.append(current_group)
+        print(f"    📦 最后一组: {len(current_group)}条记录")
+    
+    print(f"📊 分组完成: 共 {len(groups)} 个组")
+    
+    # 处理每个组
+    processed_records = []
+    
+    for group_idx, group_records in enumerate(groups):
+        if len(group_records) == 1:
+            # 单个记录，保持原样
+            print(f"🎯 组 {group_idx+1}: 单条记录，保持原样")
+            processed_records.append(group_records[0])
+            continue
+        
+        # 多个记录，需要分配
+        first_record = group_records[0]
+        article_name = first_record.get('article_name', 'UNKNOWN')
+        total_material = first_record.get('material_input', 0) or 0
+        total_final = first_record.get('final_quantity', 0) or 0
+        
+        print(f"🎯 组 {group_idx+1}: {article_name}，{len(group_records)}条记录需要分配")
+        print(f"   📦 聚合数值 - 投料:{total_material}, 成品:{total_final}")
+        
+        if total_material == 0 and total_final == 0:
+            # 都是0，保持原样
+            print(f"   ⚠️ 数值全为0，保持原样")
+            processed_records.extend(group_records)
+            continue
+        
+        # 平均分配
+        machine_count = len(group_records)
+        
+        # 基础分配（整除）
+        material_per_machine = total_material // machine_count if total_material > 0 else 0
+        final_per_machine = total_final // machine_count if total_final > 0 else 0
+        
+        # 余数处理
+        material_remainder = total_material % machine_count if total_material > 0 else 0
+        final_remainder = total_final % machine_count if total_final > 0 else 0
+        
+        print(f"   🎲 分配策略 - 每台基础: 投料{material_per_machine}, 成品{final_per_machine}")
+        print(f"   📈 余数: 投料余数{material_remainder}, 成品余数{final_remainder}")
+        
+        # 执行分配
+        for i, record in enumerate(group_records):
+            # 基础分配
+            allocated_material = material_per_machine
+            allocated_final = final_per_machine
+            
+            # 余数分配给前几个记录
+            if i < material_remainder:
+                allocated_material += 1
+            if i < final_remainder:
+                allocated_final += 1
+            
+            # 更新记录
+            record['material_input'] = allocated_material
+            record['final_quantity'] = allocated_final
+            record['_allocation_info'] = {
+                'original_material_input': total_material,
+                'original_final_quantity': total_final,
+                'machine_count': machine_count,
+                'allocation_method': 'equal_distribution'
+            }
+            
+            print(f"   ✅ 记录 {i+1}: 分配 投料{allocated_material}, 成品{allocated_final}")
+            processed_records.append(record)
+        
+        # 验证总量
+        verify_material = sum(r.get('material_input', 0) for r in group_records)
+        verify_final = sum(r.get('final_quantity', 0) for r in group_records)
+        
+        if verify_material == total_material and verify_final == total_final:
+            print(f"   ✅ 分配验证成功")
+        else:
+            print(f"   ❌ 分配验证失败: 投料{verify_material}/{total_material}, 成品{verify_final}/{total_final}")
+    
+    print(f"🎊 修正的聚合分配完成，处理后共 {len(processed_records)} 条记录")
+    return processed_records
+
 
 def create_decade_plan_record(import_batch_id: str, record_data: dict) -> DecadePlan:
     """

@@ -1,251 +1,37 @@
-# APS智慧排产系统 (APS Tobacco v3)
 
-## 项目概述
-
-APS智慧排产系统是专为烟草生产企业设计的智能排产调度系统，基于先进的排产算法和现代化技术架构，实现卷包旬计划的自动化处理、优化排产和可视化管理。
-
-## 🚀 项目状态
-
-### ✅ 已完成模块
-
-#### 数据导入管理（完整实现）
-- Excel文件上传（支持拖拽上传、进度显示）
-- 复杂Excel解析器（支持多工作表、合并单元格）
-- 数据验证和清洗
-- 导入批次管理和状态追踪
-
-#### 前端用户界面（完整实现）
-- Vue.js 3 + TypeScript + Element Plus现代化Web应用
-- 响应式导航布局和用户友好界面
-- 完整的文件上传和解析流程
-- 统计信息展示和历史记录查询
-- Pinia状态管理和Vue Router路由
-- 完善的错误处理和用户反馈机制
-
-#### 后端API服务（基础完成）
-- FastAPI高性能异步框架
-- MySQL数据库异步连接和ORM模型
-- Redis缓存和配置管理
-- 完整的API接口（文件上传、解析、查询）
-- 健康检查和系统监控接口
-
-#### 数据存储（部分完成）
-- 机台信息表 (aps_machine)
-- 物料信息表 (aps_material)
-- 导入计划表 (aps_import_plan)
-- 旬计划表 (aps_decade_plan)
-
-### ❌ 待实现模块
-
-#### 排产算法引擎（核心缺失）
-- 规则合并处理算法
-- 规则拆分处理算法
-- 时间校正算法（轮保、班次考虑）
-- 并行切分算法
-
-#### 工单生成功能
-- 卷包机工单生成
-- 喂丝机工单生成
-- 工单数据模型完善
-
-#### MES系统集成
-- 轮保计划接口对接
-- 工单下发接口
-- 状态同步机制
-
-#### 甘特图可视化
-- 排产结果可视化展示
-- 时间轴和资源分配图表
-
-## 🛠 技术架构
-
-### 前端技术栈
-- **Vue.js 3.5.18** - 现代化前端框架
-- **TypeScript** - 类型安全
-- **Element Plus 2.8.8** - UI组件库（中文本地化）
-- **Pinia 3.0.3** - 状态管理
-- **Vue Router 4.5.1** - 路由管理
-- **Axios 1.7.7** - HTTP客户端
-- **Vite 7.0.6** - 前端构建工具
-
-### 后端技术栈
-- **FastAPI 0.104.1** - 高性能异步Web框架
-- **SQLAlchemy 2.0.23** - Python ORM，支持异步操作
-- **Pydantic 2.5.0** - 数据验证和序列化
-- **aiomysql 0.2.0** - MySQL异步驱动
-- **Redis** - 缓存和会话存储
-- **openpyxl 3.1.2** - Excel文件解析
-
-### 数据库
-- **MySQL 8.0+** - 主数据库
-- **Redis 7.0+** - 缓存数据库
-
-## 📁 项目结构
-
-```
-aps-tobacco-v3/
-├── frontend/                    # ✅ 完整Vue.js应用
-│   ├── src/
-│   │   ├── components/         # 业务组件
-│   │   ├── views/             # 页面视图
-│   │   ├── services/          # API服务层
-│   │   ├── stores/            # Pinia状态管理
-│   │   ├── router/            # Vue Router配置
-│   │   ├── types/             # TypeScript类型定义
-│   │   └── utils/             # 工具函数
-│   └── package.json
-├── backend/                     # ✅ 核心API服务
-│   ├── app/
-│   │   ├── api/               # API路由层
-│   │   ├── core/              # 核心配置
-│   │   ├── db/                # 数据库层
-│   │   ├── models/            # 数据模型
-│   │   ├── schemas/           # Pydantic模型
-│   │   ├── services/          # 业务服务层
-│   │   ├── algorithms/        # ❌ 排产算法（待实现）
-│   │   └── utils/             # 工具函数
-│   └── requirements.txt
-├── docs/                       # ✅ 项目文档
-│   ├── requirements-detail.md  # 需求细化文档
-│   ├── technical-design.md     # 技术设计文档
-│   ├── algorithm-design.md     # 算法设计文档
-│   └── ux-design.md           # 用户体验设计
-└── scripts/                    # ✅ 数据库脚本
-    └── database-schema.sql
-```
-
-## 🚀 快速开始
-
-### 环境要求
-
-- Node.js 20.19.0+ (前端)
-- Python 3.11+ (后端)
-- MySQL 8.0+
-- Redis 7.0+
-
-### 前端开发
-
-```bash
-cd frontend/
-npm install
-npm run dev
-```
-
-访问: `http://localhost:5173`
-
-### 后端开发
-
-```bash
-cd backend/
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-访问: `http://localhost:8000`
-API文档: `http://localhost:8000/docs`
-
-## 📋 功能特性
-
-### ✅ 已实现功能
-
-1. **文件上传管理**
-   - 拖拽上传Excel文件(.xlsx, .xls)
-   - 实时上传进度显示
-   - 文件大小和格式验证
-   - 上传历史记录
-
-2. **Excel数据解析**
-   - 复杂Excel结构解析（多工作表、合并单元格）
-   - 机台代码列表解析
-   - 日期范围解析
-   - 数据验证和清洗
-
-3. **Web用户界面**
-   - 现代化响应式设计
-   - 统计信息仪表板
-   - 文件上传和解析流程
-   - 历史记录查询和管理
-
-4. **API服务**
-   - RESTful API设计
-   - 异步文件处理
-   - 数据查询和分页
-   - 系统健康检查
-
-### ❌ 待实现功能
-
-1. **排产算法引擎** - 系统核心功能
-2. **工单生成和管理**
-3. **MES系统集成**
-4. **甘特图可视化**
-5. **用户权限管理**
-
-## 📊 开发进度
-
-- 🟢 **前端界面**: 90% 完成
-- 🟢 **数据导入**: 95% 完成
-- 🟡 **后端API**: 70% 完成
-- 🟡 **数据模型**: 60% 完成
-- 🔴 **排产算法**: 0% 完成
-- 🔴 **MES集成**: 0% 完成
-- 🔴 **可视化**: 10% 完成
-
-## 🎯 下一步开发计划
-
-### 阶段1：核心功能补全（高优先级）
-1. **排产算法引擎开发**
-   - 实现规则合并处理
-   - 实现规则拆分处理
-   - 实现时间校正算法
-   - 实现并行切分算法
-
-2. **工单生成功能**
-   - 卷包机工单生成
-   - 喂丝机工单生成
-   - 工单数据模型完善
-
-### 阶段2：系统集成（中优先级）
-1. **MES系统集成**
-   - 轮保计划接口对接
-   - 工单下发接口实现
-   - 状态同步机制
-
-2. **甘特图可视化**
-   - 甘特图数据接口
-   - 前端甘特图组件
-
-### 阶段3：系统完善（低优先级）
-1. **用户权限系统**
-2. **业务规则配置界面**
-3. **报表导出功能**
-4. **系统监控增强**
-
-## 📖 文档
-
-- [需求细化文档](docs/requirements-detail.md) - 详细功能需求和验收标准
-- [技术设计文档](docs/technical-design.md) - 技术架构和实现细节
-- [算法设计文档](docs/algorithm-design.md) - 排产算法设计方案
-- [用户体验设计](docs/ux-design.md) - UI/UX设计规范
-
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-## 📝 许可证
-
-该项目遵循 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
-
-## 👥 开发团队
-
-- **项目负责人**: [项目经理]
-- **前端开发**: Vue.js + TypeScript
-- **后端开发**: FastAPI + Python
-- **算法设计**: 排产优化算法
-
----
-
-**注意**: 本项目目前处于开发阶段，排产算法引擎为核心待实现功能。前端界面和数据导入功能已基本完成，可用于演示和测试。
+root@iZbp1cis5k1vx6r9rg4uovZ:/home/aps/aps-tobacco-v3/backend# docker ps
+CONTAINER ID   IMAGE                                                            COMMAND                  CREATED         STATUS                 PORTS                                                                                                                                                                                                               NAMES
+dc09a4cc2131   58.247.122.126:62185/apex/apex-app-java:v2.10.0                  "bash /agent-dist/en…"   2 weeks ago     Up 2 weeks             0.0.0.0:19855->19855/tcp, :::19855->19855/tcp, 0.0.0.0:19891->19891/tcp, :::19891->19891/tcp                                                                                                                        apex-app-java
+dbb589e1e975   58.247.122.126:62185/apex/apex-admin-java:v2.10.0                "bash /agent-dist/en…"   2 weeks ago     Up 2 weeks             0.0.0.0:19892->19892/tcp, :::19892->19892/tcp                                                                                                                                                                       apex-admin-java
+721cdeffb119   58.247.122.126:62185/apex/apex-h5-admin:v2.10.0                  "/docker-entrypoint.…"   2 weeks ago     Up 2 weeks             80/tcp, 0.0.0.0:8000->19863/tcp, [::]:8000->19863/tcp                                                                                                                                                               apex-h5-admin
+404e341cb217   58.247.122.126:62185/apex/apex-agent-ner:v2.9.0                  "uv run python start…"   2 weeks ago     Up 2 weeks             0.0.0.0:19871->19871/tcp, :::19871->19871/tcp                                                                                                                                                                       apex-agent-ner
+c948fd24e305   58.247.122.126:62185/apex/apex-agent-kb:v2.10.0                  "uv run python start…"   2 weeks ago     Up 2 weeks             0.0.0.0:19872->19872/tcp, :::19872->19872/tcp                                                                                                                                                                       apex-agent-kb
+8773cae94fbd   58.247.122.126:62185/apex/apex-h5-pc:v2.10.0                     "/docker-entrypoint.…"   2 weeks ago     Up 2 weeks             0.0.0.0:443->443/tcp, :::443->443/tcp, 80/tcp, 0.0.0.0:8086->8086/tcp, :::8086->8086/tcp, 0.0.0.0:8081->19861/tcp, [::]:8081->19861/tcp                                                                             apex-h5-pc
+203d12145f43   public.ecr.aws/skyvern/skyvern:latest                            "/bin/bash /app/entr…"   2 weeks ago     Up 2 weeks (healthy)   0.0.0.0:9222->9222/tcp, :::9222->9222/tcp, 0.0.0.0:8020->8000/tcp, [::]:8020->8000/tcp                                                                                                                              skyvern_skyvern_1
+e456cfba0d58   public.ecr.aws/skyvern/skyvern-ui:latest                         "docker-entrypoint.s…"   2 weeks ago     Up 2 weeks             0.0.0.0:8080->8080/tcp, :::8080->8080/tcp, 0.0.0.0:9090->9090/tcp, :::9090->9090/tcp                                                                                                                                skyvern_skyvern-ui_1
+d7690e20e333   postgres:14-alpine                                               "docker-entrypoint.s…"   2 weeks ago     Up 2 weeks (healthy)   5432/tcp                                                                                                                                                                                                            skyvern_postgres_1
+9703aa372b48   nginx:latest                                                     "/docker-entrypoint.…"   2 weeks ago     Up 2 weeks             0.0.0.0:8021->80/tcp, [::]:8021->80/tcp                                                                                                                                                                             skyvern_nginx_1
+874af6cdb6e6   58.247.122.126:62185/apex/apex-agent-auton:latest                "uv run python start…"   4 weeks ago     Up 4 weeks             0.0.0.0:19878->19878/tcp, :::19878->19878/tcp                                                                                                                                                                       apex-agent-auton
+572aca739a82   58.247.122.126:62185/project/canature-front:1.0.1                "/docker-entrypoint.…"   4 weeks ago     Up 4 weeks             80/tcp, 0.0.0.0:18802->8080/tcp, [::]:18802->8080/tcp                                                                                                                                                               canature-front-container
+594dafcdb2e1   58.247.122.126:62185/project/apex-workflow:1.0.1                 "java -cp work-flow:…"   4 weeks ago     Up 4 weeks             0.0.0.0:18801->8080/tcp, [::]:18801->8080/tcp                                                                                                                                                                       apex-workflow-container
+e66cb262d8cf   58.247.122.126:62185/apex/apex-agent-sql:latest                  "uv run python start…"   4 weeks ago     Up 4 weeks             0.0.0.0:19873->19873/tcp, :::19873->19873/tcp                                                                                                                                                                       apex-agent-sql
+73fa7bcf0671   bdd5988759d5                                                     "python3 startup.py …"   2 months ago    Up 7 weeks             0.0.0.0:19874->19873/tcp, [::]:19874->19873/tcp                                                                                                                                                                     apex-agent-sql-vdb
+7ab1a686e9a8   58.247.122.126:62185/apex/apex-alg-queryrewrite:v2.1.0-preview   "sh -c 'python serve…"   2 months ago    Up 7 weeks             0.0.0.0:19881->8778/tcp, [::]:19881->8778/tcp                                                                                                                                                                       apex-alg-queryrewrite
+1e12beb709e8   58.247.122.126:62185/apex/apex-agent-flow-mcp:latest             "python3 startup.py …"   2 months ago    Up 7 weeks             9781/tcp, 0.0.0.0:19879->19879/tcp, :::19879->19879/tcp                                                                                                                                                             apex-agent-flow-mcp
+6d6310ead6e8   minio/minio:RELEASE.2023-11-20T22-40-07Z.fips                    "/usr/bin/docker-ent…"   2 months ago    Up 7 weeks             0.0.0.0:9000-9001->9000-9001/tcp, :::9000-9001->9000-9001/tcp                                                                                                                                                       minio
+5f1a80679c2c   rabbitmq:3-management                                            "docker-entrypoint.s…"   2 months ago    Up 7 weeks             4369/tcp, 5671/tcp, 0.0.0.0:5672->5672/tcp, :::5672->5672/tcp, 15671/tcp, 15691-15692/tcp, 25672/tcp, 0.0.0.0:15672->15672/tcp, :::15672->15672/tcp                                                                 apex-rabbit
+d3fc1855fae5   xuxueli/xxl-job-admin:2.4.0                                      "sh -c 'java -jar $J…"   2 months ago    Up 7 weeks             0.0.0.0:8800->8800/tcp, :::8800->8800/tcp                                                                                                                                                                           xxl-job-admin
+90fa2f3c1c0e   58.247.122.126:62185/apex/apex-alg-workflow:v2.1.0-preview       "sh -c 'python serve…"   2 months ago    Up 7 weeks             0.0.0.0:8018->8018/tcp, :::8018->8018/tcp                                                                                                                                                                           apex-alg-workflow
+f46553ae7fab   58.247.122.126:62185/apex/apex-admin-celery:v2.1.0-preview       "docker-entrypoint.sh"   3 months ago    Up 7 weeks             0.0.0.0:19893->19893/tcp, :::19893->19893/tcp                                                                                                                                                                       apex-admin-celery
+f166efbea125   otel/opentelemetry-collector-contrib:0.123.0                     "/otelcol-contrib --…"   3 months ago    Up 7 weeks             0.0.0.0:1888->1888/tcp, :::1888->1888/tcp, 0.0.0.0:4317-4318->4317-4318/tcp, :::4317-4318->4317-4318/tcp, 0.0.0.0:13133->13133/tcp, :::13133->13133/tcp, 0.0.0.0:55679->55679/tcp, :::55679->55679/tcp, 55678/tcp   apex-otel-collector
+edc55ee0f4c4   jaegertracing/all-in-one:1.68.0                                  "/go/bin/all-in-one-…"   3 months ago    Up 7 weeks             4317-4318/tcp, 9411/tcp, 0.0.0.0:14250->14250/tcp, :::14250->14250/tcp, 14268/tcp, 0.0.0.0:16686->16686/tcp, :::16686->16686/tcp                                                                                    jaeger
+ccb6edd9011d   nacos/nacos-server:v2.5.1                                        "sh bin/docker-start…"   3 months ago    Up 7 weeks             0.0.0.0:8848->8848/tcp, :::8848->8848/tcp, 0.0.0.0:9848-9849->9848-9849/tcp, :::9848-9849->9848-9849/tcp                                                                                                            apex-nacos
+e5b5b6ce2480   58.247.122.126:62185/auth/authority-api:latest                   "java -cp app:app/li…"   8 months ago    Up 7 weeks             0.0.0.0:61101->8080/tcp, [::]:61101->8080/tcp                                                                                                                                                                       authority-api-nacos-container
+15d03aa37c68   58.247.122.126:62185/auth/security-api:latest                    "java -cp app:app/li…"   8 months ago    Up 7 weeks             0.0.0.0:61102->8080/tcp, [::]:61102->8080/tcp                                                                                                                                                                       security-api-nacos-container
+3c3e72c789b4   58.247.122.126:62185/microservice/gateway:nacos-1.0.0            "java -cp app:app/li…"   8 months ago    Up 7 weeks             0.0.0.0:63149->8080/tcp, [::]:63149->8080/tcp                                                                                                                                                                       microservice-gateway-nacos
+a6893cf2d860   nacos/nacos-server:v2.1.2                                        "bin/docker-startup.…"   8 months ago    Up 7 weeks             0.0.0.0:63148->8848/tcp, [::]:63148->8848/tcp                                                                                                                                                                       microservice-nacos
+dda75a88e982   redis:latest                                                     "docker-entrypoint.s…"   9 months ago    Up 7 weeks             0.0.0.0:6379->6379/tcp, :::6379->6379/tcp                                                                                                                                                                           redis
+c28b1d1a3a32   qdrant/qdrant                                                    "./entrypoint.sh"        9 months ago    Up 6 weeks             0.0.0.0:6333->6333/tcp, :::6333->6333/tcp, 6334/tcp                                                                                                                                                                 beautiful_bhabha
+3755bb3506d3   zilliz/attu:v2.4                                                 "docker-entrypoint.s…"   10 months ago   Up 5 weeks             0.0.0.0:3010->3000/tcp, [::]:3010->3000/tcp                                                                                                                                                                         loving_sammet
+2e738fd5c0f0   milvusdb/milvus:v2.4.13-hotfix                                   "/tini -- milvus run…"   10 months ago   Up 5 weeks (healthy)   0.0.0.0:2379->2379/tcp, :::2379->2379/tcp, 0.0.0.0:9091->9091/tcp, :::9091->9091/tcp, 0.0.0.0:19530->19530/tcp, :::19530->19530/tcp                                                                                 milvus-standalone
+root@iZbp1cis5k1vx6r9rg4uovZ:/home/aps/aps-tobacco-v3/backend# 

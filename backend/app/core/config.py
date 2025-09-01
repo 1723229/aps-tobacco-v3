@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     
     # FastAPI配置
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 8810
     reload: bool = False
     workers: int = 1
     

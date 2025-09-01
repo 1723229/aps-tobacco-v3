@@ -223,6 +223,9 @@ const toggleHistory = () => {
 const handleUploadSuccess = (result: UploadResponse) => {
   ElMessage.success('文件上传成功！')
   decadePlanStore.setCurrentBatchId(result.data.import_batch_id)
+
+  // 上传完成后，引导跳转到智能排产管理页面
+  router.push('/scheduling')
   
   // 刷新历史记录
   if (showHistory.value) {

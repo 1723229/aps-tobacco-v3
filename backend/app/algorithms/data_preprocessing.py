@@ -18,7 +18,7 @@ class DataPreprocessor(AlgorithmBase):
     def __init__(self):
         super().__init__(ProcessingStage.DATA_PREPROCESSING)
         
-    def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
+    async def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
         执行数据预处理
         

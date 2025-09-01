@@ -1,25 +1,18 @@
 """
-APS智慧排产系统 - 工单结果数据模型
+APS智慧排产系统 - 工单结果数据模型（MES规范重构版）
 
-实现卷包机和喂丝机工单的数据库模型
+实现完全符合MES接口规范的卷包机和喂丝机工单数据库模型
+支持InputBatch结构和工单序列管理
 """
-from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Enum, DECIMAL, Boolean, Date, JSON, Text
+from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Boolean, Date, DECIMAL, Text, ForeignKey
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.db.connection import Base
 import enum
 
 
-class WorkOrderStatus(enum.Enum):
-    """工单状态枚举"""
-    PENDING = "PENDING"
-    PLANNED = "PLANNED"  # 添加 PLANNED 状态以兼容现有数据
-    IN_PROGRESS = "IN_PROGRESS"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-
-
 class OrderStatus(enum.Enum):
-    """订单状态枚举"""
+    """工单状态枚举 - 符合MES接口规范"""
     PLANNED = "PLANNED"
     DISPATCHED = "DISPATCHED"
     IN_PROGRESS = "IN_PROGRESS"
@@ -27,107 +20,183 @@ class OrderStatus(enum.Enum):
     CANCELLED = "CANCELLED"
 
 
-class PackingOrder(Base):
-    """卷包机工单表 - 对应 aps_packing_order"""
-    __tablename__ = "aps_packing_order"
-    
-    # 基础字段
-    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
-    work_order_nr = Column(String(50), nullable=False, unique=True, comment='工单号')
-    task_id = Column(String(50), nullable=False, comment='排产任务ID')
-    original_order_nr = Column(String(50), comment='原始订单号')
-    article_nr = Column(String(100), nullable=False, comment='成品烟牌号')
-    quantity_total = Column(Integer, nullable=False, comment='投料总量（箱）')
-    final_quantity = Column(Integer, nullable=False, comment='成品数量（箱）')
-    maker_code = Column(String(20), nullable=False, comment='卷包机代码')
-    machine_type = Column(String(50), comment='机台型号')
-    
-    # 时间和计划字段
-    planned_start = Column(DateTime, nullable=False, comment='计划开始时间')
-    planned_end = Column(DateTime, nullable=False, comment='计划结束时间')
-    estimated_duration = Column(Integer, comment='预计耗时（分钟）')
-    sequence = Column(Integer, nullable=False, comment='执行顺序（同一天内从1开始）')
-    unit = Column(String(20), nullable=False, default='箱', comment='基本单位')
-    plan_date = Column(Date, nullable=False, comment='计划日期（YYYY-MM-DD）')
-    production_speed = Column(Integer, comment='生产速度（支/分钟）')
-    working_shifts = Column(JSON, comment='工作班次信息（JSON）')
-    feeder_code = Column(String(20), nullable=False, comment='对应喂丝机代码')
-    related_feeder_order = Column(String(50), comment='关联喂丝机工单号')
-    
-    # 状态和控制字段
-    order_status = Column(Enum(OrderStatus), default=OrderStatus.PLANNED, comment='工单状态')
-    priority = Column(Integer, default=5, comment='优先级（1-10，数值越小优先级越高）')
-    is_split_order = Column(Boolean, default=False, comment='是否为拆分工单')
-    split_from = Column(String(50), comment='拆分来源工单号')
-    split_index = Column(Integer, comment='拆分序号')
-    is_merged_order = Column(Boolean, default=False, comment='是否为合并工单')
-    merged_from = Column(JSON, comment='合并来源工单列表（JSON）')
-    is_backup_order = Column(Boolean, default=False, comment='是否为备用工单')
-    backup_reason = Column(String(200), comment='备用原因')
-    processing_history = Column(JSON, comment='处理历史记录（JSON）')
-    created_by = Column(String(100), default='system', comment='创建者')
-    
-    # 审计字段
-    created_time = Column(DateTime, default=func.now(), comment='创建时间')
-    updated_time = Column(DateTime, default=func.now(), onupdate=func.now(), comment='更新时间')
-    
-    # 兼容字段（为了保持向后兼容）
-    work_order_type = Column(String(10), nullable=False, comment='工单类型')
-    machine_code = Column(String(20), nullable=False, comment='机台代码')
-    product_code = Column(String(100), nullable=False, comment='产品代码')
-    plan_quantity = Column(Integer, nullable=False, comment='计划数量')
-    work_order_status = Column(Enum(WorkOrderStatus), default=WorkOrderStatus.PENDING, comment='工单状态')
-    planned_start_time = Column(DateTime, comment='计划开始时间')
-    planned_end_time = Column(DateTime, comment='计划结束时间')
-    actual_start_time = Column(DateTime, comment='实际开始时间')
-    actual_end_time = Column(DateTime, comment='实际结束时间')
+class OrderType(enum.Enum):
+    """工单类型枚举"""
+    HWS = "HWS"  # 喂丝机工单
+    HJB = "HJB"  # 卷包机工单
 
 
 class FeedingOrder(Base):
-    """喂丝机工单表 - 对应 aps_feeding_order"""
+    """喂丝机工单表 - 完全符合MES接口规范"""
     __tablename__ = "aps_feeding_order"
     
-    # 基础字段
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
-    work_order_nr = Column(String(50), nullable=False, unique=True, comment='工单号')
+    
+    # MES核心字段（严格按照接口规范）
+    plan_id = Column(String(50), nullable=False, unique=True, comment='计划ID，格式:HWS+9位流水号')
+    production_line = Column(Text, nullable=False, comment='工序段，多个喂丝机代码逗号分隔')
+    batch_code = Column(String(50), comment='批次号（喂丝机通常为空）')
+    material_code = Column(String(100), nullable=False, comment='生产的物料代码')
+    bom_revision = Column(String(50), comment='版本号')
+    quantity = Column(String(20), comment='计划生产量（喂丝机通常为空）')
+    plan_start_time = Column(DateTime, nullable=False, comment='计划开始时间')
+    plan_end_time = Column(DateTime, nullable=False, comment='计划结束时间')
+    sequence = Column(Integer, nullable=False, default=1, comment='执行顺序')
+    shift = Column(String(10), comment='班次')
+    
+    # 工艺控制字段
+    is_vaccum = Column(Boolean, default=False, comment='是否真空回潮')
+    is_sh93 = Column(Boolean, default=False, comment='是否走SH93')
+    is_hdt = Column(Boolean, default=False, comment='是否走HDT')
+    is_flavor = Column(Boolean, default=False, comment='是否补香')
+    unit = Column(String(20), default='公斤', comment='基本单位')
+    plan_date = Column(Date, nullable=False, comment='计划日期')
+    plan_output_quantity = Column(String(20), comment='计划产出量')
+    is_outsourcing = Column(Boolean, default=False, comment='是否委外')
+    is_backup = Column(Boolean, default=False, comment='是否备用工单')
+    
+    # 系统管理字段
     task_id = Column(String(50), nullable=False, comment='排产任务ID')
-    article_nr = Column(String(100), nullable=False, comment='成品烟牌号')
-    quantity_total = Column(Integer, nullable=False, comment='总供料量（箱）')
-    base_quantity = Column(Integer, nullable=False, comment='基础需求量（箱）')
-    safety_stock = Column(Integer, default=0, comment='安全库存（箱）')
-    feeder_code = Column(String(20), nullable=False, comment='喂丝机代码')
-    feeder_type = Column(String(50), comment='喂丝机型号')
-    production_lines = Column(Text, comment='生产线列表（支持多机台，逗号分隔）')
+    order_status = Column(String(20), default='PLANNED', comment='工单状态')
+    created_time = Column(DateTime, default=func.now(), comment='创建时间')
+    updated_time = Column(DateTime, default=func.now(), onupdate=func.now(), comment='更新时间')
+
+
+class PackingOrder(Base):
+    """卷包机工单表 - 完全符合MES接口规范"""
+    __tablename__ = "aps_packing_order"
     
-    # 时间和计划字段
-    planned_start = Column(DateTime, nullable=False, comment='计划开始时间')
-    planned_end = Column(DateTime, nullable=False, comment='计划结束时间')
-    estimated_duration = Column(Integer, comment='预计耗时（分钟）')
-    sequence = Column(Integer, nullable=False, comment='执行顺序（同一天内从1开始）')
-    unit = Column(String(20), nullable=False, default='公斤', comment='基本单位')
-    plan_date = Column(Date, nullable=False, comment='计划日期（YYYY-MM-DD）')
-    feeding_speed = Column(DECIMAL(10,2), comment='喂丝速度（箱/小时）')
-    material_consumption = Column(JSON, comment='物料消耗信息（JSON）')
-    related_packing_orders = Column(JSON, nullable=False, comment='关联卷包机工单列表（JSON）')
-    packing_machines = Column(JSON, nullable=False, comment='对应卷包机列表（JSON）')
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
     
-    # 状态和控制字段
-    order_status = Column(Enum(OrderStatus), default=OrderStatus.PLANNED, comment='工单状态')
-    priority = Column(Integer, default=5, comment='优先级（1-10，数值越小优先级越高）')
-    created_by = Column(String(100), default='system', comment='创建者')
+    # MES核心字段（严格按照接口规范）
+    plan_id = Column(String(50), nullable=False, unique=True, comment='计划ID，格式:HJB+9位流水号')
+    production_line = Column(String(50), nullable=False, comment='工序段，单个卷包机代码')
+    batch_code = Column(String(50), comment='批次号')
+    material_code = Column(String(100), nullable=False, comment='生产的物料代码（牌号）')
+    bom_revision = Column(String(50), comment='版本号')
+    quantity = Column(Integer, nullable=False, comment='成品烟产量（箱）')
+    plan_start_time = Column(DateTime, nullable=False, comment='计划开始时间')
+    plan_end_time = Column(DateTime, nullable=False, comment='计划结束时间')
+    sequence = Column(Integer, nullable=False, default=1, comment='执行顺序')
+    shift = Column(String(10), comment='班次')
     
-    # 审计字段
+    # InputBatch前工序批次信息
+    input_plan_id = Column(String(50), comment='前工序计划号（喂丝机工单号）')
+    input_batch_code = Column(String(50), comment='前工序批次号')
+    input_quantity = Column(String(20), comment='投入数量')
+    batch_sequence = Column(String(10), comment='批次顺序')
+    is_whole_batch = Column(Boolean, comment='是否整批')
+    is_main_channel = Column(Boolean, default=True, comment='是否走主通道')
+    is_deleted = Column(Boolean, default=False, comment='是否删除')
+    is_last_one = Column(Boolean, comment='是否最后一个批次')
+    input_material_code = Column(String(100), comment='投入物料代码')
+    input_bom_revision = Column(String(50), comment='投入版本号')
+    tiled = Column(Boolean, comment='是否平铺')
+    
+    # 工艺控制字段
+    is_vaccum = Column(Boolean, default=False, comment='是否真空回潮')
+    is_sh93 = Column(Boolean, default=False, comment='是否走SH93')
+    is_hdt = Column(Boolean, default=False, comment='是否走HDT')
+    is_flavor = Column(Boolean, default=False, comment='是否补香')
+    unit = Column(String(20), default='箱', comment='基本单位')
+    plan_date = Column(Date, nullable=False, comment='计划日期')
+    plan_output_quantity = Column(String(20), comment='计划产出量')
+    is_outsourcing = Column(Boolean, default=False, comment='是否委外')
+    is_backup = Column(Boolean, default=False, comment='是否备用工单')
+    
+    # 系统管理字段
+    task_id = Column(String(50), nullable=False, comment='排产任务ID')
+    order_status = Column(String(20), default='PLANNED', comment='工单状态')
     created_time = Column(DateTime, default=func.now(), comment='创建时间')
     updated_time = Column(DateTime, default=func.now(), onupdate=func.now(), comment='更新时间')
     
-    # 兼容字段（为了保持向后兼容）
-    work_order_type = Column(String(10), nullable=False, comment='工单类型')
-    machine_type = Column(String(20), nullable=False, comment='机台类型')
-    machine_code = Column(String(20), nullable=False, comment='机台代码')
-    product_code = Column(String(100), nullable=False, comment='产品代码')
-    plan_quantity = Column(Integer, nullable=False, comment='计划数量')
-    work_order_status = Column(Enum(WorkOrderStatus), default=WorkOrderStatus.PENDING, comment='工单状态')
-    planned_start_time = Column(DateTime, comment='计划开始时间')
-    planned_end_time = Column(DateTime, comment='计划结束时间')
-    actual_start_time = Column(DateTime, comment='实际开始时间')
-    actual_end_time = Column(DateTime, comment='实际结束时间')
+    # 外键关系（暂时注释掉，避免复杂关系影响甘特图显示）
+    # feeding_order = relationship("FeedingOrder", foreign_keys=[input_plan_id], 
+    #                             primaryjoin="PackingOrder.input_plan_id == FeedingOrder.plan_id", 
+    #                             uselist=False)
+
+
+class WorkOrderSequence(Base):
+    """工单号序列表 - 支持MES规范的工单号生成"""
+    __tablename__ = "aps_work_order_sequence"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
+    order_type = Column(String(10), nullable=False, comment='工单类型：HWS-喂丝机,HJB-卷包机')
+    sequence_date = Column(Date, nullable=False, comment='序列日期')
+    current_sequence = Column(Integer, default=0, comment='当前序列号')
+    last_plan_id = Column(String(50), comment='最后生成的计划ID')
+    created_time = Column(DateTime, default=func.now(), comment='创建时间')
+    updated_time = Column(DateTime, default=func.now(), onupdate=func.now(), comment='更新时间')
+
+
+class WorkOrderSchedule(Base):
+    """工单机台排程表 - 存储用户示例的数据结构，用于甘特图显示"""
+    __tablename__ = "aps_work_order_schedule"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
+    work_order_nr = Column(String(50), nullable=False, comment='生产订单号')
+    article_nr = Column(String(100), nullable=False, comment='成品烟牌号')
+    final_quantity = Column(Integer, nullable=False, comment='成品数量（箱）- 算法主要使用此字段')
+    quantity_total = Column(Integer, nullable=False, comment='投料总量（箱）')
+    maker_code = Column(String(20), nullable=False, comment='卷包机代码')
+    feeder_code = Column(String(20), nullable=False, comment='喂丝机代码')
+    planned_start = Column(DateTime, nullable=False, comment='计划开始时间')
+    planned_end = Column(DateTime, nullable=False, comment='计划结束时间')
+    task_id = Column(String(50), nullable=False, comment='排产任务ID')
+    schedule_status = Column(String(20), default='PENDING', comment='排程状态')
+    sync_group_id = Column(String(50), comment='同步组ID')
+    is_backup = Column(Boolean, default=False, comment='是否备用工单')
+    backup_reason = Column(String(200), comment='备用原因')
+    created_time = Column(DateTime, default=func.now(), comment='创建时间')
+
+
+class InputBatch(Base):
+    """工单输入批次关联表 - 支持MES InputBatch结构"""
+    __tablename__ = "aps_input_batch"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
+    packing_order_id = Column(BigInteger, nullable=False, comment='卷包工单ID')
+    input_plan_id = Column(String(50), comment='前工序计划号（喂丝机工单号）')
+    input_batch_code = Column(String(50), comment='前工序批次号')
+    material_code = Column(String(100), nullable=False, comment='物料代码')
+    bom_revision = Column(String(50), comment='版本号')
+    quantity = Column(DECIMAL(10,2), comment='数量')
+    batch_sequence = Column(Integer, comment='批次顺序')
+    is_whole_batch = Column(Boolean, default=False, comment='是否整批')
+    is_main_channel = Column(Boolean, default=True, comment='是否走主通道')
+    is_deleted = Column(Boolean, default=False, comment='是否删除（用于喂丝机工单取消追加）')
+    is_last_one = Column(Boolean, default=False, comment='是否最后一个批次（只有喂丝才需要）')
+    is_tiled = Column(Boolean, default=False, comment='是否平铺（只有回用烟丝二才会给出）')
+    remark1 = Column(String(200), comment='备注1')
+    remark2 = Column(String(200), comment='备注2')
+    created_time = Column(DateTime, default=func.now(), comment='创建时间')
+    updated_time = Column(DateTime, default=func.now(), onupdate=func.now(), comment='更新时间')
+    
+    # 外键关系（暂时注释掉避免关系错误）
+    # packing_order = relationship("PackingOrder", back_populates="input_batches")
+    
+
+# 为PackingOrder添加反向关系（暂时注释掉避免关系错误）
+# PackingOrder.input_batches = relationship("InputBatch", back_populates="packing_order", 
+#                                          foreign_keys="InputBatch.packing_order_id")
+
+
+# 便捷的数据访问类
+class WorkOrderModelManager:
+    """工单模型管理器 - 提供便捷的数据访问方法"""
+    
+    @staticmethod
+    def create_feeding_order(mes_order_data: dict) -> FeedingOrder:
+        """创建喂丝机工单"""
+        return FeedingOrder(**mes_order_data)
+    
+    @staticmethod
+    def create_packing_order(mes_order_data: dict) -> PackingOrder:
+        """创建卷包机工单"""
+        return PackingOrder(**mes_order_data)
+    
+    @staticmethod
+    def create_schedule_record(schedule_data: dict) -> WorkOrderSchedule:
+        """创建排程记录"""
+        return WorkOrderSchedule(**schedule_data)

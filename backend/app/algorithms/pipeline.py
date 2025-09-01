@@ -118,7 +118,7 @@ class AlgorithmPipeline:
             if use_real_data:
                 preprocessing_result = await self.preprocessor.process_with_real_data(raw_plan_data)
             else:
-                preprocessing_result = self.preprocessor.process(raw_plan_data)
+                preprocessing_result = await self.preprocessor.process(raw_plan_data)
             
             results['stages']['preprocessing'] = self._extract_stage_summary(preprocessing_result)
             current_data = preprocessing_result.output_data
@@ -128,7 +128,7 @@ class AlgorithmPipeline:
             if use_real_data:
                 merge_result = await self.merger.process_with_real_data(current_data)
             else:
-                merge_result = self.merger.process(current_data)
+                merge_result = await self.merger.process(current_data)
             
             results['stages']['merging'] = self._extract_stage_summary(merge_result)
             current_data = merge_result.output_data
@@ -138,7 +138,7 @@ class AlgorithmPipeline:
             if use_real_data:
                 split_result = await self.splitter.process_with_real_data(current_data)
             else:
-                split_result = self.splitter.process(current_data)
+                split_result = await self.splitter.process(current_data)
             
             results['stages']['splitting'] = self._extract_stage_summary(split_result)
             current_data = split_result.output_data
@@ -148,7 +148,7 @@ class AlgorithmPipeline:
             if use_real_data:
                 time_correction_result = await self.time_corrector.process_with_real_data(current_data)
             else:
-                time_correction_result = self.time_corrector.process(current_data)
+                time_correction_result = await self.time_corrector.process(current_data)
             
             results['stages']['time_correction'] = self._extract_stage_summary(time_correction_result)
             current_data = time_correction_result.output_data
@@ -158,7 +158,7 @@ class AlgorithmPipeline:
             if use_real_data:
                 parallel_result = await self.parallel_processor.process_with_real_data(current_data)
             else:
-                parallel_result = self.parallel_processor.process(current_data)
+                parallel_result = await self.parallel_processor.process(current_data)
             
             results['stages']['parallel_processing'] = self._extract_stage_summary(parallel_result)
             current_data = parallel_result.output_data
@@ -168,7 +168,7 @@ class AlgorithmPipeline:
             if use_real_data:
                 work_order_result = await self.work_order_generator.process_with_real_data(current_data)
             else:
-                work_order_result = self.work_order_generator.process(current_data)
+                work_order_result = await self.work_order_generator.process(current_data)
             
             results['stages']['work_order_generation'] = self._extract_stage_summary(work_order_result)
             final_work_orders = work_order_result.output_data
@@ -239,7 +239,7 @@ class AlgorithmPipeline:
         if use_real_data and hasattr(algorithm, 'process_with_real_data'):
             result = await algorithm.process_with_real_data(input_data)
         else:
-            result = algorithm.process(input_data)
+            result = await algorithm.process(input_data)
         
         return result
     

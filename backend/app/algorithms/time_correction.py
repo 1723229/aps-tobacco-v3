@@ -18,7 +18,7 @@ class TimeCorrection(AlgorithmBase):
     def __init__(self):
         super().__init__(ProcessingStage.TIME_CORRECTION)
         
-    def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
+    async def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
         执行时间校正
         
@@ -98,23 +98,30 @@ class TimeCorrection(AlgorithmBase):
         
         # 查询班次配置 
         shift_configs_list = await DatabaseQueryService.get_shift_config()
+        # 查询机台速度配置
+        machine_speeds = await DatabaseQueryService.get_machine_speeds()
+        
         shift_config = {'shifts': shift_configs_list} if shift_configs_list else self._get_default_shift_config()
         
         # 标记使用了真实数据库数据
         result.metrics.custom_metrics = {
             'used_real_database_data': True,
             'maintenance_plans_count': len(maintenance_plans),
-            'shift_configs_count': len(shift_configs_list)
+            'shift_configs_count': len(shift_configs_list),
+            'machine_speeds_count': len(machine_speeds)
         }
         
         corrected_orders = []
         
         for order in input_data:
             try:
-                # 1. 轮保冲突检测和处理
-                conflict_resolved_order = self._resolve_maintenance_conflict(order, maintenance_plans)
+                # 1. 基于机台速度重新计算生产时间
+                speed_corrected_order = self._recalculate_production_time_with_speed(order, machine_speeds)
                 
-                # 2. 班次时间校正
+                # 2. 轮保冲突检测和处理
+                conflict_resolved_order = self._resolve_maintenance_conflict(speed_corrected_order, maintenance_plans)
+                
+                # 3. 班次时间校正
                 shift_corrected_order = self._correct_shift_time(conflict_resolved_order, shift_config)
                 
                 corrected_orders.append(shift_corrected_order)
@@ -129,15 +136,108 @@ class TimeCorrection(AlgorithmBase):
         # 计算校正统计
         corrected_count = sum(1 for order in corrected_orders if order.get('time_corrected', False))
         conflict_resolved_count = sum(1 for order in corrected_orders if order.get('maintenance_conflict_resolved', False))
+        speed_recalculated_count = sum(1 for order in corrected_orders if order.get('time_recalculated', False))
         
         result.metrics.custom_metrics.update({
             'time_corrected_count': corrected_count,
             'maintenance_conflicts_resolved': conflict_resolved_count,
-            'correction_rate': corrected_count / len(input_data) if input_data else 0
+            'speed_recalculated_count': speed_recalculated_count,
+            'correction_rate': corrected_count / len(input_data) if input_data else 0,
+            'speed_recalculation_rate': speed_recalculated_count / len(input_data) if input_data else 0
         })
         
         logger.info(f"时间校正完成(真实数据): {corrected_count}/{len(input_data)}个工单被校正")
         return self.finalize_result(result)
+    
+    def _recalculate_production_time_with_speed(
+        self, 
+        order: Dict[str, Any], 
+        machine_speeds: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        基于机台速度配置重新计算生产时间
+        
+        Args:
+            order: 工单数据
+            machine_speeds: 机台速度配置
+            
+        Returns:
+            Dict[str, Any]: 时间计算后的工单
+        """
+        maker_code = order.get('maker_code')
+        article_nr = order.get('article_nr', '')
+        final_quantity = order.get('final_quantity', 0)
+        planned_start = order.get('planned_start')
+        
+        # 如果没有相关信息，返回原工单
+        if not all([maker_code, final_quantity, planned_start]):
+            return order
+        
+        # 查找机台速度配置
+        if maker_code not in machine_speeds:
+            logger.warning(f"机台{maker_code}的速度配置未找到，使用原时间")
+            return order
+        
+        speed_config = machine_speeds[maker_code]
+        
+        # 获取针对性速度或默认速度
+        if article_nr in speed_config.get('product_speeds', {}):
+            product_speed = speed_config['product_speeds'][article_nr]
+            hourly_capacity = product_speed['hourly_capacity']
+            efficiency_rate = product_speed['efficiency_rate']
+            logger.info(f"使用产品针对性速度: {maker_code}-{article_nr} = {hourly_capacity}箱/小时")
+        else:
+            hourly_capacity = speed_config.get('hourly_capacity', 100)
+            efficiency_rate = speed_config.get('efficiency_rate', 0.85)
+            logger.info(f"使用机台默认速度: {maker_code} = {hourly_capacity}箱/小时")
+        
+        # 计算实际生产时间（考虑效率）
+        effective_capacity = hourly_capacity * efficiency_rate
+        
+        if effective_capacity <= 0:
+            logger.warning(f"机台{maker_code}的有效产能为0，使用原时间")
+            return order
+        
+        # 计算理论生产时间（小时）
+        production_hours = final_quantity / effective_capacity
+        
+        # 转换为时间差
+        production_duration = timedelta(hours=production_hours)
+        
+        # 加上设备准备时间
+        setup_minutes = speed_config.get('setup_time_minutes', 30)
+        changeover_minutes = speed_config.get('changeover_time_minutes', 15)
+        total_setup_time = timedelta(minutes=setup_minutes + changeover_minutes)
+        
+        # 计算新的结束时间
+        calculated_end = planned_start + production_duration + total_setup_time
+        
+        # 创建新的工单对象
+        speed_corrected_order = order.copy()
+        
+        # 保存原始时间信息
+        speed_corrected_order['original_planned_end'] = order.get('planned_end')
+        speed_corrected_order['calculated_planned_end'] = calculated_end
+        
+        # 检查时间是否需要调整
+        original_end = order.get('planned_end')
+        if original_end and abs((calculated_end - original_end).total_seconds()) > 1800:  # 30分钟误差
+            speed_corrected_order['planned_end'] = calculated_end
+            speed_corrected_order['time_recalculated'] = True
+            speed_corrected_order['recalculation_reason'] = f"基于机台速度重新计算: {effective_capacity:.1f}箱/小时"
+            speed_corrected_order['production_hours'] = round(production_hours, 2)
+            speed_corrected_order['effective_capacity'] = effective_capacity
+            
+            logger.info(
+                f"时间重新计算 - 工单{order.get('work_order_nr')} "
+                f"(数量: {final_quantity}箱, 速度: {effective_capacity:.1f}箱/小时) "
+                f"结束时间: {original_end} -> {calculated_end}"
+            )
+        else:
+            speed_corrected_order['time_recalculated'] = False
+            speed_corrected_order['time_calculation_accurate'] = True
+        
+        return speed_corrected_order
     
     def _resolve_maintenance_conflict(
         self, 

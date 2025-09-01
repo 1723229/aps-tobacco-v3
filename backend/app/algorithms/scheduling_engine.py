@@ -80,7 +80,7 @@ class SchedulingEngine:
         self.logger.info(f"排产管道执行完成 - 输出{len(result.output_data)}个工单")
         return result
     
-    def execute_scheduling(
+    async def execute_scheduling(
         self, 
         input_data: List[Dict[str, Any]], 
         **kwargs
@@ -101,27 +101,14 @@ class SchedulingEngine:
         self.logger.info(f"开始执行排产流程 {self.task_id}, 输入{len(input_data)}条记录")
         
         try:
-            # 执行算法流水线
-            results = self.pipeline.execute(input_data, **kwargs)
-            
-            # 如果有拆分算法的需求，单独执行
-            if 'maker_mapping' in kwargs and results:
-                final_result = results[-1]
-                if final_result.status == ProcessingStatus.COMPLETED:
-                    split_algo = SplitAlgorithm()
-                    split_result = split_algo.process(
-                        final_result.output_data, 
-                        maker_mapping=kwargs['maker_mapping']
-                    )
-                    split_result.task_id = self.task_id
-                    results.append(split_result)
-            
-            # 生成执行摘要
-            summary = self.pipeline.get_summary()
-            summary.update(self._generate_business_metrics(results))
+            # 使用新的异步pipeline接口
+            results = await self.pipeline.execute_full_pipeline(
+                raw_plan_data=input_data, 
+                use_real_data=kwargs.get('use_real_data', True)
+            )
             
             self.logger.info(f"排产流程 {self.task_id} 执行完成")
-            return summary
+            return results
             
         except Exception as e:
             self.logger.error(f"排产流程 {self.task_id} 执行失败: {str(e)}")
@@ -236,7 +223,7 @@ def create_scheduling_engine(task_id: Optional[str] = None) -> SchedulingEngine:
     return SchedulingEngine(task_id)
 
 
-def execute_quick_scheduling(
+async def execute_quick_scheduling(
     input_data: List[Dict[str, Any]], 
     maker_mapping: Optional[Dict[str, List[str]]] = None
 ) -> Dict[str, Any]:
@@ -256,4 +243,4 @@ def execute_quick_scheduling(
     if maker_mapping:
         kwargs['maker_mapping'] = maker_mapping
         
-    return engine.execute_scheduling(input_data, **kwargs)
+    return await engine.execute_scheduling(input_data, **kwargs)

@@ -72,7 +72,7 @@ class AlgorithmBase(ABC):
         self.stage = stage
         
     @abstractmethod
-    def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
+    async def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """算法主处理方法"""
         pass
     
