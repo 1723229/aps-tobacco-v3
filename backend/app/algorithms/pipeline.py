@@ -131,6 +131,7 @@ class AlgorithmPipeline:
                 merge_result = await self.merger.process(current_data)
             
             results['stages']['merging'] = self._extract_stage_summary(merge_result)
+            results['merged_plans'] = merge_result.output_data  # 保存合并后的计划数据
             current_data = merge_result.output_data
             
             # 阶段3：规则拆分

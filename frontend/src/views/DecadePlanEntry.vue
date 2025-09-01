@@ -163,7 +163,7 @@ const uploadHistory = ref<HistoryRecord[]>([
     total_records: 156,
     valid_records: 152,
     error_records: 4,
-    error_message: null
+    error_message: undefined
   },
   {
     batch_id: 'IMPORT_20241130_101234_e5f6g7h8',
@@ -176,7 +176,7 @@ const uploadHistory = ref<HistoryRecord[]>([
     total_records: 89,
     valid_records: 87,
     error_records: 2,
-    error_message: null
+    error_message: undefined
   },
   {
     batch_id: 'IMPORT_20241129_165543_i9j0k1l2',
@@ -184,7 +184,7 @@ const uploadHistory = ref<HistoryRecord[]>([
     file_size: 3145728,
     upload_time: '2024-11-29 16:55:43',
     import_start_time: '2024-11-29 16:55:50',
-    import_end_time: null,
+    import_end_time: undefined,
     status: 'FAILED',
     total_records: 0,
     valid_records: 0,
@@ -223,9 +223,6 @@ const toggleHistory = () => {
 const handleUploadSuccess = (result: UploadResponse) => {
   ElMessage.success('文件上传成功！')
   decadePlanStore.setCurrentBatchId(result.data.import_batch_id)
-
-  // 上传完成后，引导跳转到智能排产管理页面
-  router.push('/scheduling')
   
   // 刷新历史记录
   if (showHistory.value) {
@@ -235,6 +232,8 @@ const handleUploadSuccess = (result: UploadResponse) => {
 
 const handleParseSuccess = (result: ParseResponse) => {
   ElMessage.success('文件解析完成！')
+  // 解析完成后，引导跳转到智能排产管理页面并刷新
+  router.push('/scheduling')
   
   // 刷新历史记录
   if (showHistory.value) {
