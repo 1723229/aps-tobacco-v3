@@ -330,3 +330,243 @@ class DatabaseQueryService:
             
             logger.info(f"查询到 {len(speeds)} 个机台的速度配置")
             return speeds
+    
+    @staticmethod
+    async def get_machines(
+        machine_types: List[str] = None,
+        status: str = 'ACTIVE'
+    ) -> List[Dict[str, Any]]:
+        """
+        查询机台基础信息
+        
+        Args:
+            machine_types: 机台类型列表 ['PACKING', 'FEEDING']
+            status: 机台状态，默认 'ACTIVE'
+            
+        Returns:
+            List[Dict]: 机台信息列表
+        """
+        query = """
+        SELECT machine_code, machine_name, machine_type, equipment_type,
+               production_line, status
+        FROM aps_machine 
+        WHERE status = :status
+        """
+        
+        params = {'status': status}
+        
+        if machine_types:
+            query += " AND machine_type IN :machine_types"
+            params['machine_types'] = tuple(machine_types)
+        
+        query += " ORDER BY machine_type, machine_code"
+        
+        async with get_db_session() as db:
+            result = await db.execute(text(query), params)
+            rows = result.fetchall()
+            
+            machines = []
+            for row in rows:
+                machines.append({
+                    'machine_code': row.machine_code,
+                    'machine_name': row.machine_name,
+                    'machine_type': row.machine_type,
+                    'equipment_type': row.equipment_type,
+                    'production_line': row.production_line,
+                    'status': row.status
+                })
+            
+            logger.info(f"查询到 {len(machines)} 个机台信息")
+            return machines
+    
+    @staticmethod
+    async def get_work_order_sequence(
+        order_type: str,
+        sequence_date: date
+    ) -> Dict[str, Any]:
+        """
+        查询和更新工单号序列
+        
+        Args:
+            order_type: 工单类型 'HWS'(喂丝机) 或 'HJB'(卷包机)
+            sequence_date: 序列日期
+            
+        Returns:
+            Dict: {序列号信息}
+        """
+        # 首先查询当前序列
+        query_current = """
+        SELECT id, current_sequence, last_order_nr
+        FROM aps_work_order_sequence 
+        WHERE order_type = :order_type 
+        AND DATE(sequence_date) = :sequence_date
+        """
+        
+        async with get_db_session() as db:
+            result = await db.execute(text(query_current), {
+                'order_type': order_type,
+                'sequence_date': sequence_date
+            })
+            row = result.fetchone()
+            
+            if row:
+                # 更新现有序列
+                new_sequence = row.current_sequence + 1
+                new_order_nr = f"{order_type}{sequence_date.strftime('%Y%m%d')}{new_sequence:03d}"
+                
+                update_query = """
+                UPDATE aps_work_order_sequence 
+                SET current_sequence = :new_sequence,
+                    last_order_nr = :new_order_nr,
+                    updated_time = NOW()
+                WHERE id = :id
+                """
+                
+                await db.execute(text(update_query), {
+                    'new_sequence': new_sequence,
+                    'new_order_nr': new_order_nr,
+                    'id': row.id
+                })
+                await db.commit()
+                
+                logger.info(f"更新工单序列: {new_order_nr}")
+                return {
+                    'sequence_number': new_sequence,
+                    'work_order_nr': new_order_nr,
+                    'order_type': order_type,
+                    'date': sequence_date
+                }
+            else:
+                # 创建新序列
+                new_sequence = 1
+                new_order_nr = f"{order_type}{sequence_date.strftime('%Y%m%d')}{new_sequence:03d}"
+                
+                insert_query = """
+                INSERT INTO aps_work_order_sequence 
+                (order_type, sequence_date, current_sequence, last_order_nr)
+                VALUES (:order_type, :sequence_date, :current_sequence, :last_order_nr)
+                """
+                
+                await db.execute(text(insert_query), {
+                    'order_type': order_type,
+                    'sequence_date': sequence_date,
+                    'current_sequence': new_sequence,
+                    'last_order_nr': new_order_nr
+                })
+                await db.commit()
+                
+                logger.info(f"创建新工单序列: {new_order_nr}")
+                return {
+                    'sequence_number': new_sequence,
+                    'work_order_nr': new_order_nr,
+                    'order_type': order_type,
+                    'date': sequence_date
+                }
+    
+    @staticmethod
+    async def get_materials(
+        article_nrs: List[str] = None,
+        material_type: str = None
+    ) -> List[Dict[str, Any]]:
+        """
+        查询物料基础信息
+        
+        Args:
+            article_nrs: 物料编号列表
+            material_type: 物料类型 'FINISHED_PRODUCT', 'TOBACCO_SILK', 'RAW_MATERIAL'
+            
+        Returns:
+            List[Dict]: 物料信息列表
+        """
+        query = """
+        SELECT article_nr, article_name, material_type, package_type,
+               specification, unit, conversion_rate, status
+        FROM aps_material 
+        WHERE status = 'ACTIVE'
+        """
+        
+        params = {}
+        
+        if article_nrs:
+            query += " AND article_nr IN :article_nrs"
+            params['article_nrs'] = tuple(article_nrs)
+            
+        if material_type:
+            query += " AND material_type = :material_type"
+            params['material_type'] = material_type
+        
+        query += " ORDER BY material_type, article_nr"
+        
+        async with get_db_session() as db:
+            result = await db.execute(text(query), params)
+            rows = result.fetchall()
+            
+            materials = []
+            for row in rows:
+                materials.append({
+                    'article_nr': row.article_nr,
+                    'article_name': row.article_name,
+                    'material_type': row.material_type,
+                    'package_type': row.package_type,
+                    'specification': row.specification,
+                    'unit': row.unit,
+                    'conversion_rate': float(row.conversion_rate) if row.conversion_rate else 1.0,
+                    'status': row.status
+                })
+            
+            logger.info(f"查询到 {len(materials)} 条物料信息")
+            return materials
+    
+    @staticmethod
+    async def get_system_config(
+        config_group: str = None,
+        config_keys: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        查询系统配置参数
+        
+        Args:
+            config_group: 配置分组
+            config_keys: 配置键列表
+            
+        Returns:
+            Dict: {config_key: config_value}
+        """
+        query = """
+        SELECT config_key, config_value, config_type
+        FROM aps_system_config 
+        WHERE status = 'ACTIVE'
+        """
+        
+        params = {}
+        
+        if config_group:
+            query += " AND config_group = :config_group"
+            params['config_group'] = config_group
+            
+        if config_keys:
+            query += " AND config_key IN :config_keys"
+            params['config_keys'] = tuple(config_keys)
+        
+        async with get_db_session() as db:
+            result = await db.execute(text(query), params)
+            rows = result.fetchall()
+            
+            configs = {}
+            for row in rows:
+                config_value = row.config_value
+                # 根据类型转换配置值
+                if row.config_type == 'INTEGER':
+                    config_value = int(config_value)
+                elif row.config_type == 'DECIMAL':
+                    config_value = float(config_value)
+                elif row.config_type == 'BOOLEAN':
+                    config_value = config_value.lower() in ('true', '1', 'yes')
+                elif row.config_type == 'JSON':
+                    import json
+                    config_value = json.loads(config_value)
+                
+                configs[row.config_key] = config_value
+            
+            logger.info(f"查询到 {len(configs)} 个系统配置参数")
+            return configs
