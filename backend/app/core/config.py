@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # 数据库配置 - MySQL 8.0+ (真实数据库)
-    mysql_url: str = "mysql+aiomysql://root:Mysql_Apex_2025.@10.0.0.87:3306/aps"
+    mysql_url: str = "mysql+aiomysql://aps:Aps%40123456@10.0.0.99:3306/aps"
     mysql_echo: bool = False
     mysql_pool_size: int = 20
     mysql_pool_max_overflow: int = 30

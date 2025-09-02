@@ -154,7 +154,7 @@ backend/
 
 ### 数据库配置
 ```python
-MYSQL_URL = "mysql+aiomysql://root:Mysql_Apex_2025.@10.0.0.87:3306/aps_2"
+MYSQL_URL = "mysql+aiomysql://aps:Aps%40123456@10.0.0.99:3306/aps"
 REDIS_URL = "redis://:Redis_Apex_2025.@10.0.0.66:6379/13"
 ```
 
