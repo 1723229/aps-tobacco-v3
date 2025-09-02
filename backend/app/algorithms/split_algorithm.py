@@ -127,7 +127,9 @@ class SplitAlgorithm(AlgorithmBase):
         resolved_plans = []
         feeder_code = plans[0].get('feeder_code', '')
         
-        for plan in sorted_plans:
+        logger.info(f"🔧 处理喂丝机{feeder_code}的资源冲突，共{len(sorted_plans)}个计划")
+        
+        for i, plan in enumerate(sorted_plans):
             planned_start = plan.get('planned_start')
             planned_end = plan.get('planned_end')
             
@@ -135,46 +137,81 @@ class SplitAlgorithm(AlgorithmBase):
                 resolved_plans.append(plan)
                 continue
             
-            # 检查与已安排的任务是否有冲突
+            # 字符串时间转换
+            if isinstance(planned_start, str):
+                planned_start = datetime.fromisoformat(planned_start.replace('Z', '+00:00'))
+                plan['planned_start'] = planned_start
+            if isinstance(planned_end, str):
+                planned_end = datetime.fromisoformat(planned_end.replace('Z', '+00:00'))
+                plan['planned_end'] = planned_end
+            
+            # 按照算法细则：检查喂丝机资源冲突，后续工单必须等待前一个工单完成
+            need_adjustment = False
+            latest_end_time = None
+            
             for existing_schedule in self.feeder_schedules[feeder_code]:
                 if self._has_time_overlap(
                     (planned_start, planned_end),
                     (existing_schedule['start'], existing_schedule['end'])
                 ):
-                    # 调整开始时间到已有任务结束之后
-                    new_start = existing_schedule['end']
-                    duration = planned_end - planned_start
-                    new_end = new_start + duration
-                    
-                    logger.info(f"调整喂丝机{feeder_code}冲突: {plan['work_order_nr']} {planned_start} -> {new_start}")
-                    
-                    plan = plan.copy()
-                    plan['planned_start'] = new_start
-                    plan['planned_end'] = new_end
-                    plan['schedule_adjusted'] = True
-                    
-                    planned_start = new_start
-                    planned_end = new_end
-                    break
+                    need_adjustment = True
+                    if not latest_end_time or existing_schedule['end'] > latest_end_time:
+                        latest_end_time = existing_schedule['end']
+            
+            if need_adjustment and latest_end_time:
+                original_start = planned_start
+                duration = planned_end - planned_start
+                
+                # 调整开始时间到最晚结束时间之后
+                plan = plan.copy()
+                plan['planned_start'] = latest_end_time
+                plan['planned_end'] = latest_end_time + duration
+                plan['schedule_adjusted'] = True
+                plan['adjustment_reason'] = f"喂丝机{feeder_code}资源冲突"
+                
+                start_str = original_start.strftime('%Y-%m-%d %H:%M')
+                new_start_str = latest_end_time.strftime('%Y-%m-%d %H:%M')
+                new_end_str = plan['planned_end'].strftime('%Y-%m-%d %H:%M')
+                wait_hours = (latest_end_time - original_start).total_seconds() / 3600
+                
+                logger.info(f"   ⚠️  时间冲突调整: {plan.get('work_order_nr')}")
+                logger.info(f"      📅 原时间: {start_str}")
+                logger.info(f"      📅 调整后: {new_start_str} - {new_end_str}")
+                logger.info(f"      ⏰ 等待时间: {wait_hours:.1f}小时")
+                
+                planned_start = plan['planned_start']
+                planned_end = plan['planned_end']
+            else:
+                logger.info(f"   ✅ 无冲突: {plan.get('work_order_nr')} ({planned_start.strftime('%Y-%m-%d %H:%M')})")
             
             # 记录时间安排
             self.feeder_schedules[feeder_code].append({
                 'start': planned_start,
                 'end': planned_end,
                 'work_order_nr': plan.get('work_order_nr', ''),
-                'maker_code': plan.get('maker_code', '')
+                'maker_code': plan.get('maker_code', ''),
+                'article_nr': plan.get('article_nr', '')
             })
             
             resolved_plans.append(plan)
         
+        logger.info(f"✅ 喂丝机{feeder_code}资源冲突解决完成")
+        
         return resolved_plans
     
-    def _generate_packing_work_orders(self, plans: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _generate_packing_work_orders(self, plans: List[Dict[str, Any]], feeder_plan_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        生成卷包机工单 - 每个卷包机组对应一个卷包工单
+        生成卷包机工单 - 严格按照算法细则执行
+        
+        算法细则要求：
+        - 每个卷包机组对应一个卷包工单  
+        - 卷包计划的开始结束时间，取旬计划的开始结束时间
+        - 数量平均分配
+        - 关联到对应的喂丝机工单
         
         Args:
             plans: 旬计划列表
+            feeder_plan_id: 关联的喂丝机工单plan_id
             
         Returns:
             List[Dict]: 卷包机工单列表
@@ -182,31 +219,111 @@ class SplitAlgorithm(AlgorithmBase):
         packing_orders = []
         
         for plan in plans:
-            # 每个旬计划生成一个卷包机工单
-            packing_order = plan.copy()
+            # 获取卷包机代码列表（可能有多个卷包机）
+            maker_codes = self._extract_maker_codes(plan)
             
-            # 更新工单类型和编号 - 添加更多唯一性标识符
-            packing_order['work_order_type'] = 'PACKING'  # 卷包工单
-            timestamp_suffix = datetime.now().strftime('%H%M%S')  # 小时分钟秒
-            packing_order['work_order_nr'] = f"PK{datetime.now().strftime('%Y%m%d')}{timestamp_suffix}{self.work_order_sequence:04d}"
-            self.work_order_sequence += 1
+            if not maker_codes:
+                logger.warning(f"旬计划{plan.get('work_order_nr')}缺少卷包机代码")
+                continue
             
-            # 卷包机工单保持原有的开始结束时间和数量
-            # planned_start, planned_end, final_quantity, quantity_total 保持不变
+            # 数量平均分配到每个卷包机
+            total_quantity = plan.get('quantity_total', 0)
+            total_final_quantity = plan.get('final_quantity', 0)
             
-            # 记录原始计划信息
-            packing_order['source_plan'] = plan.get('work_order_nr')
-            packing_order['generated_timestamp'] = datetime.now()
+            quantity_per_maker = total_quantity // len(maker_codes) if maker_codes else 0
+            final_quantity_per_maker = total_final_quantity // len(maker_codes) if maker_codes else 0
             
-            packing_orders.append(packing_order)
+            # 处理除不尽的情况，余数分配给第一台机器
+            quantity_remainder = total_quantity % len(maker_codes) if maker_codes else 0
+            final_quantity_remainder = total_final_quantity % len(maker_codes) if maker_codes else 0
             
-            logger.info(f"生成卷包工单: {packing_order['work_order_nr']} 机台:{packing_order.get('maker_code')} 数量:{packing_order.get('final_quantity')}箱")
+            # 为每个卷包机生成一个工单
+            for i, maker_code in enumerate(maker_codes):
+                packing_order = plan.copy()
+                
+                # 更新工单类型和编号
+                packing_order['work_order_type'] = 'PACKING'  # 卷包工单
+                timestamp_suffix = datetime.now().strftime('%H%M%S')
+                packing_order['work_order_nr'] = f"PK{datetime.now().strftime('%Y%m%d')}{timestamp_suffix}{self.work_order_sequence:04d}"
+                self.work_order_sequence += 1
+                
+                # 设置单独的卷包机代码
+                packing_order['maker_code'] = maker_code
+                
+                # 数量平均分配（第一台机器承担余数）
+                if i == 0:
+                    packing_order['quantity_total'] = quantity_per_maker + quantity_remainder
+                    packing_order['final_quantity'] = final_quantity_per_maker + final_quantity_remainder
+                else:
+                    packing_order['quantity_total'] = quantity_per_maker
+                    packing_order['final_quantity'] = final_quantity_per_maker
+                
+                # 时间直接继承旬计划的时间（算法细则要求）
+                # planned_start, planned_end 保持不变
+                
+                # 记录原始计划信息
+                packing_order['source_plan'] = plan.get('work_order_nr')
+                packing_order['generated_timestamp'] = datetime.now()
+                packing_order['split_sequence'] = i + 1
+                packing_order['total_makers'] = len(maker_codes)
+                
+                # 关联到喂丝机工单
+                packing_order['input_plan_id'] = feeder_plan_id
+                
+                packing_orders.append(packing_order)
+                
+                logger.info(f"✅ 生成卷包工单: {packing_order['work_order_nr']}")
+                logger.info(f"   🏭 卷包机: {maker_code} (第{i+1}台，共{len(maker_codes)}台)")
+                logger.info(f"   📊 分配数量: {packing_order['quantity_total']}箱 -> {packing_order['final_quantity']}箱")
+                logger.info(f"   📅 时间: {packing_order.get('planned_start')} - {packing_order.get('planned_end')}")
         
         return packing_orders
     
+    def _extract_maker_codes(self, plan: Dict[str, Any]) -> List[str]:
+        """
+        从旬计划中提取卷包机代码列表
+        
+        支持多种格式：
+        - 单个卷包机：'C7' 
+        - 多个卷包机：'C7,C8' 或 'C7;C8'
+        - 数组格式：['C7', 'C8']
+        
+        Args:
+            plan: 旬计划
+            
+        Returns:
+            List[str]: 卷包机代码列表
+        """
+        maker_code = plan.get('maker_code', '')
+        
+        if not maker_code:
+            return []
+        
+        # 如果已经是列表，直接返回
+        if isinstance(maker_code, list):
+            return [code.strip() for code in maker_code if code.strip()]
+        
+        # 字符串格式，支持逗号或分号分隔
+        if isinstance(maker_code, str):
+            # 支持逗号或分号分隔的多个机台
+            if ',' in maker_code:
+                return [code.strip() for code in maker_code.split(',') if code.strip()]
+            elif ';' in maker_code:
+                return [code.strip() for code in maker_code.split(';') if code.strip()]
+            else:
+                # 单个机台
+                return [maker_code.strip()]
+        
+        return []
+    
     def _generate_feeder_work_order(self, plans: List[Dict[str, Any]], feeder_code: str) -> Optional[Dict[str, Any]]:
         """
-        生成喂丝机工单 - 每个喂丝机一个工单，包含该喂丝机的所有计划
+        生成喂丝机工单 - 严格按照算法细则执行
+        
+        算法细则要求：
+        - 喂丝机工单对应旬计划内的所有喂丝机
+        - 基于烟丝消耗计算数量  
+        - 考虑喂丝机资源冲突
         
         Args:
             plans: 同一喂丝机的旬计划列表
@@ -218,7 +335,8 @@ class SplitAlgorithm(AlgorithmBase):
         if not plans:
             return None
         
-        # 计算总量和时间范围
+        # 按照算法细则：喂丝机工单基于烟丝消耗计算
+        # 喂丝机工单的剩余数量 = 计划数量 - 已创建批次数量
         total_quantity = sum(p.get('quantity_total', 0) for p in plans)
         total_final_quantity = sum(p.get('final_quantity', 0) for p in plans)
         
@@ -226,26 +344,102 @@ class SplitAlgorithm(AlgorithmBase):
         all_starts = [p.get('planned_start') for p in plans if p.get('planned_start')]
         all_ends = [p.get('planned_end') for p in plans if p.get('planned_end')]
         
+        # 检查产品一致性（同一喂丝机应该生产相同或兼容的产品）
+        articles = list(set(p.get('article_nr', '') for p in plans if p.get('article_nr')))
+        if len(articles) > 1:
+            logger.warning(f"喂丝机{feeder_code}需要生产多种产品: {articles}")
+        
         # 创建喂丝机工单
-        timestamp_suffix = datetime.now().strftime('%H%M%S')  # 小时分钟秒
+        timestamp_suffix = datetime.now().strftime('%H%M%S')
         feeder_order = {
             'work_order_type': 'FEEDING',  # 喂丝工单
             'work_order_nr': f"FD{datetime.now().strftime('%Y%m%d')}{timestamp_suffix}{self.work_order_sequence:04d}",
             'feeder_code': feeder_code,
-            'article_nr': plans[0].get('article_nr'),  # 假设同一喂丝机的产品相同
+            'article_nr': articles[0] if articles else '',  # 主要产品
             'quantity_total': total_quantity,
             'final_quantity': total_final_quantity,
             'planned_start': min(all_starts) if all_starts else None,
             'planned_end': max(all_ends) if all_ends else None,
             'source_plans': [p.get('work_order_nr') for p in plans],
-            'generated_timestamp': datetime.now()
+            'generated_timestamp': datetime.now(),
+            
+            # 喂丝机特有属性
+            'tobacco_consumption_rate': self._calculate_tobacco_consumption_rate(plans),
+            'associated_makers': self._get_associated_makers(plans),
+            'plan_count': len(plans),
+            'remaining_quantity': total_quantity,  # 初始剩余量等于总量
+            'created_batches': 0  # 已创建批次数
         }
+        
+        # 如果有多种产品，记录产品清单
+        if len(articles) > 1:
+            feeder_order['product_list'] = articles
         
         self.work_order_sequence += 1
         
-        logger.info(f"生成喂丝工单: {feeder_order['work_order_nr']} 喂丝机:{feeder_code} 总量:{total_quantity}箱")
+        logger.info(f"✅ 生成喂丝工单: {feeder_order['work_order_nr']}")
+        logger.info(f"   🏭 喂丝机: {feeder_code}")
+        logger.info(f"   📦 生产产品: {', '.join(articles) if articles else '未知'}")
+        logger.info(f"   📊 总量: {total_quantity}箱 -> {total_final_quantity}箱")
+        logger.info(f"   📅 时间: {feeder_order['planned_start']} - {feeder_order['planned_end']}")
+        logger.info(f"   🔗 关联卷包机: {', '.join(feeder_order['associated_makers'])}")
+        logger.info(f"   📋 来源计划: {len(plans)}个旬计划")
         
         return feeder_order
+    
+    def _calculate_tobacco_consumption_rate(self, plans: List[Dict[str, Any]]) -> float:
+        """
+        计算烟丝消耗速度
+        
+        Args:
+            plans: 旬计划列表
+            
+        Returns:
+            float: 烟丝消耗速度（箱/小时）
+        """
+        if not plans:
+            return 0.0
+        
+        total_quantity = sum(p.get('quantity_total', 0) for p in plans)
+        
+        # 计算总工作时间（小时）
+        total_hours = 0
+        for plan in plans:
+            start = plan.get('planned_start')
+            end = plan.get('planned_end')
+            if start and end:
+                if isinstance(start, str):
+                    start = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                if isinstance(end, str):
+                    end = datetime.fromisoformat(end.replace('Z', '+00:00'))
+                
+                hours = (end - start).total_seconds() / 3600
+                total_hours += hours
+        
+        # 避免除零错误
+        if total_hours == 0:
+            return 0.0
+        
+        consumption_rate = total_quantity / total_hours
+        return round(consumption_rate, 2)
+    
+    def _get_associated_makers(self, plans: List[Dict[str, Any]]) -> List[str]:
+        """
+        获取关联的卷包机列表
+        
+        Args:
+            plans: 旬计划列表
+            
+        Returns:
+            List[str]: 关联的卷包机代码列表
+        """
+        associated_makers = set()
+        
+        for plan in plans:
+            maker_codes = self._extract_maker_codes(plan)
+            associated_makers.update(maker_codes)
+        
+        return sorted(list(associated_makers))
     
     def _resolve_feeder_conflicts(self, orders: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

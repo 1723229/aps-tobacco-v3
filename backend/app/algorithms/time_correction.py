@@ -1,8 +1,17 @@
 """
-APS智慧排产系统 - 时间校正算法
+APS智慧排产系统 - 时间校正算法（算法细则增强版）
 
-实现轮保冲突检测和班次时间校正功能
-解决设备维护时间冲突和跨班次调度问题
+实现综合时间校正功能：
+1. 机台轮保时间检测和调整（aps_maintenance_plan表）
+2. 班次时间校正（aps_shift_config表）
+3. 机台速度差异计算（aps_machine_speed表）
+4. 避免非工作时间排产
+5. 处理跨班次、跨天的工单
+
+算法细则要求：
+- 不同卷包机台加工不同成品烟时的速度差异
+- 卷包机台的工作日历（开机班次、停机时间、轮保时间等）
+- 卷包机台轮保时间有MES提供
 """
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
@@ -20,12 +29,19 @@ class TimeCorrection(AlgorithmBase):
         
     async def process(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
-        执行时间校正
+        执行时间校正 - 按照算法细则增强版
+        
+        按照算法细则执行：
+        1. 机台速度差异重新计算工期
+        2. 轮保冲突检测和处理
+        3. 班次时间校正和工作日历检查
+        4. 避免非工作时间排产
         
         Args:
             input_data: 拆分后的工单数据
-            maintenance_plans: 轮保计划列表 [{'machine_code': str, 'maint_start_time': datetime, 'maint_end_time': datetime}]
-            shift_config: 班次配置 {'shifts': [{'start_time': str, 'end_time': str, 'name': str}]}
+            maintenance_plans: 轮保计划列表（可选，从数据库查询）
+            shift_config: 班次配置（可选，从数据库查询）
+            machine_speeds: 机台速度配置（可选，从数据库查询）
             
         Returns:
             AlgorithmResult: 校正结果
@@ -34,45 +50,134 @@ class TimeCorrection(AlgorithmBase):
         result.input_data = input_data
         result.metrics.processed_records = len(input_data)
         
+        logger.info(f"⏰ 开始时间校正，处理{len(input_data)}个工单")
+        
+        # 获取配置数据（优先使用传入参数，否则使用默认值）
         maintenance_plans = kwargs.get('maintenance_plans', [])
         shift_config = kwargs.get('shift_config', self._get_default_shift_config())
+        machine_speeds = kwargs.get('machine_speeds', {})
         
         corrected_orders = []
+        correction_stats = {
+            'speed_adjusted': 0,
+            'maintenance_adjusted': 0,
+            'shift_adjusted': 0,
+            'total_adjustments': 0
+        }
         
         for order in input_data:
             try:
-                # 1. 轮保冲突检测和处理
-                conflict_resolved_order = self._resolve_maintenance_conflict(
-                    order, maintenance_plans
+                # 1. 机台速度差异校正（根据算法细则要求）
+                speed_corrected_order = self._correct_machine_speed(
+                    order, machine_speeds
                 )
+                if speed_corrected_order.get('speed_adjusted'):
+                    correction_stats['speed_adjusted'] += 1
                 
-                # 2. 班次时间校正
+                # 2. 轮保冲突检测和处理
+                conflict_resolved_order = self._resolve_maintenance_conflict(
+                    speed_corrected_order, maintenance_plans
+                )
+                if conflict_resolved_order.get('maintenance_adjusted'):
+                    correction_stats['maintenance_adjusted'] += 1
+                
+                # 3. 班次时间校正和工作日历检查
                 shift_corrected_order = self._correct_shift_time(
                     conflict_resolved_order, shift_config
                 )
+                if shift_corrected_order.get('shift_adjusted'):
+                    correction_stats['shift_adjusted'] += 1
+                
+                # 记录最终调整标记
+                if (speed_corrected_order.get('speed_adjusted') or 
+                    conflict_resolved_order.get('maintenance_adjusted') or 
+                    shift_corrected_order.get('shift_adjusted')):
+                    correction_stats['total_adjustments'] += 1
+                    shift_corrected_order['time_corrected'] = True
+                    shift_corrected_order['correction_timestamp'] = datetime.now()
                 
                 corrected_orders.append(shift_corrected_order)
                 
             except Exception as e:
-                logger.error(f"时间校正失败 - 工单 {order.get('work_order_nr')}: {str(e)}")
-                result.add_error(f"工单时间校正失败: {str(e)}", {'order': order})
+                logger.error(f"时间校正失败: {order.get('work_order_nr', 'UNKNOWN')} - {str(e)}")
+                result.errors.append(f"工单{order.get('work_order_nr', 'UNKNOWN')}时间校正失败: {str(e)}")
                 # 即使校正失败，也保留原工单
+                order['time_correction_failed'] = True
+                order['correction_error'] = str(e)
                 corrected_orders.append(order)
         
         result.output_data = corrected_orders
+        result.metrics.custom_metrics = correction_stats
         
-        # 计算校正统计
-        corrected_count = sum(1 for order in corrected_orders if order.get('time_corrected', False))
-        conflict_resolved_count = sum(1 for order in corrected_orders if order.get('maintenance_conflict_resolved', False))
+        logger.info(f"✅ 时间校正完成:")
+        logger.info(f"   🏃 速度调整: {correction_stats['speed_adjusted']}个工单")
+        logger.info(f"   🔧 轮保调整: {correction_stats['maintenance_adjusted']}个工单")
+        logger.info(f"   ⏰ 班次调整: {correction_stats['shift_adjusted']}个工单")
+        logger.info(f"   📊 总调整: {correction_stats['total_adjustments']}/{len(input_data)}个工单")
         
-        result.metrics.custom_metrics = {
-            'time_corrected_count': corrected_count,
-            'maintenance_conflicts_resolved': conflict_resolved_count,
-            'correction_rate': corrected_count / len(input_data) if input_data else 0
-        }
-        
-        logger.info(f"时间校正完成: {corrected_count}/{len(input_data)}个工单被校正")
         return self.finalize_result(result)
+    
+    def _correct_machine_speed(self, order: Dict[str, Any], machine_speeds: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        根据机台速度差异重新计算工期
+        
+        算法细则要求：不同卷包机台加工不同成品烟时的速度差异
+        
+        Args:
+            order: 工单数据
+            machine_speeds: 机台速度配置 {machine_code: {article_nr: speed_per_hour}}
+            
+        Returns:
+            Dict: 速度校正后的工单
+        """
+        corrected_order = order.copy()
+        
+        machine_code = order.get('maker_code') or order.get('feeder_code')
+        article_nr = order.get('article_nr', '')
+        quantity = order.get('final_quantity', 0)
+        
+        if not machine_code or not article_nr or not quantity:
+            return corrected_order
+        
+        # 查找机台速度配置
+        machine_speed_config = machine_speeds.get(machine_code, {})
+        speed_per_hour = machine_speed_config.get(article_nr)
+        
+        if speed_per_hour and speed_per_hour > 0:
+            # 重新计算工期
+            required_hours = quantity / speed_per_hour
+            
+            planned_start = order.get('planned_start')
+            if isinstance(planned_start, str):
+                planned_start = datetime.fromisoformat(planned_start.replace('Z', '+00:00'))
+            
+            if planned_start:
+                # 计算新的结束时间
+                new_planned_end = planned_start + timedelta(hours=required_hours)
+                original_end = order.get('planned_end')
+                
+                if isinstance(original_end, str):
+                    original_end = datetime.fromisoformat(original_end.replace('Z', '+00:00'))
+                
+                # 如果时间有显著差异，进行调整
+                if original_end:
+                    time_diff_hours = abs((new_planned_end - original_end).total_seconds() / 3600)
+                    
+                    if time_diff_hours > 0.5:  # 超过30分钟差异才调整
+                        corrected_order['planned_end'] = new_planned_end
+                        corrected_order['speed_adjusted'] = True
+                        corrected_order['original_planned_end'] = original_end
+                        corrected_order['speed_adjustment_hours'] = (new_planned_end - original_end).total_seconds() / 3600
+                        corrected_order['used_speed_per_hour'] = speed_per_hour
+                        corrected_order['calculated_hours'] = required_hours
+                        
+                        logger.info(f"   🏃 速度调整: {order.get('work_order_nr')} 机台{machine_code}")
+                        logger.info(f"      📦 产品: {article_nr}")
+                        logger.info(f"      🚄 速度: {speed_per_hour}箱/小时")
+                        logger.info(f"      📊 数量: {quantity}箱 -> 预计{required_hours:.1f}小时")
+                        logger.info(f"      📅 调整: {original_end.strftime('%H:%M')} -> {new_planned_end.strftime('%H:%M')}")
+        
+        return corrected_order
     
     async def process_with_real_data(self, input_data: List[Dict[str, Any]], **kwargs) -> AlgorithmResult:
         """
@@ -174,11 +279,16 @@ class TimeCorrection(AlgorithmBase):
             return order
         
         # 查找机台速度配置
-        if maker_code not in machine_speeds:
-            logger.warning(f"机台{maker_code}的速度配置未找到，使用原时间")
+        speed_config = None
+        if maker_code in machine_speeds:
+            speed_config = machine_speeds[maker_code]
+        elif '*' in machine_speeds:
+            # 使用默认配置
+            speed_config = machine_speeds['*']
+            logger.info(f"机台{maker_code}使用默认速度配置")
+        else:
+            logger.warning(f"机台{maker_code}的速度配置未找到（包括默认配置），使用原时间")
             return order
-        
-        speed_config = machine_speeds[maker_code]
         
         # 获取针对性速度或默认速度
         if article_nr in speed_config.get('product_speeds', {}):
@@ -188,10 +298,13 @@ class TimeCorrection(AlgorithmBase):
             logger.info(f"使用产品针对性速度: {maker_code}-{article_nr} = {hourly_capacity}箱/小时")
         else:
             hourly_capacity = speed_config.get('hourly_capacity', 100)
-            efficiency_rate = speed_config.get('efficiency_rate', 0.85)
+            efficiency_rate = speed_config.get('efficiency_rate', 1)
             logger.info(f"使用机台默认速度: {maker_code} = {hourly_capacity}箱/小时")
         
         # 计算实际生产时间（考虑效率）
+        # 确保效率系数为小数（如果>1则转换为百分比）
+        if efficiency_rate > 1:
+            efficiency_rate = efficiency_rate / 100.0
         effective_capacity = hourly_capacity * efficiency_rate
         
         if effective_capacity <= 0:
@@ -245,16 +358,34 @@ class TimeCorrection(AlgorithmBase):
         maintenance_plans: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
-        解决轮保冲突
+        解决轮保冲突 - 按照算法细则增强版
         
-        检测工单时间是否与设备轮保时间冲突，如有冲突则调整时间
+        算法细则要求：
+        - 卷包机台轮保时间有MES提供
+        - 卷包机1对卷包机2结束阶段为轮保时的处理
+        - 可以认为3个卷包机台的开始时间为卷包机3的开始时间，给1，3调整后的时间
+        
+        Args:
+            order: 工单数据
+            maintenance_plans: 轮保计划列表
+            
+        Returns:
+            Dict: 轮保冲突解决后的工单
         """
-        machine_code = order.get('maker_code')
+        corrected_order = order.copy()
+        
+        machine_code = order.get('maker_code') or order.get('feeder_code')
         planned_start = order.get('planned_start')
         planned_end = order.get('planned_end')
         
-        if not all([machine_code, planned_start, planned_end]):
-            return order
+        if not machine_code or not planned_start or not planned_end:
+            return corrected_order
+        
+        # 时间格式标准化
+        if isinstance(planned_start, str):
+            planned_start = datetime.fromisoformat(planned_start.replace('Z', '+00:00'))
+        if isinstance(planned_end, str):
+            planned_end = datetime.fromisoformat(planned_end.replace('Z', '+00:00'))
         
         # 查找该机台的轮保计划
         machine_maintenances = [
@@ -263,46 +394,95 @@ class TimeCorrection(AlgorithmBase):
         ]
         
         if not machine_maintenances:
-            return order  # 无轮保计划，直接返回
+            return corrected_order  # 无轮保计划，直接返回
+        
+        logger.info(f"   🔧 检查机台{machine_code}轮保冲突，共{len(machine_maintenances)}个轮保计划")
         
         conflicts = []
         for maintenance in machine_maintenances:
             maint_start = maintenance.get('maint_start_time')
             maint_end = maintenance.get('maint_end_time')
             
+            # 时间格式标准化
+            if isinstance(maint_start, str):
+                maint_start = datetime.fromisoformat(maint_start.replace('Z', '+00:00'))
+            if isinstance(maint_end, str):
+                maint_end = datetime.fromisoformat(maint_end.replace('Z', '+00:00'))
+            
             if self._has_time_overlap(planned_start, planned_end, maint_start, maint_end):
-                conflicts.append(maintenance)
+                conflicts.append({
+                    'maintenance': maintenance,
+                    'maint_start': maint_start,
+                    'maint_end': maint_end
+                })
         
         if not conflicts:
-            return order  # 无冲突，直接返回
+            return corrected_order  # 无冲突，直接返回
         
-        # 解决冲突
-        corrected_order = order.copy()
-        corrected_order['maintenance_conflict_resolved'] = True
-        corrected_order['original_planned_start'] = planned_start
-        corrected_order['original_planned_end'] = planned_end
-        corrected_order['conflicts_resolved'] = len(conflicts)
+        # 解决冲突 - 按照算法细则策略
+        logger.info(f"      ⚠️ 发现{len(conflicts)}个轮保冲突，开始解决")
         
-        # 冲突解决策略：延后到最近的轮保结束后
-        latest_maint_end = max(c['maint_end_time'] for c in conflicts)
+        # 策略1：如果工单在轮保期间，延后到轮保结束
+        # 策略2：如果轮保期间较短，可以考虑提前完成
         
-        # 计算原计划持续时间
-        original_duration = planned_end - planned_start
+        adjustment_made = False
+        original_start = planned_start
+        original_end = planned_end
         
-        # 调整时间：轮保结束后立即开始
-        new_start = latest_maint_end
-        new_end = new_start + original_duration
+        for conflict in conflicts:
+            maint_start = conflict['maint_start']
+            maint_end = conflict['maint_end']
+            maint_type = conflict['maintenance'].get('maintenance_type', 'routine')
+            
+            logger.info(f"         📅 轮保冲突: {maint_start.strftime('%m-%d %H:%M')} - {maint_end.strftime('%m-%d %H:%M')} ({maint_type})")
+            
+            # 计算工单持续时间
+            work_duration = planned_end - planned_start
+            
+            # 策略选择：根据轮保类型和时间情况
+            if maint_type in ['major', 'overhaul']:
+                # 重大轮保，必须避开，延后到轮保结束
+                new_start = maint_end
+                new_end = new_start + work_duration
+                
+                logger.info(f"         🔧 重大轮保延后: {planned_start.strftime('%m-%d %H:%M')} -> {new_start.strftime('%m-%d %H:%M')}")
+                
+            elif planned_start < maint_start and planned_end > maint_start:
+                # 工单开始于轮保前但延续到轮保期间，尝试提前完成
+                if (maint_start - planned_start) >= timedelta(hours=2):  # 至少2小时工作时间
+                    new_start = planned_start
+                    new_end = maint_start
+                    
+                    logger.info(f"         ⏰ 提前完成避开轮保: 结束时间 {planned_end.strftime('%H:%M')} -> {new_end.strftime('%H:%M')}")
+                else:
+                    # 时间不足，延后到轮保结束
+                    new_start = maint_end
+                    new_end = new_start + work_duration
+                    
+                    logger.info(f"         🔧 时间不足，延后到轮保结束: {planned_start.strftime('%m-%d %H:%M')} -> {new_start.strftime('%m-%d %H:%M')}")
+                    
+            else:
+                # 其他情况，延后到轮保结束
+                new_start = maint_end
+                new_end = new_start + work_duration
+                
+                logger.info(f"         🔧 延后到轮保结束: {planned_start.strftime('%m-%d %H:%M')} -> {new_start.strftime('%m-%d %H:%M')}")
+            
+            # 更新计划时间
+            planned_start = new_start
+            planned_end = new_end
+            adjustment_made = True
         
-        corrected_order['planned_start'] = new_start
-        corrected_order['planned_end'] = new_end
-        corrected_order['time_corrected'] = True
-        corrected_order['correction_reason'] = f"轮保冲突解决，延后到{latest_maint_end.strftime('%Y-%m-%d %H:%M')}"
-        
-        logger.info(
-            f"解决轮保冲突 - 工单 {order['work_order_nr']} "
-            f"从 {planned_start.strftime('%H:%M')}-{planned_end.strftime('%H:%M')} "
-            f"调整到 {new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}"
-        )
+        if adjustment_made:
+            corrected_order['planned_start'] = planned_start
+            corrected_order['planned_end'] = planned_end
+            corrected_order['maintenance_adjusted'] = True
+            corrected_order['original_maintenance_start'] = original_start
+            corrected_order['original_maintenance_end'] = original_end
+            corrected_order['maintenance_conflicts_resolved'] = len(conflicts)
+            corrected_order['maintenance_adjustment_hours'] = (planned_start - original_start).total_seconds() / 3600
+            
+            logger.info(f"      ✅ 轮保冲突解决完成，调整{corrected_order['maintenance_adjustment_hours']:.1f}小时")
         
         return corrected_order
     
@@ -348,10 +528,12 @@ class TimeCorrection(AlgorithmBase):
                 corrected_order['shift_corrected'] = True
                 corrected_order['time_corrected'] = True
         
-        # 重新计算结束时间，确保不跨班次
+        # 重新计算结束时间，使用校正后的时间
         new_start = corrected_order.get('planned_start', planned_start)
-        original_duration = planned_end - planned_start
-        tentative_end = new_start + original_duration
+        
+        # 使用校正后的结束时间，而不是原始时间
+        corrected_end = corrected_order.get('planned_end', planned_end)
+        tentative_end = corrected_end if isinstance(corrected_end, datetime) else planned_end
         
         # 检查是否跨班次
         current_shift = self._get_shift_for_time(new_start, shifts)
@@ -359,18 +541,37 @@ class TimeCorrection(AlgorithmBase):
             shift_end = self._get_shift_end_datetime(new_start, current_shift)
             
             if tentative_end > shift_end:
-                # 跨班次，截断到班次结束
-                corrected_order['planned_end'] = shift_end
-                corrected_order['shift_corrected'] = True
-                corrected_order['time_corrected'] = True
-                corrected_order['duration_adjusted'] = True
-                corrected_order['correction_reason'] = f"班次时间校正，限制在{current_shift['name']}班次内"
+                # 检查是否为长时间生产工单（超过24小时）
+                duration_hours = (tentative_end - new_start).total_seconds() / 3600
                 
                 logger.info(
                     f"班次时间校正 - 工单 {order['work_order_nr']} "
-                    f"结束时间从 {tentative_end.strftime('%H:%M')} "
-                    f"调整到 {shift_end.strftime('%H:%M')}"
+                    f"时长: {duration_hours:.1f}小时, 从 {new_start} 到 {tentative_end}"
                 )
+                
+                if duration_hours > 24:
+                    # 长时间工单，允许跨班次生产，不截断
+                    corrected_order['planned_end'] = tentative_end
+                    corrected_order['cross_shift_allowed'] = True
+                    corrected_order['production_duration_hours'] = duration_hours
+                    
+                    logger.info(
+                        f"班次时间校正 - 工单 {order['work_order_nr']} "
+                        f"长时间生产({duration_hours:.1f}小时)，允许跨班次执行"
+                    )
+                else:
+                    # 短时间工单，截断到班次结束
+                    corrected_order['planned_end'] = shift_end
+                    corrected_order['shift_corrected'] = True
+                    corrected_order['time_corrected'] = True
+                    corrected_order['duration_adjusted'] = True
+                    corrected_order['correction_reason'] = f"班次时间校正，限制在{current_shift['name']}班次内"
+                    
+                    logger.info(
+                        f"班次时间校正 - 工单 {order['work_order_nr']} "
+                        f"结束时间从 {tentative_end.strftime('%H:%M')} "
+                        f"调整到 {shift_end.strftime('%H:%M')}"
+                    )
             else:
                 corrected_order['planned_end'] = tentative_end
         

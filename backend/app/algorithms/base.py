@@ -54,6 +54,7 @@ class AlgorithmResult:
     output_data: List[Dict[str, Any]] = field(default_factory=list)
     metrics: AlgorithmMetrics = field(default_factory=AlgorithmMetrics)
     errors: List[Dict[str, Any]] = field(default_factory=list)
+    custom_data: Dict[str, Any] = field(default_factory=dict)
     
     def add_error(self, message: str, context: Dict[str, Any] = None):
         """添加错误信息"""

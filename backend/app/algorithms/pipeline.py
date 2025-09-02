@@ -10,7 +10,7 @@ import logging
 
 from .data_preprocessing import DataPreprocessor
 from .merge_algorithm import MergeAlgorithm  
-from .split_algorithm import SplitAlgorithm
+from .split_algorithm_fixed import SplitAlgorithmFixed
 from .time_correction import TimeCorrection
 from .parallel_processing import ParallelProcessing
 from .work_order_generation import WorkOrderGeneration
@@ -25,7 +25,7 @@ class AlgorithmPipeline:
     def __init__(self):
         self.preprocessor = DataPreprocessor()
         self.merger = MergeAlgorithm()
-        self.splitter = SplitAlgorithm()
+        self.splitter = SplitAlgorithmFixed()
         self.time_corrector = TimeCorrection()
         self.parallel_processor = ParallelProcessing()
         self.work_order_generator = WorkOrderGeneration()
@@ -173,6 +173,15 @@ class AlgorithmPipeline:
             
             results['stages']['work_order_generation'] = self._extract_stage_summary(work_order_result)
             final_work_orders = work_order_result.output_data
+            
+            # 获取工单调度数据（用于aps_work_order_schedule表）
+            work_order_schedules = []
+            if hasattr(work_order_result, 'custom_data') and work_order_result.custom_data:
+                work_order_schedules = work_order_result.custom_data.get('work_order_schedules', [])
+                logger.info(f"从工单生成阶段获取到 {len(work_order_schedules)} 条调度记录")
+            
+            # 将调度数据添加到管道结果中（替换之前从merged_plans生成的数据）
+            results['work_order_schedules'] = work_order_schedules
             
             # 管道执行完成
             pipeline_end_time = datetime.now()

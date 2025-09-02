@@ -13,6 +13,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _format_datetime(dt, format_str='%Y/%m/%d %H:%M:%S'):
+    """安全的时间格式化函数"""
+    if dt is None:
+        return None
+    
+    if isinstance(dt, str):
+        # 尝试解析字符串时间
+        try:
+            # 尝试常见格式
+            if 'T' in dt:
+                dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+            elif ' ' in dt:
+                dt = datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
+            else:
+                dt = datetime.strptime(dt, '%Y-%m-%d')
+        except ValueError:
+            logger.warning(f"无法解析时间字符串: {dt}")
+            return None
+    
+    if isinstance(dt, datetime):
+        return dt.strftime(format_str)
+    
+    return None
+
+
 class WorkOrderGeneration(AlgorithmBase):
     """工单生成算法 - MES规范版"""
     
@@ -47,6 +72,7 @@ class WorkOrderGeneration(AlgorithmBase):
         work_order_groups = self._group_by_work_order_number(input_data)
         
         generated_work_orders = []
+        work_order_schedules = []  # 用于aps_work_order_schedule表
         
         for work_order_nr, orders in work_order_groups.items():
             try:
@@ -54,7 +80,14 @@ class WorkOrderGeneration(AlgorithmBase):
                 mes_orders = await self._generate_mes_work_order_pair(work_order_nr, orders)
                 generated_work_orders.extend(mes_orders)
                 
-                logger.info(f"为工单组{work_order_nr}生成{len(mes_orders)}个MES工单")
+                # 生成工单调度记录（用于甘特图显示）- 只为卷包工单生成
+                schedule_record = None
+                if orders and orders[0].get('work_order_type') == 'PACKING':
+                    schedule_record = self._generate_work_order_schedule(work_order_nr, orders)
+                    if schedule_record:
+                        work_order_schedules.append(schedule_record)
+                
+                logger.info(f"为工单组{work_order_nr}生成{len(mes_orders)}个MES工单 + {'1' if schedule_record else '0'}个调度记录")
                 
             except Exception as e:
                 logger.error(f"MES工单生成失败 - 工单组{work_order_nr}: {str(e)}")
@@ -65,7 +98,11 @@ class WorkOrderGeneration(AlgorithmBase):
                     fallback_order = self._generate_fallback_mes_order(order_data)
                     generated_work_orders.append(fallback_order)
         
+        # 将work_order_schedules添加到结果中
         result.output_data = generated_work_orders
+        result.custom_data = {
+            'work_order_schedules': work_order_schedules
+        }
         
         # 计算生成统计
         feeding_orders = len([wo for wo in generated_work_orders if wo.get('plan_id', '').startswith('HWS')])
@@ -176,8 +213,8 @@ class WorkOrderGeneration(AlgorithmBase):
             'material_code': first_order.get('article_nr', ''),  # 成品烟牌号作为物料代码
             'bom_revision': None,  # 喂丝机没有版本号
             'quantity': None,  # 喂丝机通常为空
-            'plan_start_time': earliest_start.strftime('%Y/%m/%d %H:%M:%S') if earliest_start else None,
-            'plan_end_time': latest_end.strftime('%Y/%m/%d %H:%M:%S') if latest_end else None,
+            'plan_start_time': _format_datetime(earliest_start),
+            'plan_end_time': _format_datetime(latest_end),
             'sequence': 1,
             'shift': None,  # 喂丝机没有班次
             
@@ -187,7 +224,7 @@ class WorkOrderGeneration(AlgorithmBase):
             'is_hdt': False,
             'is_flavor': False,
             'unit': '公斤',
-            'plan_date': earliest_start.strftime('%Y/%m/%d') if earliest_start else None,
+            'plan_date': _format_datetime(earliest_start, '%Y/%m/%d'),
             'plan_output_quantity': None,  # 通常为空
             'is_outsourcing': False,
             'is_backup': first_order.get('is_backup', False),
@@ -250,8 +287,8 @@ class WorkOrderGeneration(AlgorithmBase):
             'material_code': order.get('article_nr', ''),  # 成品烟牌号
             'bom_revision': None,
             'quantity': order.get('final_quantity', 0),  # 成品烟产量（箱）
-            'plan_start_time': order.get('planned_start').strftime('%Y/%m/%d %H:%M:%S') if order.get('planned_start') else None,
-            'plan_end_time': order.get('planned_end').strftime('%Y/%m/%d %H:%M:%S') if order.get('planned_end') else None,
+            'plan_start_time': _format_datetime(order.get('planned_start')),
+            'plan_end_time': _format_datetime(order.get('planned_end')),
             'sequence': 1,
             'shift': None,
             
@@ -264,7 +301,7 @@ class WorkOrderGeneration(AlgorithmBase):
             'is_hdt': False,
             'is_flavor': False,
             'unit': '箱',
-            'plan_date': order.get('planned_start').strftime('%Y/%m/%d') if order.get('planned_start') else None,
+            'plan_date': _format_datetime(order.get('planned_start'), '%Y/%m/%d'),
             'plan_output_quantity': None,
             'is_outsourcing': False,
             'is_backup': order.get('is_backup', False),
@@ -326,8 +363,8 @@ class WorkOrderGeneration(AlgorithmBase):
             'material_code': order_data.get('article_nr', 'UNKNOWN'),
             'bom_revision': None,
             'quantity': order_data.get('final_quantity', 0),
-            'plan_start_time': datetime.now().strftime('%Y/%m/%d %H:%M:%S'),
-            'plan_end_time': (datetime.now() + timedelta(hours=8)).strftime('%Y/%m/%d %H:%M:%S'),
+            'plan_start_time': _format_datetime(datetime.now()),
+            'plan_end_time': _format_datetime(datetime.now() + timedelta(hours=8)),
             'sequence': 1,
             'shift': None,
             'is_vaccum': False,
@@ -335,7 +372,7 @@ class WorkOrderGeneration(AlgorithmBase):
             'is_hdt': False,
             'is_flavor': False,
             'unit': '箱',
-            'plan_date': datetime.now().strftime('%Y/%m/%d'),
+            'plan_date': _format_datetime(datetime.now(), '%Y/%m/%d'),
             'plan_output_quantity': None,
             'is_outsourcing': False,
             'is_backup': True,
@@ -381,7 +418,21 @@ class WorkOrderGeneration(AlgorithmBase):
         
         logger.info(f"使用拆分算法生成的{len(generated_work_orders)}个MES工单，避免重复生成")
         
+        # 虽然直接使用拆分算法结果，但仍需要生成工单调度记录
+        work_order_groups = self._group_by_work_order_number(input_data)
+        work_order_schedules = []
+        
+        for work_order_nr, orders in work_order_groups.items():
+            # 只为卷包工单（PACKING类型）生成调度记录，喂丝工单不需要单独的调度记录
+            if orders and orders[0].get('work_order_type') == 'PACKING':
+                schedule_record = self._generate_work_order_schedule(work_order_nr, orders)
+                if schedule_record:
+                    work_order_schedules.append(schedule_record)
+        
         result.output_data = generated_work_orders
+        result.custom_data = {
+            'work_order_schedules': work_order_schedules
+        }
         
         # 计算生成统计 - 匹配拆分算法的字段格式
         feeding_orders = len([wo for wo in generated_work_orders if wo.get('work_order_type') == 'FEEDING'])
@@ -391,6 +442,7 @@ class WorkOrderGeneration(AlgorithmBase):
             'feeding_work_orders': feeding_orders,
             'packing_work_orders': packing_orders,
             'total_work_orders': len(generated_work_orders),
+            'work_order_schedules_generated': len(work_order_schedules),
             'generation_success_rate': 1.0 if generated_work_orders else 0.0,
             'direct_passthrough': True  # 标记直接使用拆分算法结果
         })
@@ -440,6 +492,73 @@ class WorkOrderGeneration(AlgorithmBase):
             validated_orders.append(order)
         
         return validated_orders
+    
+    def _generate_work_order_schedule(self, work_order_nr: str, orders: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        生成工单调度记录（用于aps_work_order_schedule表和甘特图显示）
+        
+        Args:
+            work_order_nr: 工单号
+            orders: 同一工单号的订单列表（已经过并行处理）
+            
+        Returns:
+            Dict: 工单调度记录
+        """
+        if not orders:
+            return None
+        
+        # 获取第一个订单作为基础信息（同一工单号的订单应该有相同的基础信息）
+        base_order = orders[0]
+        
+        # 合并所有机台信息
+        maker_codes = set()
+        feeder_codes = set()
+        
+        total_final_quantity = 0
+        total_quantity = 0
+        
+        # 获取最早开始时间和最晚结束时间
+        start_times = []
+        end_times = []
+        
+        for order in orders:
+            # 收集机台代码
+            if order.get('maker_code'):
+                maker_codes.add(order['maker_code'])
+            if order.get('feeder_code'):
+                feeder_codes.add(order['feeder_code'])
+            
+            # 累计数量
+            total_final_quantity += order.get('final_quantity', 0)
+            total_quantity += order.get('quantity_total', 0)
+            
+            # 收集时间
+            if order.get('planned_start'):
+                start_times.append(order['planned_start'])
+            if order.get('planned_end'):
+                end_times.append(order['planned_end'])
+        
+        # 构建调度记录
+        schedule_record = {
+            'work_order_nr': work_order_nr,
+            'article_nr': base_order.get('article_nr', 'UNKNOWN'),
+            'final_quantity': total_final_quantity,
+            'quantity_total': total_quantity,
+            'maker_code': ','.join(sorted(maker_codes)) if maker_codes else None,
+            'feeder_code': ','.join(sorted(feeder_codes)) if feeder_codes else None,
+            'planned_start': min(start_times) if start_times else None,
+            'planned_end': max(end_times) if end_times else None,
+            'schedule_status': 'COMPLETED',  # 经过并行处理后的状态
+            'sync_group_id': base_order.get('sync_group_id'),
+            'is_backup': base_order.get('is_backup', False),
+            'backup_reason': base_order.get('backup_reason'),
+            'generated_from_stage': 'work_order_generation',  # 标记来源
+            'created_time': datetime.now()
+        }
+        
+        logger.info(f"生成工单调度记录: {work_order_nr} - 机台组合: {schedule_record['maker_code']}+{schedule_record['feeder_code']}")
+        
+        return schedule_record
 
 
 def create_work_order_generation() -> WorkOrderGeneration:

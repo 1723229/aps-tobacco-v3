@@ -103,16 +103,16 @@ async def execute_scheduling_algorithm(
         db.add(scheduling_task)
         await db.commit()
         await db.refresh(scheduling_task)
-
+        
         # 启动后台任务执行排产算法
         if background_tasks:
             background_tasks.add_task(
                 execute_scheduling_pipeline_background,
-                task_id=task_id,
-                import_batch_id=request.import_batch_id,
-                algorithm_config=request.algorithm_config or {}
-            )
-
+            task_id=task_id,
+            import_batch_id=request.import_batch_id,
+            algorithm_config=request.algorithm_config or {}
+        )
+        
         # 返回任务创建结果
         return SuccessResponse(
             code=200,
@@ -171,9 +171,9 @@ async def execute_scheduling_pipeline_background(
                 final_work_orders = pipeline_result.get('final_work_orders', [])
                 print(f"🔍 DEBUG: 获取到 {len(final_work_orders)} 个工单数据")
                 
-                # 获取合并后的计划数据（用于aps_work_order_schedule）
-                merged_plans = pipeline_result.get('merged_plans', [])
-                print(f"🔍 DEBUG: 获取到 {len(merged_plans)} 个合并后的计划数据")
+                # 获取工单调度数据（来自工单生成阶段）
+                work_order_schedules = pipeline_result.get('work_order_schedules', [])
+                print(f"🔍 DEBUG: 获取到 {len(work_order_schedules)} 个工单调度记录（来自工单生成阶段）")
                 
                 # 持久化工单到数据库 - 使用直接SQL插入避免ORM模型冲突
                 packing_orders_count = 0
@@ -185,12 +185,78 @@ async def execute_scheduling_pipeline_background(
                 
                 print(f"🔍 DEBUG: 开始处理工单，task_id = {task_id}")
                 
+                # 先处理所有 FEEDING 工单（确保被引用的记录先存在）
+                print(f"🔍 DEBUG: 第一阶段：处理所有喂丝机工单")
                 for i, work_order in enumerate(final_work_orders):
-                    # 兼容不同的字段名：order_type 或 work_order_type
                     order_type = work_order.get('order_type') or work_order.get('work_order_type', '')
-                    print(f"🔍 DEBUG: 处理工单 {i+1}/{len(final_work_orders)}, order_type = {order_type}")
+                    
+                    if order_type == 'FEEDING':
+                        print(f"🔍 DEBUG: 处理喂丝机工单 {i+1}")
+                        
+                        # 处理机器代码 - 从生成的工单数据中获取
+                        machine_code_raw = work_order.get('feeder_code') or work_order.get('production_line', '15')
+                        if ',' in machine_code_raw:
+                            machine_code_raw = machine_code_raw.split(',')[0].strip()  # 取第一个机器代码并去掉空格
+                        
+                        # 映射机器代码到数据库格式 - 数据库中有F01或纯数字如15,16,17...32
+                        feeder_code = machine_code_raw or '15'  # 直接使用原始代码，默认使用15
+                        
+                        print(f"🔍 DEBUG: 准备插入喂丝机工单，plan_id = {work_order.get('plan_id')}, production_line = {feeder_code}")
+                        
+                        # 喂丝机工单 - 直接SQL插入
+                        insert_sql = """
+                        INSERT INTO aps_feeding_order (
+                            plan_id, production_line, batch_code, material_code, bom_revision, 
+                            quantity, plan_start_time, plan_end_time, sequence, shift,
+                            is_vaccum, is_sh93, is_hdt, is_flavor, unit, plan_date,
+                            plan_output_quantity, is_outsourcing, is_backup, task_id, order_status,
+                            created_time, updated_time
+                        ) VALUES (
+                            :plan_id, :production_line, :batch_code, :material_code, :bom_revision,
+                            :quantity, :plan_start_time, :plan_end_time, :sequence, :shift,
+                            :is_vaccum, :is_sh93, :is_hdt, :is_flavor, :unit, :plan_date,
+                            :plan_output_quantity, :is_outsourcing, :is_backup, :task_id, :order_status,
+                            NOW(), NOW()
+                        )
+                        """
+                        
+                        try:
+                            await db.execute(text(insert_sql), {
+                                'plan_id': work_order.get('plan_id') or work_order.get('work_order_nr', f"HWS{work_order.get('original_work_order_nr', '')}"),
+                                'production_line': feeder_code,
+                                'batch_code': work_order.get('batch_code'),
+                                'material_code': work_order.get('material_code') or work_order.get('article_nr', 'UNKNOWN'),
+                                'bom_revision': work_order.get('bom_revision'),
+                                'quantity': str(work_order.get('quantity') or work_order.get('final_quantity', 0)),
+                                'plan_start_time': work_order.get('plan_start_time') or work_order.get('planned_start'),
+                                'plan_end_time': work_order.get('plan_end_time') or work_order.get('planned_end'),
+                                'sequence': work_order.get('sequence', 1),
+                                'shift': work_order.get('shift', '白班'),
+                                'is_vaccum': work_order.get('is_vaccum', False),
+                                'is_sh93': work_order.get('is_sh93', False),
+                                'is_hdt': work_order.get('is_hdt', False),
+                                'is_flavor': work_order.get('is_flavor', False),
+                                'unit': work_order.get('unit', '公斤'),
+                                'plan_date': _parse_date(work_order.get('plan_date', date.today())),
+                                'plan_output_quantity': work_order.get('plan_output_quantity'),
+                                'is_outsourcing': work_order.get('is_outsourcing', False),
+                                'is_backup': work_order.get('is_backup', False),
+                                'task_id': task_id,
+                                'order_status': 'PLANNED'
+                            })
+                            feeding_orders_count += 1
+                            print(f"🔍 DEBUG: 喂丝机工单插入成功，plan_id = {work_order.get('plan_id')}")
+                        except Exception as e:
+                            print(f"🔍 DEBUG: 喂丝机工单插入失败: {e}")
+                            raise
+                
+                # 再处理所有 PACKING 工单
+                print(f"🔍 DEBUG: 第二阶段：处理所有卷包机工单")
+                for i, work_order in enumerate(final_work_orders):
+                    order_type = work_order.get('order_type') or work_order.get('work_order_type', '')
                     
                     if order_type == 'PACKING':
+                        print(f"🔍 DEBUG: 处理卷包机工单 {i+1}, input_plan_id = {work_order.get('input_plan_id')}")
                         
                         # 处理机器代码 - 从生成的工单数据中获取
                         machine_code_raw = work_order.get('maker_code') or work_order.get('production_line', 'C1')
@@ -265,128 +331,64 @@ async def execute_scheduling_pipeline_background(
                         except Exception as e:
                             print(f"🔍 DEBUG: 卷包机工单插入失败: {e}")
                             raise
-                        
-                    elif order_type == 'FEEDING':
-                        # 处理机器代码 - 从生成的工单数据中获取
-                        machine_code_raw = work_order.get('feeder_code') or work_order.get('production_line', '15')
-                        if ',' in machine_code_raw:
-                            machine_code_raw = machine_code_raw.split(',')[0].strip()  # 取第一个机器代码并去掉空格
-                        
-                        # 映射机器代码到数据库格式 - 数据库中有F01或纯数字如15,16,17...32
-                        feeder_code = machine_code_raw or '15'  # 直接使用原始代码，默认使用15
-                        
-                        print(f"🔍 DEBUG: 准备插入喂丝机工单，plan_id = {work_order.get('plan_id')}, production_line = {feeder_code}")
-                        
-                        # 喂丝机工单 - 直接SQL插入
-                        insert_sql = """
-                        INSERT INTO aps_feeding_order (
-                            plan_id, production_line, batch_code, material_code, bom_revision, 
-                            quantity, plan_start_time, plan_end_time, sequence, shift,
-                            is_vaccum, is_sh93, is_hdt, is_flavor, unit, plan_date,
-                            plan_output_quantity, is_outsourcing, is_backup, task_id, order_status,
-                            created_time, updated_time
-                        ) VALUES (
-                            :plan_id, :production_line, :batch_code, :material_code, :bom_revision,
-                            :quantity, :plan_start_time, :plan_end_time, :sequence, :shift,
-                            :is_vaccum, :is_sh93, :is_hdt, :is_flavor, :unit, :plan_date,
-                            :plan_output_quantity, :is_outsourcing, :is_backup, :task_id, :order_status,
-                            NOW(), NOW()
-                        )
-                        """
-                        
-                        try:
-                            await db.execute(text(insert_sql), {
-                                'plan_id': work_order.get('plan_id') or work_order.get('work_order_nr', f"HWS{work_order.get('original_work_order_nr', '')}"),
-                                'production_line': feeder_code,
-                                'batch_code': work_order.get('batch_code'),
-                                'material_code': work_order.get('material_code') or work_order.get('article_nr', 'UNKNOWN'),
-                                'bom_revision': work_order.get('bom_revision'),
-                                'quantity': str(work_order.get('quantity') or work_order.get('final_quantity', 0)),
-                                'plan_start_time': work_order.get('plan_start_time') or work_order.get('planned_start'),
-                                'plan_end_time': work_order.get('plan_end_time') or work_order.get('planned_end'),
-                                'sequence': work_order.get('sequence', 1),
-                                'shift': work_order.get('shift', '白班'),
-                                'is_vaccum': work_order.get('is_vaccum', False),
-                                'is_sh93': work_order.get('is_sh93', False),
-                                'is_hdt': work_order.get('is_hdt', False),
-                                'is_flavor': work_order.get('is_flavor', False),
-                                'unit': work_order.get('unit', '公斤'),
-                                'plan_date': _parse_date(work_order.get('plan_date', date.today())),
-                                'plan_output_quantity': work_order.get('plan_output_quantity'),
-                                'is_outsourcing': work_order.get('is_outsourcing', False),
-                                'is_backup': work_order.get('is_backup', False),
-                                'task_id': task_id,
-                                'order_status': 'PLANNED'
-                            })
-                            feeding_orders_count += 1
-                            print(f"🔍 DEBUG: 喂丝机工单插入成功")
-                        except Exception as e:
-                            print(f"🔍 DEBUG: 喂丝机工单插入失败: {e}")
-                            raise
-                    
-                    else:
-                        print(f"🔍 DEBUG: 未知工单类型: {order_type}")
+
                 
                 print(f"🔍 DEBUG: 工单处理完成，准备提交事务，卷包机: {packing_orders_count}, 喂丝机: {feeding_orders_count}")
                 
-                # 写入工单调度数据到 aps_work_order_schedule 表（使用合并后的计划数据）
+                # 写入工单调度数据到 aps_work_order_schedule 表（使用工单生成阶段的数据）
                 print(f"🔍 DEBUG: 开始写入工单调度数据到 aps_work_order_schedule 表")
                 work_order_schedule_count = 0
                 
-                # 使用合并后的计划数据
-                for merged_plan in merged_plans:
-                    # 获取合并后计划的基本信息
-                    work_order_nr = merged_plan.get('work_order_nr', 'UNKNOWN')
-                    article_nr = merged_plan.get('article_nr', 'UNKNOWN')
-                    final_quantity = merged_plan.get('final_quantity', 0)
-                    quantity_total = merged_plan.get('quantity_total', 0)
+                # 使用工单生成阶段产生的调度数据
+                for schedule_record in work_order_schedules:
+                    # 获取调度记录的基本信息
+                    work_order_nr = schedule_record.get('work_order_nr', 'UNKNOWN')
+                    article_nr = schedule_record.get('article_nr', 'UNKNOWN')
+                    final_quantity = schedule_record.get('final_quantity', 0)
+                    quantity_total = schedule_record.get('quantity_total', 0)
                     
                     # 获取时间信息
-                    planned_start = _parse_datetime(merged_plan.get('planned_start')) if merged_plan.get('planned_start') else datetime.now()
-                    planned_end = _parse_datetime(merged_plan.get('planned_end')) if merged_plan.get('planned_end') else datetime.now()
+                    planned_start = schedule_record.get('planned_start')
+                    planned_end = schedule_record.get('planned_end')
                     
-                    # 获取机台信息，处理可能的逗号分隔格式
-                    maker_codes_str = merged_plan.get('maker_code', '')
-                    feeder_codes_str = merged_plan.get('feeder_code', '')
+                    # 如果时间是字符串，需要转换为datetime
+                    if isinstance(planned_start, str):
+                        planned_start = _parse_datetime(planned_start)
+                    if isinstance(planned_end, str):
+                        planned_end = _parse_datetime(planned_end)
                     
-                    # 分割逗号分隔的机台代码
-                    maker_codes = [code.strip() for code in maker_codes_str.split(',') if code.strip()] if maker_codes_str else ['UNKNOWN']
-                    feeder_codes = [code.strip() for code in feeder_codes_str.split(',') if code.strip()] if feeder_codes_str else ['UNKNOWN']
+                    # 获取机台信息
+                    maker_code = schedule_record.get('maker_code')
+                    feeder_code = schedule_record.get('feeder_code')
                     
                     try:
-                        # 插入工单调度记录 - 分别为每个卷包机×喂丝机组合插入
+                        # 插入工单调度记录（工单生成阶段已经处理好的数据）
                         schedule_insert_sql = text("""
                         INSERT INTO aps_work_order_schedule (
                             work_order_nr, article_nr, final_quantity, quantity_total,
                             maker_code, feeder_code, planned_start, planned_end,
-                            task_id, schedule_status, is_backup, created_time
+                            task_id, schedule_status, created_time
                         ) VALUES (
                             :work_order_nr, :article_nr, :final_quantity, :quantity_total,
                             :maker_code, :feeder_code, :planned_start, :planned_end,
-                            :task_id, :schedule_status, :is_backup, NOW()
+                            :task_id, :schedule_status, NOW()
                         )
                         """)
                         
-                        # 为每个卷包机×喂丝机组合插入一条记录（笛卡尔积）
-                        combo_count = 0
-                        for maker_code in maker_codes:
-                            for feeder_code in feeder_codes:
-                                await db.execute(schedule_insert_sql, {
-                                    'work_order_nr': work_order_nr,
-                                    'article_nr': article_nr,
-                                    'final_quantity': final_quantity,
-                                    'quantity_total': quantity_total,
-                                    'maker_code': maker_code,
-                                    'feeder_code': feeder_code,
-                                    'planned_start': planned_start,
-                                    'planned_end': planned_end,
-                                    'task_id': task_id,
-                                    'schedule_status': 'COMPLETED',
-                                    'is_backup': False
-                                })
-                                combo_count += 1
-                        work_order_schedule_count += combo_count
-                        print(f"🔍 DEBUG: 合并计划调度记录插入成功: {work_order_nr} 共 {combo_count} 条组合记录")
+                        await db.execute(schedule_insert_sql, {
+                            'work_order_nr': work_order_nr,
+                            'article_nr': article_nr,
+                            'final_quantity': final_quantity,
+                            'quantity_total': quantity_total,
+                            'maker_code': maker_code,
+                            'feeder_code': feeder_code,
+                            'planned_start': planned_start or datetime.now(),
+                            'planned_end': planned_end or datetime.now(),
+                            'task_id': task_id,
+                            'schedule_status': schedule_record.get('schedule_status', 'PLANNED')
+                        })
+                        work_order_schedule_count += 1
+                        print(f"🔍 DEBUG: 工单调度记录插入成功: {work_order_nr}")
                     except Exception as e:
                         print(f"🔍 DEBUG: 工单调度记录插入失败 {work_order_nr}: {e}")
                         # 不中断流程，继续处理其他工单
@@ -994,15 +996,15 @@ async def get_work_orders(
         if status:
             query_conditions.append("AND schedule_status = :status")
             query_params['status'] = status
-        
+                    
         # 组合完整查询
         final_query = schedule_query.text + ' ' + ' '.join(query_conditions) + ' ORDER BY planned_start, work_order_nr'
-        
+            
         schedule_result = await db.execute(text(final_query), query_params)
         schedule_orders = schedule_result.fetchall()
-        
+            
         for row in schedule_orders:
-            work_orders.append({
+                work_orders.append({
                 "work_order_nr": row.work_order_nr,
                 "work_order_type": "HJB",  # 合并后的计划包含两种类型机台
                 "machine_type": "合并计划",
@@ -1017,7 +1019,7 @@ async def get_work_orders(
                 "task_id": row.task_id,
                 "created_time": row.created_time.isoformat() if row.created_time else None,
                 "updated_time": None  # schedule表没有updated_time字段
-            })
+                })
         
         total_count = len(work_orders)
         
