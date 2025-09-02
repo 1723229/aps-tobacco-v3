@@ -15,16 +15,16 @@
     <div class="filter-bar">
       <el-form :inline="true" :model="filterOptions">
         <el-form-item label="任务ID">
-          <el-input 
-            v-model="filterOptions.task_id" 
+          <el-input
+            v-model="filterOptions.task_id"
             placeholder="输入任务ID"
-            clearable 
+            clearable
             @change="fetchWorkOrders"
           />
         </el-form-item>
         <el-form-item label="机台">
-          <el-select 
-            v-model="filterOptions.machine_code" 
+          <el-select
+            v-model="filterOptions.machine_code"
             placeholder="选择机台"
             clearable
             filterable
@@ -32,8 +32,8 @@
             @change="fetchWorkOrders"
           >
             <el-option label="全部" value="" />
-            <el-option 
-              v-for="machine in machineOptions" 
+            <el-option
+              v-for="machine in machineOptions"
               :key="machine.machine_code"
               :label="`${machine.machine_code} - ${machine.machine_name}`"
               :value="machine.machine_code"
@@ -58,7 +58,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- 总计划产量 -->
         <div class="stat-card total">
           <div class="card-header">
@@ -238,7 +238,7 @@ const ganttRows = computed(() => {
   // 按机台分组
   workOrders.value.forEach(order => {
     let machineKey = ''
-    
+
     // 构建机台组合名称
     if (order.maker_code && order.feeder_code) {
       machineKey = `${order.maker_code} + ${order.feeder_code}\n(卷包机 + 喂丝机)`
@@ -261,10 +261,10 @@ const ganttRows = computed(() => {
     machine,
     bars: orders.map(order => {
       // 确保时间格式正确
-      const startTime = order.planned_start_time 
+      const startTime = order.planned_start_time
         ? formatDateTime(new Date(order.planned_start_time))
         : formatDateTime(new Date())
-      const endTime = order.planned_end_time 
+      const endTime = order.planned_end_time
         ? formatDateTime(new Date(order.planned_end_time))
         : formatDateTime(new Date(Date.now() + 8 * 60 * 60 * 1000))
 
@@ -297,10 +297,10 @@ const ganttRows = computed(() => {
 // 获取条形颜色
 function getBarColor(order: WorkOrder): string {
   const status = order.work_order_status || 'PLANNED'
-  
+
   // 基于产品类型的渐变色
   const productType = order.product_code
-  
+
   if (productType?.includes('利群(软蓝)')) {
     return 'linear-gradient(135deg, #409eff, #337ecc)' // 蓝色渐变
   } else if (productType?.includes('利群(新版)')) {
@@ -354,11 +354,11 @@ function onBarMouseleave(event: any) {
 async function fetchMachineOptions() {
   try {
     console.log('🔍 获取机台列表...')
-    
+
     let allMachines: Array<{ machine_code: string; machine_name: string }> = []
     let page = 1
     const pageSize = 100
-    
+
     while (true) {
       const response = await MachineConfigAPI.getMachines({ page, page_size: pageSize })
       console.log(`📄 第${page}页API响应:`, {
@@ -366,29 +366,29 @@ async function fetchMachineOptions() {
         itemsExists: !!response.data?.items,
         itemsLength: response.data?.items?.length
       })
-      
+
       if (response.data?.items) {
         const machines = response.data.items.map((machine: any) => ({
           machine_code: machine.machine_code,
           machine_name: machine.machine_name || machine.machine_code
         }))
-        
+
         allMachines.push(...machines)
-        
+
         // 检查是否还有更多数据
         const hasMore = response.data.items.length === pageSize
         if (!hasMore) {
           console.log(`✅ 第${page}页是最后一页，共获取${allMachines.length}台机台`)
           break
         }
-        
+
         page++
       } else {
         console.error('❌ 获取机台配置失败:', response)
         break
       }
     }
-    
+
     machineOptions.value = allMachines
     console.log('✅ 机台列表加载完成:', allMachines.length, '台机台')
   } catch (err) {
@@ -401,34 +401,34 @@ async function fetchMachineOptions() {
 async function fetchWorkOrders() {
   loading.value = true
   error.value = null
-  
+
   try {
     console.log('🔍 获取工单数据，查询参数:', filterOptions.value)
-    
+
     const params: any = {
       page: 1,
       page_size: 1000
     }
-    
+
     // 添加任务ID筛选
     if (filterOptions.value.task_id) {
       params.task_id = filterOptions.value.task_id
       console.log('📍 使用任务ID筛选:', filterOptions.value.task_id)
     }
-    
+
     // 添加机台筛选
     if (filterOptions.value.machine_code) {
       params.machine_code = filterOptions.value.machine_code
       console.log('📍 使用机台筛选:', filterOptions.value.machine_code)
     }
-    
+
     const response = await WorkOrderAPI.getWorkOrders(params)
     console.log('✅ API响应:', {
       code: response.code,
       message: response.message,
       dataExists: !!response.data
     })
-    
+
     if (response.code === 200 && response.data) {
       workOrders.value = response.data.work_orders
       console.log('📦 工单数据样本:', workOrders.value.slice(0, 2))
@@ -449,7 +449,7 @@ async function refreshData() {
     fetchMachineOptions(),
     fetchWorkOrders()
   ])
-  
+
   // 数据刷新后更新中文日期
   updateChineseDates()
 }
@@ -486,14 +486,14 @@ function updateChineseDates() {
       } else if (text?.includes('August')) {
         text = text.replace('August', '八月')
       }
-      
+
       // 统一格式化为 "2024年10月" 格式
       if (text) {
         // 将 "十月 2024" 转换为 "2024年十月"，然后再转换为数字月份
         if (text.includes('月') && text.includes('2024')) {
           // 匹配 "十月 2024" 或 "October 2024" 等格式
           text = text.replace(/(\S+月)\s+(\d{4})/, '$2年$1')
-          
+
           // 转换中文月份为数字
           text = text.replace('一月', '1月')
                     .replace('二月', '2月')
@@ -507,6 +507,8 @@ function updateChineseDates() {
                     .replace('十月', '10月')
                     .replace('十一月', '11月')
                     .replace('十二月', '12月')
+                    .replace('十1月', '11月')
+                    .replace('十2月', '12月')
         }
         el.textContent = text
       }
@@ -549,14 +551,14 @@ function updateChineseDates() {
 onMounted(async () => {
   console.log('📊 甘特图页面已挂载')
   console.log('🔍 路由查询参数:', route.query)
-  
+
   // 从路由获取任务ID
   if (route.query.task_id) {
     filterOptions.value.task_id = route.query.task_id as string
   }
-  
+
   await refreshData()
-  
+
   // 更新中文日期显示
   updateChineseDates()
 })
@@ -861,7 +863,7 @@ watch(() => filterOptions.value, (newFilters) => {
   .gantt-chart-page {
     background-color: #1a1a1a;
   }
-  
+
   .page-header,
   .filter-bar,
   .statistics-bar,
@@ -869,7 +871,7 @@ watch(() => filterOptions.value, (newFilters) => {
     background: #2d2d2d;
     border-color: #414243;
   }
-  
+
   .page-header h1 {
     color: #e5eaf3;
   }
@@ -882,15 +884,15 @@ watch(() => filterOptions.value, (newFilters) => {
     gap: 16px;
     align-items: flex-start;
   }
-  
+
   .filter-bar .el-form {
     flex-direction: column;
   }
-  
+
   .filter-bar .el-form-item {
     margin-bottom: 16px;
   }
-  
+
   .main-content {
     padding: 16px;
   }
