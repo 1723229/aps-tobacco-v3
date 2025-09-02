@@ -22,7 +22,6 @@
             @change="fetchWorkOrders"
           />
         </el-form-item>
-        <!-- 批次ID输入框已隐藏 -->
         <el-form-item label="机台">
           <el-select 
             v-model="filterOptions.machine_code" 
@@ -46,14 +45,33 @@
 
     <!-- 统计信息 -->
     <div class="statistics-bar" v-if="!loading && workOrders.length > 0">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-statistic title="总工单数" :value="workOrders.length" />
-        </el-col>
-        <el-col :span="6">
-          <el-statistic title="总计划产量" :value="totalQuantity" suffix="箱" />
-        </el-col>
-      </el-row>
+      <div class="statistics-cards">
+        <!-- 工单数 -->
+        <div class="stat-card completed">
+          <div class="card-header">
+            <div class="icon-container">
+              <el-icon><CircleCheck /></el-icon>
+            </div>
+            <div class="card-content">
+              <div class="stat-value">{{ workOrders.length }}</div>
+              <div class="stat-label">工单数</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 总计划产量 -->
+        <div class="stat-card total">
+          <div class="card-header">
+            <div class="icon-container">
+              <el-icon><Box /></el-icon>
+            </div>
+            <div class="card-content">
+              <div class="stat-value">{{ formattedTotalQuantity }}</div>
+              <div class="stat-label">总计划产量（箱）</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 主要内容区域 -->
@@ -70,9 +88,47 @@
           <el-alert :title="error" type="error" show-icon />
         </div>
 
-        <!-- 甘特图内容 -->
-        <div v-else class="gantt-chart" ref="ganttChartRef">
-          <!-- 甘特图将在这里渲染 -->
+        <!-- 无数据状态 -->
+        <div v-else-if="workOrders.length === 0" class="empty-state">
+          <el-empty description="暂无工单数据" />
+        </div>
+
+        <!-- Vue Ganttastic 甘特图 -->
+        <div v-else class="gantt-chart-wrapper">
+          <g-gantt-chart
+            :chart-start="chartTimeRange.start"
+            :chart-end="chartTimeRange.end"
+            precision="day"
+            :width="'100%'"
+            :height="chartHeight"
+            bar-start="startTime"
+            bar-end="endTime"
+            date-format="YYYY-MM-DD HH:mm"
+            color-scheme="default"
+            :push-on-overlap="false"
+            :grid="true"
+            :row-height="60"
+            font="Inter, sans-serif"
+            @click-bar="onBarClick"
+            @mouseenter-bar="onBarMouseenter"
+            @mouseleave-bar="onBarMouseleave"
+          >
+            <g-gantt-row
+              v-for="(row, index) in ganttRows"
+              :key="row.machine"
+              :label="row.machine"
+              :bars="row.bars"
+              :highlight-on-hover="true"
+            >
+                          <!-- 自定义条形标签 -->
+            <template #bar-label="{ bar }">
+              <div class="bar-label">
+                <span class="bar-product">{{ bar.product }}</span>
+                <span class="bar-quantity">{{ bar.quantity }}箱</span>
+              </div>
+            </template>
+            </g-gantt-row>
+          </g-gantt-chart>
         </div>
       </div>
     </div>
@@ -80,12 +136,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, onUnmounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Refresh, Loading } from '@element-plus/icons-vue'
+import { Refresh, Loading, Clock, Timer, CircleCheck, Box } from '@element-plus/icons-vue'
 import { WorkOrderAPI, MachineConfigAPI } from '@/services/api'
-import * as echarts from 'echarts'
+import type { WorkOrder } from '@/services/api'
 
 // 路由信息
 const route = useRoute()
@@ -93,637 +149,750 @@ const route = useRoute()
 // 响应式数据
 const loading = ref(false)
 const error = ref<string | null>(null)
-const ganttChartRef = ref<HTMLElement | null>(null)
 const workOrders = ref<WorkOrder[]>([])
 const machineOptions = ref<Array<{ machine_code: string; machine_name: string }>>([])
-let chartInstance: echarts.ECharts | null = null
 
 // 筛选条件
 const filterOptions = ref({
-  task_id: (route.query.task_id as string) || '',
-  import_batch_id: (route.query.import_batch_id as string) || '',
+  task_id: '',
   machine_code: ''
 })
 
-// 工单数据接口（根据实际API返回结构定义）
-interface WorkOrder {
-  work_order_nr: string
-  work_order_type: 'HJB' | 'HWS'
-  machine_type: '卷包机' | '喂丝机'
-  machine_code: string
-  maker_code?: string  // 卷包机代码
-  feeder_code?: string // 喂丝机代码
-  product_code: string
-  plan_quantity: number
-  safety_stock?: number
-  work_order_status: string
-  planned_start_time: string | null
-  planned_end_time: string | null
-  actual_start_time?: string | null
-  actual_end_time?: string | null
-  created_time?: string | null
-  updated_time?: string | null
-}
-
-// 甘特图数据接口
-interface GanttTask {
-  id: string
-  name: string
-  machine: string
-  start: Date
-  end: Date
-  quantity: number
-  status: string
-  type: 'HJB' | 'HWS'
-  progress: number
-}
-
-const ganttTasks = ref<GanttTask[]>([])
+// 甘特图配置
+const chartHeight = ref(600)
 
 // 计算属性
-const totalQuantity = computed(() => 
-  workOrders.value.reduce((total, order) => total + (order.plan_quantity || 0), 0)
-)
+const totalQuantity = computed(() => {
+  return workOrders.value.reduce((sum, order) => sum + (order.plan_quantity || 0), 0)
+})
 
-// 转换API数据为甘特图任务格式
-const transformToGanttTasks = (orders: WorkOrder[]): GanttTask[] => {
-  console.log('🔄 转换工单数据为甘特图任务:', orders.length, '个工单')
-  
-  return orders.map(order => {
-    // 解析时间
-    let startTime: Date
-    let endTime: Date
-    
-    if (order.planned_start_time) {
-      startTime = new Date(order.planned_start_time)
-    } else {
-      // 默认时间
-      startTime = new Date()
+// 格式化总数量显示
+const formattedTotalQuantity = computed(() => {
+  const total = totalQuantity.value
+  if (total >= 10000) {
+    return (total / 10000).toFixed(1) + '万'
+  } else if (total >= 1000) {
+    return (total / 1000).toFixed(1) + '千'
+  }
+  return total.toLocaleString()
+})
+
+// 格式化日期为 YYYY-MM-DD HH:mm 格式
+function formatDateTime(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+// 格式化中文日期显示
+function formatChineseDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  return `${year}年${month}月${day}日`
+}
+
+// 计算时间范围
+const chartTimeRange = computed(() => {
+  if (workOrders.value.length === 0) {
+    const now = new Date()
+    return {
+      start: formatDateTime(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      end: formatDateTime(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000))
     }
+  }
+
+  const startTimes = workOrders.value
+    .map(order => order.planned_start_time)
+    .filter(Boolean)
+    .map(time => new Date(time!))
+
+  const endTimes = workOrders.value
+    .map(order => order.planned_end_time)
+    .filter(Boolean)
+    .map(time => new Date(time!))
+
+  const minTime = startTimes.length > 0 ? new Date(Math.min(...startTimes.map(d => d.getTime()))) : new Date()
+  const maxTime = endTimes.length > 0 ? new Date(Math.max(...endTimes.map(d => d.getTime()))) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+  // 添加缓冲时间
+  const bufferHours = 12
+  const chartStart = new Date(minTime.getTime() - bufferHours * 60 * 60 * 1000)
+  const chartEnd = new Date(maxTime.getTime() + bufferHours * 60 * 60 * 1000)
+
+  return {
+    start: formatDateTime(chartStart),
+    end: formatDateTime(chartEnd)
+  }
+})
+
+// 转换工单数据为甘特图行数据
+const ganttRows = computed(() => {
+  if (workOrders.value.length === 0) return []
+
+  const machineGroups: Record<string, WorkOrder[]> = {}
+
+  // 按机台分组
+  workOrders.value.forEach(order => {
+    let machineKey = ''
     
-    if (order.planned_end_time) {
-      endTime = new Date(order.planned_end_time)
-    } else {
-      // 默认结束时间为开始时间后8小时
-      endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
-    }
-    
-    // 确保时间有效
-    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-      console.warn('⚠️ 无效时间数据:', order.work_order_nr, order.planned_start_time, order.planned_end_time)
-      // 使用当前时间作为默认
-      const now = new Date()
-      startTime = now
-      endTime = new Date(now.getTime() + 8 * 60 * 60 * 1000)
-    }
-    
-    // 计算进度（基于状态）
-    let progress = 0
-    const status = order.work_order_status.toLowerCase()
-    if (status.includes('completed')) {
-      progress = 100
-    } else if (status.includes('progress') || status.includes('running')) {
-      progress = 50
-    }
-    
-    // 构建组合机台名称：显示卷包机+喂丝机组合
-    let machineDisplay = ''
+    // 构建机台组合名称
     if (order.maker_code && order.feeder_code) {
-      machineDisplay = `${order.maker_code}+${order.feeder_code} (卷包+喂丝)`
+      machineKey = `${order.maker_code} + ${order.feeder_code}\n(卷包机 + 喂丝机)`
     } else if (order.maker_code) {
-      machineDisplay = `${order.maker_code} (卷包机)`
+      machineKey = `${order.maker_code}\n(卷包机)`
     } else if (order.feeder_code) {
-      machineDisplay = `${order.feeder_code} (喂丝机)`
+      machineKey = `${order.feeder_code}\n(喂丝机)`
     } else {
-      machineDisplay = order.machine_code || 'UNKNOWN'
+      machineKey = order.machine_code || 'UNKNOWN'
     }
-    
-    const task: GanttTask = {
-      id: order.work_order_nr,
-      name: `${order.work_order_nr} - ${order.product_code}`,
-      machine: machineDisplay,
-      start: startTime,
-      end: endTime,
-      quantity: order.plan_quantity,
-      status: status,
-      type: order.work_order_type,
-      progress: progress
+
+    if (!machineGroups[machineKey]) {
+      machineGroups[machineKey] = []
     }
-    
-    return task
+    machineGroups[machineKey].push(order)
   })
+
+  // 转换为甘特图行格式
+  return Object.entries(machineGroups).map(([machine, orders]) => ({
+    machine,
+    bars: orders.map(order => {
+      // 确保时间格式正确
+      const startTime = order.planned_start_time 
+        ? formatDateTime(new Date(order.planned_start_time))
+        : formatDateTime(new Date())
+      const endTime = order.planned_end_time 
+        ? formatDateTime(new Date(order.planned_end_time))
+        : formatDateTime(new Date(Date.now() + 8 * 60 * 60 * 1000))
+
+      return {
+        startTime,
+        endTime,
+        ganttBarConfig: {
+          id: order.work_order_nr,
+          label: `${order.work_order_nr} - ${order.product_code}`,
+          style: {
+            background: getBarColor(order),
+            color: '#ffffff',
+            borderRadius: '6px',
+            fontSize: '12px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          },
+          hasHandles: false
+        },
+        // 附加数据用于显示
+        workOrder: order.work_order_nr,
+        product: order.product_code,
+        quantity: order.plan_quantity,
+        status: order.work_order_status
+      }
+    })
+  }))
+})
+
+// 获取条形颜色
+function getBarColor(order: WorkOrder): string {
+  const status = order.work_order_status || 'PLANNED'
+  
+  // 基于产品类型的渐变色
+  const productType = order.product_code
+  
+  if (productType?.includes('利群(软蓝)')) {
+    return 'linear-gradient(135deg, #409eff, #337ecc)' // 蓝色渐变
+  } else if (productType?.includes('利群(新版)')) {
+    return 'linear-gradient(135deg, #67c23a, #529b2e)' // 绿色渐变
+  } else if (productType?.includes('利群(硬)')) {
+    return 'linear-gradient(135deg, #e6a23c, #b88230)' // 橙色渐变
+  } else if (productType?.includes('利群(长嘴)')) {
+    return 'linear-gradient(135deg, #f56c6c, #c45656)' // 红色渐变
+  } else if (productType?.includes('利群(阳光)')) {
+    return 'linear-gradient(135deg, #ffba00, #cc9500)' // 金色渐变
+  } else if (productType?.includes('利群(西子阳光)')) {
+    return 'linear-gradient(135deg, #ff8c00, #cc7000)' // 橙红渐变
+  } else if (productType?.includes('休闲细支')) {
+    return 'linear-gradient(135deg, #9c27b0, #7b1fa2)' // 紫色渐变
+  } else if (productType?.includes('利群(西湖恋)')) {
+    return 'linear-gradient(135deg, #00bcd4, #0097a7)' // 青色渐变
+  } else if (productType?.includes('利群(江南韵)')) {
+    return 'linear-gradient(135deg, #4caf50, #388e3c)' // 深绿渐变
+  } else {
+    // 基于状态的颜色
+    switch (status) {
+      case 'COMPLETED':
+        return 'linear-gradient(135deg, #67c23a, #529b2e)' // 绿色渐变
+      case 'IN_PROGRESS':
+        return 'linear-gradient(135deg, #409eff, #337ecc)' // 蓝色渐变
+      case 'PLANNED':
+        return 'linear-gradient(135deg, #e6a23c, #b88230)' // 橙色渐变
+      case 'PAUSED':
+        return 'linear-gradient(135deg, #f56c6c, #c45656)' // 红色渐变
+      default:
+        return 'linear-gradient(135deg, #909399, #73767a)' // 灰色渐变
+    }
+  }
+}
+
+// 事件处理
+function onBarClick(event: any) {
+  const bar = event.bar
+  ElMessage.info(`工单详情: ${bar.workOrder} - ${bar.product} (${bar.quantity}箱)`)
+}
+
+function onBarMouseenter(event: any) {
+  // 可以添加鼠标悬停效果
+}
+
+function onBarMouseleave(event: any) {
+  // 可以添加鼠标离开效果
 }
 
 // 获取机台列表
-const fetchMachineOptions = async () => {
+async function fetchMachineOptions() {
   try {
     console.log('🔍 获取机台列表...')
     
-    // 分页获取所有活跃机台
-    const allMachines: any[] = []
-    let currentPage = 1
-    const pageSize = 100 // 后端限制最大100
+    let allMachines: Array<{ machine_code: string; machine_name: string }> = []
+    let page = 1
+    const pageSize = 100
     
     while (true) {
-      const response = await MachineConfigAPI.getMachines({
-        page: currentPage,
-        page_size: pageSize,
-        status: 'ACTIVE' // 只获取活跃的机台
+      const response = await MachineConfigAPI.getMachines({ page, page_size: pageSize })
+      console.log(`📄 第${page}页API响应:`, {
+        dataExists: !!response.data,
+        itemsExists: !!response.data?.items,
+        itemsLength: response.data?.items?.length
       })
       
-      console.log(`📄 第${currentPage}页API响应:`, {
-        code: (response as any).code,
-        message: (response as any).message,
-        dataExists: !!(response as any).data,
-        itemsExists: !!(response as any).data?.items,
-        itemsLength: (response as any).data?.items?.length
-      })
-      
-      // 修复API响应结构访问
-      const responseData = response as any
-      if (responseData.data && Array.isArray(responseData.data.items)) {
-        allMachines.push(...responseData.data.items)
+      if (response.data?.items) {
+        const machines = response.data.items.map((machine: any) => ({
+          machine_code: machine.machine_code,
+          machine_name: machine.machine_name || machine.machine_code
+        }))
+        
+        allMachines.push(...machines)
         
         // 检查是否还有更多数据
-        if (responseData.data.items.length < pageSize) {
-          console.log(`✅ 第${currentPage}页是最后一页，共获取${responseData.data.items.length}台机台`)
+        const hasMore = response.data.items.length === pageSize
+        if (!hasMore) {
+          console.log(`✅ 第${page}页是最后一页，共获取${allMachines.length}台机台`)
           break
         }
         
-        console.log(`📄 第${currentPage}页获取${responseData.data.items.length}台机台，继续下一页`)
+        page++
       } else {
-        console.warn('⚠️ API响应格式异常:', responseData)
-        break
-      }
-      
-      currentPage++
-      
-      // 安全保护：避免无限循环
-      if (currentPage > 50) {
-        console.warn('⚠️ 机台分页超过50页，停止获取')
+        console.error('❌ 获取机台配置失败:', response)
         break
       }
     }
     
-    // 转换为下拉选项格式
-    machineOptions.value = allMachines.map((machine: any) => ({
-      machine_code: machine.machine_code,
-      machine_name: machine.machine_name
-    }))
-    
-    console.log('✅ 机台列表加载完成:', machineOptions.value.length, '台机台')
-  } catch (error) {
-    console.error('❌ 获取机台列表失败:', error)
-    // 改进错误显示，避免 [object Object]
-    const errorMessage = error instanceof Error ? error.message : '未知错误'
-    ElMessage.warning(`获取机台列表失败: ${errorMessage}`)
+    machineOptions.value = allMachines
+    console.log('✅ 机台列表加载完成:', allMachines.length, '台机台')
+  } catch (err) {
+    console.error('❌ 获取机台列表失败:', err)
+    error.value = '获取机台列表失败'
   }
 }
 
 // 获取工单数据
-const fetchWorkOrders = async () => {
+async function fetchWorkOrders() {
   loading.value = true
   error.value = null
   
   try {
     console.log('🔍 获取工单数据，查询参数:', filterOptions.value)
     
-    // 构建查询参数
     const params: any = {
       page: 1,
-      page_size: 1000 // 增加页面大小以获取更多数据
+      page_size: 1000
     }
     
-    // 添加筛选条件
+    // 添加任务ID筛选
     if (filterOptions.value.task_id) {
       params.task_id = filterOptions.value.task_id
       console.log('📍 使用任务ID筛选:', filterOptions.value.task_id)
     }
-    if (filterOptions.value.import_batch_id) {
-      params.import_batch_id = filterOptions.value.import_batch_id
-    }
+    
+    // 添加机台筛选
     if (filterOptions.value.machine_code) {
       params.machine_code = filterOptions.value.machine_code
+      console.log('📍 使用机台筛选:', filterOptions.value.machine_code)
     }
     
-    // 使用正确的API调用
     const response = await WorkOrderAPI.getWorkOrders(params)
-    
     console.log('✅ API响应:', {
       code: response.code,
       message: response.message,
-      total_count: response.data?.total_count,
-      work_orders_count: response.data?.work_orders?.length,
-      task_id_filter: filterOptions.value.task_id
+      dataExists: !!response.data
     })
     
-    if (response.code === 200 && response.data?.work_orders) {
-      workOrders.value = response.data.work_orders as WorkOrder[]
+    if (response.code === 200 && response.data) {
+      workOrders.value = response.data.work_orders
       console.log('📦 工单数据样本:', workOrders.value.slice(0, 2))
-      
-      // 检查是否有任务ID筛选但没有结果
-      if (filterOptions.value.task_id && workOrders.value.length === 0) {
-        console.warn('⚠️ 指定任务ID无关联工单:', filterOptions.value.task_id)
-        error.value = `任务 ${filterOptions.value.task_id} 暂无关联的工单数据。这可能是因为工单生成过程中未正确关联任务ID。`
-        ganttTasks.value = []
-        setTimeout(() => {
-          renderGanttChart()
-        }, 100)
-        return
-      }
-      
-      ganttTasks.value = transformToGanttTasks(workOrders.value)
-      
-      console.log('🎯 转换后的甘特图任务数量:', ganttTasks.value.length)
-      
-      // 自动渲染甘特图
-      await nextTick()
-      setTimeout(() => {
-        renderGanttChart()
-      }, 100) // 延迟渲染确保DOM完全更新
     } else {
-      console.warn('⚠️ 无工单数据或响应格式错误')
-      workOrders.value = []
-      ganttTasks.value = []
-      setTimeout(() => {
-        renderGanttChart()
-      }, 100)
+      error.value = response.message || '获取工单数据失败'
     }
-    
   } catch (err) {
     console.error('❌ 获取工单数据失败:', err)
-    error.value = err instanceof Error ? err.message : '获取数据失败'
-    workOrders.value = []
-    ganttTasks.value = []
+    error.value = '获取工单数据失败'
   } finally {
     loading.value = false
   }
 }
 
-// 渲染ECharts甘特图
-const renderGanttChart = () => {
-  console.log('🔍 检查甘特图容器元素...', {
-    ganttChartRef: !!ganttChartRef.value,
-    element: ganttChartRef.value
-  })
-  
-  if (!ganttChartRef.value) {
-    console.error('❌ 甘特图容器元素不存在')
-    // 尝试通过选择器直接获取
-    const container = document.querySelector('.gantt-chart')
-    if (container) {
-      console.log('✅ 通过选择器找到容器元素，继续渲染')
-      ganttChartRef.value = container as HTMLElement
-    } else {
-      console.error('❌ 无法找到甘特图容器元素')
-      return
-    }
-  }
-  
-  console.log('🎨 开始渲染ECharts甘特图...')
-  console.log('📋 任务数据数量:', ganttTasks.value.length)
-  
-  const container = ganttChartRef.value
-  const tasks = ganttTasks.value
-  
-  if (tasks.length === 0) {
-    console.warn('⚠️ 没有任务数据，显示空状态')
-    const message = filterOptions.value.task_id 
-      ? `任务 ${filterOptions.value.task_id} 暂无关联的工单数据`
-      : '暂无工单数据，请先选择排产任务或批次'
-    container.innerHTML = `<div class="no-data">${message}</div>`
-    return
-  }
-  
-  // 销毁现有图表实例
-  if (chartInstance) {
-    chartInstance.dispose()
-    chartInstance = null
-  }
-  
-  // 创建ECharts实例
-  chartInstance = echarts.init(container)
-  
-  // 生成甘特图配置
-  const option = createGanttChartOption(tasks)
-  
-  // 渲染图表
-  chartInstance.setOption(option)
-  
-  // 添加点击事件
-  chartInstance.on('click', (params: any) => {
-    if (params.data && params.data.taskInfo) {
-      const task = params.data.taskInfo
-      ElMessage.info(`工单详情: ${task.id} - ${task.product} (${task.quantity}箱)`)
-    }
-  })
-  
-  console.log('✅ ECharts甘特图渲染完成')
-}
-
-// 创建ECharts甘特图配置
-const createGanttChartOption = (tasks: GanttTask[]) => {
-  console.log('🎯 开始生成ECharts甘特图配置...')
-  
-  // 按机台分组（使用已经组合好的机台名称）
-  const machineGroups = tasks.reduce((acc, task) => {
-    const machineKey = task.machine // 直接使用已经格式化的机台名称（如：C7+18 (卷包+喂丝)）
-    if (!acc[machineKey]) {
-      acc[machineKey] = {
-        type: task.type,
-        tasks: []
-      }
-    }
-    acc[machineKey].tasks.push(task)
-    return acc
-  }, {} as Record<string, { type: string, tasks: GanttTask[] }>)
-
-  // 获取所有机台名称
-  const machines = Object.keys(machineGroups)
-  
-  // 计算时间范围
-  const minTime = Math.min(...tasks.map(t => t.start.getTime()))
-  const maxTime = Math.max(...tasks.map(t => t.end.getTime()))
-  
-  console.log('⏰ 时间范围:', {
-    minTime: new Date(minTime).toISOString(),
-    maxTime: new Date(maxTime).toISOString(),
-    machines: machines.length
-  })
-
-  // 生成系列数据
-  const series: any[] = []
-  
-  machines.forEach((machine, machineIndex) => {
-    const group = machineGroups[machine]
-    const taskData = group.tasks.map(task => {
-      return {
-        name: task.id,
-        value: [
-          machineIndex,
-          task.start.getTime(),
-          task.end.getTime(),
-          task.end.getTime() - task.start.getTime()
-        ],
-        itemStyle: {
-          color: task.type === 'HJB' ? '#409eff' : '#67c23a'
-        },
-        taskInfo: {
-          id: task.id,
-          product: task.name.split(' - ')[1] || task.name,
-          quantity: task.quantity,
-          machine: task.machine,
-          type: task.type,
-          start: task.start.toLocaleString(),
-          end: task.end.toLocaleString()
-        }
-      }
-    })
-
-    series.push({
-      name: machine,
-      type: 'custom',
-      renderItem: renderGanttItem,
-      encode: {
-        x: [1, 2],
-        y: 0
-      },
-      data: taskData
-    })
-  })
-
-  const option = {
-    title: {
-      text: '生产甘特图',
-      left: 'center',
-      textStyle: {
-        fontSize: 16,
-        color: '#303133'
-      }
-    },
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: any) => {
-        if (params.data && params.data.taskInfo) {
-          const task = params.data.taskInfo
-          const duration = Math.round((params.data.value[3]) / (1000 * 60 * 60) * 10) / 10
-          return `
-            <div>
-              <strong>${task.id}</strong><br/>
-              产品: ${task.product}<br/>
-              机台: ${task.machine}<br/>
-              数量: ${task.quantity} 箱<br/>
-              时长: ${duration} 小时<br/>
-              开始: ${task.start}<br/>
-              结束: ${task.end}
-            </div>
-          `
-        }
-        return ''
-      }
-    },
-    dataZoom: [
-      {
-        type: 'slider',
-        xAxisIndex: 0,
-        filterMode: 'weakFilter',
-        height: 20,
-        bottom: 0,
-        start: 0,
-        end: 100,
-        handleIcon: 'path://M10.7,11.9H9.3c-4.9,0.3-8.8,4.4-8.8,9.4c0,5,3.9,9.1,8.8,9.4h1.3c4.9-0.3,8.8-4.4,8.8-9.4C19.5,16.3,15.6,12.2,10.7,11.9z M13.3,24.4H6.7v-1.2h6.6z M13.3,22H6.7v-1.2h6.6z M13.3,19.6H6.7v-1.2h6.6z'
-      },
-      {
-        type: 'inside',
-        xAxisIndex: 0,
-        filterMode: 'weakFilter'
-      }
-    ],
-    grid: {
-      left: 150,
-      right: 60,
-      top: 80,
-      bottom: 60
-    },
-    xAxis: {
-      type: 'time',
-      position: 'top',
-      splitLine: {
-        lineStyle: {
-          color: ['#E9EDFF']
-        }
-      },
-      axisLine: {
-        show: false
-      },
-      axisTick: {
-        lineStyle: {
-          color: '#929ABA'
-        }
-      },
-      axisLabel: {
-        color: '#929ABA',
-        formatter: (value: number) => {
-          const date = new Date(value)
-          return `${date.getMonth() + 1}/${date.getDate()}`
-        }
-      }
-    },
-    yAxis: {
-      type: 'category',
-      data: machines,
-      axisTick: {
-        show: false
-      },
-      axisLine: {
-        show: false
-      },
-      axisLabel: {
-        color: '#929ABA',
-        formatter: (value: string) => {
-          // 截取机台名称，避免过长
-          return value.length > 15 ? value.substring(0, 15) + '...' : value
-        }
-      }
-    },
-    series: series
-  }
-
-  return option
-}
-
-// ECharts自定义渲染函数
-const renderGanttItem = (params: any, api: any) => {
-  const categoryIndex = api.value(0)
-  const start = api.coord([api.value(1), categoryIndex])
-  const end = api.coord([api.value(2), categoryIndex])
-  const height = api.size([0, 1])[1] * 0.6
-
-  const rectShape = echarts.graphic.clipRectByRect({
-    x: start[0],
-    y: start[1] - height / 2,
-    width: end[0] - start[0],
-    height: height
-  }, {
-    x: params.coordSys.x,
-    y: params.coordSys.y,
-    width: params.coordSys.width,
-    height: params.coordSys.height
-  })
-
-  return rectShape && {
-    type: 'rect',
-    transition: ['shape'],
-    shape: rectShape,
-    style: {
-      fill: params.data?.itemStyle?.color || '#409eff',
-      stroke: params.data?.itemStyle?.color || '#409eff',
-      lineWidth: 1,
-      opacity: 0.8
-    }
-  }
-}
-
 // 刷新数据
-const refreshData = () => {
-  Promise.all([
+async function refreshData() {
+  await Promise.all([
     fetchMachineOptions(),
     fetchWorkOrders()
   ])
+  
+  // 数据刷新后更新中文日期
+  updateChineseDates()
 }
 
-// 生命周期钩子
-onMounted(() => {
+// 处理中文日期显示
+function updateChineseDates() {
+  setTimeout(() => {
+    // 查找并替换月份 - 使用正确的Vue Ganttastic类名
+    const monthElements = document.querySelectorAll('.g-upper-timeunit')
+    monthElements.forEach(el => {
+      let text = el.textContent
+      if (text?.includes('October')) {
+        text = text.replace('October', '十月')
+      } else if (text?.includes('November')) {
+        text = text.replace('November', '十一月')
+      } else if (text?.includes('December')) {
+        text = text.replace('December', '十二月')
+      } else if (text?.includes('September')) {
+        text = text.replace('September', '九月')
+      } else if (text?.includes('January')) {
+        text = text.replace('January', '一月')
+      } else if (text?.includes('February')) {
+        text = text.replace('February', '二月')
+      } else if (text?.includes('March')) {
+        text = text.replace('March', '三月')
+      } else if (text?.includes('April')) {
+        text = text.replace('April', '四月')
+      } else if (text?.includes('May')) {
+        text = text.replace('May', '五月')
+      } else if (text?.includes('June')) {
+        text = text.replace('June', '六月')
+      } else if (text?.includes('July')) {
+        text = text.replace('July', '七月')
+      } else if (text?.includes('August')) {
+        text = text.replace('August', '八月')
+      }
+      
+      // 统一格式化为 "2024年10月" 格式
+      if (text) {
+        // 将 "十月 2024" 转换为 "2024年十月"，然后再转换为数字月份
+        if (text.includes('月') && text.includes('2024')) {
+          // 匹配 "十月 2024" 或 "October 2024" 等格式
+          text = text.replace(/(\S+月)\s+(\d{4})/, '$2年$1')
+          
+          // 转换中文月份为数字
+          text = text.replace('一月', '1月')
+                    .replace('二月', '2月')
+                    .replace('三月', '3月')
+                    .replace('四月', '4月')
+                    .replace('五月', '5月')
+                    .replace('六月', '6月')
+                    .replace('七月', '7月')
+                    .replace('八月', '8月')
+                    .replace('九月', '9月')
+                    .replace('十月', '10月')
+                    .replace('十一月', '11月')
+                    .replace('十二月', '12月')
+        }
+        el.textContent = text
+      }
+    })
+
+    // 查找并替换日期 - 使用正确的Vue Ganttastic类名
+    const dayElements = document.querySelectorAll('.g-timeunit')
+    dayElements.forEach(el => {
+      const text = el.textContent
+      if (text?.includes('.Oct')) {
+        el.textContent = text.replace('.Oct', '日')
+      } else if (text?.includes('.Nov')) {
+        el.textContent = text.replace('.Nov', '日')
+      } else if (text?.includes('.Dec')) {
+        el.textContent = text.replace('.Dec', '日')
+      } else if (text?.includes('.Sep')) {
+        el.textContent = text.replace('.Sep', '日')
+      } else if (text?.includes('.Jan')) {
+        el.textContent = text.replace('.Jan', '日')
+      } else if (text?.includes('.Feb')) {
+        el.textContent = text.replace('.Feb', '日')
+      } else if (text?.includes('.Mar')) {
+        el.textContent = text.replace('.Mar', '日')
+      } else if (text?.includes('.Apr')) {
+        el.textContent = text.replace('.Apr', '日')
+      } else if (text?.includes('.May')) {
+        el.textContent = text.replace('.May', '日')
+      } else if (text?.includes('.Jun')) {
+        el.textContent = text.replace('.Jun', '日')
+      } else if (text?.includes('.Jul')) {
+        el.textContent = text.replace('.Jul', '日')
+      } else if (text?.includes('.Aug')) {
+        el.textContent = text.replace('.Aug', '日')
+      }
+    })
+  }, 1500) // 增加延迟确保Vue Ganttastic渲染完成
+}
+
+// 初始化
+onMounted(async () => {
   console.log('📊 甘特图页面已挂载')
   console.log('🔍 路由查询参数:', route.query)
-  console.log('📝 筛选条件:', filterOptions.value)
-  // 并行加载机台列表和工单数据
-  Promise.all([
-    fetchMachineOptions(),
-    fetchWorkOrders()
-  ])
+  
+  // 从路由获取任务ID
+  if (route.query.task_id) {
+    filterOptions.value.task_id = route.query.task_id as string
+  }
+  
+  await refreshData()
+  
+  // 更新中文日期显示
+  updateChineseDates()
 })
 
-onUnmounted(() => {
-  // 销毁ECharts实例
-  if (chartInstance) {
-    chartInstance.dispose()
-    chartInstance = null
-  }
-})
+// 监听筛选条件变化
+watch(() => filterOptions.value, (newFilters) => {
+  console.log('📝 筛选条件变化:', newFilters)
+}, { deep: true })
 </script>
 
 <style scoped>
 .gantt-chart-page {
-  padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f7fa;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  padding: 20px 24px;
+  background: white;
+  border-bottom: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .page-header h1 {
   margin: 0;
-  color: #303133;
   font-size: 24px;
+  font-weight: 600;
+  color: #303133;
 }
 
-.filter-bar {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.statistics-bar {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.main-content {
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.gantt-container {
-  min-height: 400px;
-}
-
-.loading-state,
-.error-state {
+.header-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  flex-direction: column;
   gap: 12px;
 }
 
-.gantt-chart {
-  width: 100%;
-  height: 600px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #fff;
+.filter-bar {
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid #e4e7ed;
 }
 
-.no-data {
+.statistics-bar {
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.statistics-cards {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  flex: 1;
+  min-width: 200px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.stat-card.pending {
+  border-top: 4px solid #409EFF;
+}
+
+.stat-card.in-progress {
+  border-top: 4px solid #E6A23C;
+}
+
+.stat-card.completed {
+  border-top: 4px solid #67C23A;
+}
+
+.stat-card.total {
+  border-top: 4px solid #9C27B0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  gap: 16px;
+}
+
+.icon-container {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 24px;
+}
+
+.pending .icon-container {
+  background: linear-gradient(135deg, #409EFF, #337ecc);
+  color: white;
+}
+
+.in-progress .icon-container {
+  background: linear-gradient(135deg, #E6A23C, #b88230);
+  color: white;
+}
+
+.completed .icon-container {
+  background: linear-gradient(135deg, #67C23A, #529b2e);
+  color: white;
+}
+
+.total .icon-container {
+  background: linear-gradient(135deg, #9C27B0, #7b1fa2);
+  color: white;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.main-content {
+  flex: 1;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.gantt-container {
+  height: 100%;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   height: 400px;
   color: #909399;
-  font-size: 14px;
-  background: #f9f9f9;
+  font-size: 16px;
+}
+
+.loading-state .el-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+.gantt-chart-wrapper {
+  height: 100%;
+  padding: 20px;
+  overflow: auto;
+  background: linear-gradient(145deg, #f8f9fa, #ffffff);
+}
+
+/* Vue Ganttastic 自定义样式 */
+.bar-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: 0.3px;
+}
+
+.bar-product {
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 4px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.bar-quantity {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* 甘特图全局样式增强 */
+:deep(.g-gantt-chart) {
   border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:deep(.g-gantt-row-label) {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 12px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-right: 2px solid #dee2e6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  white-space: pre-line;
+  line-height: 1.4;
+  text-align: center;
+  min-width: 120px;
+}
+
+:deep(.g-gantt-bar) {
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+:deep(.g-gantt-bar:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+  z-index: 10;
+}
+
+:deep(.g-gantt-timeline-grid-line) {
+  stroke: #e9ecef;
+  stroke-width: 1;
+}
+
+:deep(.g-gantt-timeline-header) {
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  color: #495057;
+}
+
+/* 时间轴样式 */
+:deep(.g-gantt-timeline-header-primary) {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+:deep(.g-gantt-timeline-header-secondary) {
+  font-size: 12px;
+  color: #6c757d;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* 时间轴自定义中文显示 */
+:deep(.g-gantt-timeline-header-secondary):after {
+  content: '';
+}
+
+
+
+/* 滚动条样式 */
+.gantt-chart-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.gantt-chart-wrapper::-webkit-scrollbar-track {
+  background: #f1f3f4;
+  border-radius: 4px;
+}
+
+.gantt-chart-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #c1c8cd, #a8b2ba);
+  border-radius: 4px;
+}
+
+.gantt-chart-wrapper::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #a8b2ba, #9aa5af);
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .gantt-chart-page {
+    background-color: #1a1a1a;
+  }
+  
+  .page-header,
+  .filter-bar,
+  .statistics-bar,
+  .gantt-container {
+    background: #2d2d2d;
+    border-color: #414243;
+  }
+  
+  .page-header h1 {
+    color: #e5eaf3;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  
+  .filter-bar .el-form {
+    flex-direction: column;
+  }
+  
+  .filter-bar .el-form-item {
+    margin-bottom: 16px;
+  }
+  
+  .main-content {
+    padding: 16px;
+  }
 }
 </style>

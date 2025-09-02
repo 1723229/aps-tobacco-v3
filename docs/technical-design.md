@@ -25,100 +25,96 @@
 
 ### 1.2 技术栈选择（实际实现）
 
-| 层次 | 技术选型 | 实际版本 | 实现状态 | 选择理由 |
-|------|----------|----------|----------|----------|
-| **前端** | Vue.js 3 + TypeScript | 3.5.18 | ✅ 已实现 | 组件化开发，类型安全 |
-| | Element Plus | 2.8.8 | ✅ 已实现 | 丰富的UI组件库，中文本地化 |
-| | Vue Router | 4.5.1 | ✅ 已实现 | 前端路由管理 |
-| | Pinia | 3.0.3 | ✅ 已实现 | 状态管理 |
-| | Axios | 1.7.7 | ✅ 已实现 | HTTP客户端 |
-| | Vite | 7.0.6 | ✅ 已实现 | 前端构建工具 |
-| | ECharts/G2 | - | ❌ 未实现 | 甘特图和数据可视化 |
-| **后端** | FastAPI | 0.104.1 | ✅ 已实现 | 高性能异步框架，自动API文档 |
-| | SQLAlchemy | 2.0.23 | ✅ 已实现 | Python ORM，支持异步操作 |
-| | Pydantic | 2.5.0 | ✅ 已实现 | 数据验证和序列化 |
-| | Pydantic-Settings | 2.5.2 | ✅ 已实现 | 配置管理 |
-| **数据库** | MySQL | 8.0+ | ✅ 已配置 | 事务支持，成熟稳定 |
-| | aiomysql | 0.2.0 | ✅ 已实现 | MySQL异步驱动 |
-| | Redis | 7.0+ | ✅ 已配置 | 缓存和会话存储 |
-| **文件处理** | openpyxl | 3.1.2 | ✅ 已实现 | Excel文件解析 |
-| | pandas | 2.1.3 | ✅ 已实现 | 数据处理 |
-| **开发工具** | pytest | 7.4.3 | ✅ 已配置 | 单元测试框架 |
-| | black | 23.10.1 | ✅ 已配置 | 代码格式化 |
-| | uvicorn | 0.24.0 | ✅ 已实现 | ASGI服务器 |
+| 层次 | 技术选型 | 版本 | 选择理由 |
+|------|----------|----------|----------|
+| **前端** | Vue.js 3 + TypeScript | 3.5.18 | 组件化开发，类型安全 |
+| | Element Plus | 2.8.8 | 丰富的UI组件库，中文本地化 |
+| | Vue Router | 4.5.1 | 前端路由管理 |
+| | Pinia | 3.0.3 | 状态管理 |
+| | Axios | 1.7.7 | HTTP客户端 |
+| | Vite | 7.0.6 | 前端构建工具 |
+| | ECharts/G2 | - | 甘特图和数据可视化 |
+| **后端** | FastAPI | 0.104.1 | 高性能异步框架，自动API文档 |
+| | SQLAlchemy | 2.0.23 | Python ORM，支持异步操作 |
+| | Pydantic | 2.5.0 | 数据验证和序列化 |
+| | Pydantic-Settings | 2.5.2 | 配置管理 |
+| **数据库** | MySQL | 8.0+ | 事务支持，成熟稳定 |
+| | aiomysql | 0.2.0 | MySQL异步驱动 |
+| | Redis | 7.0+ | 缓存和会话存储 |
+| **文件处理** | openpyxl | 3.1.2 | Excel文件解析 |
+| | pandas | 2.1.3 | 数据处理 |
+| **开发工具** | pytest | 7.4.3 | 单元测试框架 |
+| | black | 23.10.1 | 代码格式化 |
+| | uvicorn | 0.24.0 | ASGI服务器 |
 
-### 1.3 模块划分（实际项目结构）
+### 1.3 技术架构总览
 
 ```
 aps-tobacco-v3/
-├── frontend/                    # 前端模块 ✅ 完整Vue.js应用
-│   ├── src/                    # ✅ 源代码目录
-│   │   ├── components/         # ✅ 业务组件
-│   │   │   ├── DecadePlanUpload.vue    # ✅ 文件上传组件
-│   │   │   ├── DecadePlanTable.vue     # ✅ 数据表格组件
-│   │   │   ├── ParseResult.vue         # ✅ 解析结果组件
-│   │   │   └── LoadingComponent.vue    # ✅ 加载组件
-│   │   ├── views/              # ✅ 页面视图
-│   │   │   ├── Home.vue        # ✅ 首页（统计信息、快速操作）
-│   │   │   ├── DecadePlanEntry.vue     # ✅ 旬计划录入页面
-│   │   │   └── DecadePlanDetail.vue    # ✅ 旬计划详情页面
-│   │   ├── services/           # ✅ API服务层
-│   │   │   └── api.ts          # ✅ 完整的API客户端
-│   │   ├── stores/             # ✅ Pinia状态管理
-│   │   │   └── decade-plan.ts  # ✅ 旬计划状态管理
-│   │   ├── router/             # ✅ Vue Router配置
-│   │   │   └── index.ts        # ✅ 路由定义
-│   │   ├── types/              # ✅ TypeScript类型
-│   │   │   └── api.ts          # ✅ API类型定义
-│   │   ├── utils/              # ✅ 工具函数
-│   │   │   ├── index.ts        # ✅ 通用工具函数
-│   │   │   ├── http.ts         # ✅ HTTP客户端配置
-│   │   │   └── error-handler.ts# ✅ 错误处理
-│   │   ├── assets/             # ✅ 静态资源
-│   │   ├── App.vue             # ✅ 根组件（完整导航布局）
-│   │   └── main.ts             # ✅ 应用入口
-│   ├── package.json            # ✅ 项目依赖配置
-│   ├── vite.config.ts          # ✅ Vite构建配置
-│   ├── index.html              # ✅ HTML模板
-│   └── tsconfig.json           # ✅ TypeScript配置
-├── backend/                     # 后端服务 ✅ 已实现核心模块
+├── frontend/                    # 前端模块 Vue.js应用
+│   ├── src/                    # 源代码目录
+│   │   ├── components/         # 业务组件
+│   │   │   ├── DecadePlanUpload.vue    # 文件上传组件
+│   │   │   ├── DecadePlanTable.vue     # 数据表格组件
+│   │   │   ├── ParseResult.vue         # 解析结果组件
+│   │   │   └── LoadingComponent.vue    # 加载组件
+│   │   ├── views/              # 页面视图
+│   │   │   ├── Home.vue        # 首页（统计信息、快速操作）
+│   │   │   ├── DecadePlanEntry.vue     # 旬计划录入页面
+│   │   │   └── DecadePlanDetail.vue    # 旬计划详情页面
+│   │   ├── services/           # API服务层
+│   │   │   └── api.ts          # API客户端
+│   │   ├── stores/             # Pinia状态管理
+│   │   │   └── decade-plan.ts  # 旬计划状态管理
+│   │   ├── router/             # Vue Router配置
+│   │   │   └── index.ts        # 路由定义
+│   │   ├── types/              # TypeScript类型
+│   │   │   └── api.ts          # API类型定义
+│   │   ├── utils/              # 工具函数
+│   │   │   ├── index.ts        # 通用工具函数
+│   │   │   ├── http.ts         # HTTP客户端配置
+│   │   │   └── error-handler.ts# 错误处理
+│   │   ├── assets/             # 静态资源
+│   │   ├── App.vue             # 根组件（完整导航布局）
+│   │   └── main.ts             # 应用入口
+│   ├── package.json            # 项目依赖配置
+│   ├── vite.config.ts          # Vite构建配置
+│   ├── index.html              # HTML模板
+│   └── tsconfig.json           # TypeScript配置
+├── backend/                     # 后端服务
 │   ├── app/
-│   │   ├── api/                # ✅ API路由层
-│   │   │   └── v1/             # ✅ API版本1
-│   │   │       ├── data.py     # ✅ 数据查询API
-│   │   │       ├── plans.py    # ✅ 计划上传解析API
-│   │   │       └── router.py   # ✅ 路由汇总
-│   │   ├── core/               # ✅ 核心配置
-│   │   │   └── config.py       # ✅ 配置管理
-│   │   ├── db/                 # ✅ 数据库层
-│   │   │   ├── cache.py        # ✅ Redis缓存
-│   │   │   └── connection.py   # ✅ 数据库连接
-│   │   ├── models/             # ✅ 数据模型
-│   │   │   ├── base_models.py  # ✅ 基础模型
-│   │   │   └── decade_plan.py  # ✅ 旬计划模型
-│   │   ├── schemas/            # ✅ Pydantic模型
-│   │   │   └── base.py         # ✅ API DTO模型
-│   │   ├── services/           # ✅ 业务服务层
-│   │   │   └── excel_parser.py # ✅ Excel解析服务
-│   │   ├── algorithms/         # ❌ 排产算法 (空文件夹)
-│   │   ├── utils/              # ✅ 工具函数
-│   │   └── main.py             # ✅ 应用入口
-│   ├── tests/                  # ✅ 测试代码框架
-│   ├── requirements.txt        # ✅ 依赖包定义
-│   └── pytest.ini             # ✅ 测试配置
-├── docs/                       # ✅ 项目文档
-│   ├── algorithm-design.md     # ✅ 算法设计文档
-│   ├── requirements-detail.md  # ✅ 需求细化文档
-│   ├── technical-design.md     # ✅ 技术设计文档
-│   └── ux-design.md           # ✅ 用户体验设计
-├── aps/                        # ✅ 业务样例数据
-└── scripts/                    # ✅ 数据库脚本
-    └── database-schema.sql     # ✅ 数据库结构
+│   │   ├── api/                # API路由层
+│   │   │   └── v1/             # API版本1
+│   │   │       ├── data.py     # 数据查询API
+│   │   │       ├── plans.py    # 计划上传解析API
+│   │   │       └── router.py   # 路由汇总
+│   │   ├── core/               # 核心配置
+│   │   │   └── config.py       # 配置管理
+│   │   ├── db/                 # 数据库层
+│   │   │   ├── cache.py        # Redis缓存
+│   │   │   └── connection.py   # 数据库连接
+│   │   ├── models/             # 数据模型
+│   │   │   ├── base_models.py  # 基础模型
+│   │   │   └── decade_plan.py  # 旬计划模型
+│   │   ├── schemas/            # Pydantic模型
+│   │   │   └── base.py         # API DTO模型
+│   │   ├── services/           # 业务服务层
+│   │   │   └── excel_parser.py # Excel解析服务
+│   │   ├── algorithms/         # 排产算法
+│   │   ├── utils/              # 工具函数
+│   │   └── main.py             # 应用入口
+│   ├── tests/                  # 测试代码框架
+│   ├── requirements.txt        # 依赖包定义
+│   └── pytest.ini             # 测试配置
+├── docs/                       # 项目文档
+│   ├── algorithm-design.md     # 算法设计文档
+│   ├── requirements-detail.md  # 需求细化文档
+│   ├── technical-design.md     # 技术设计文档
+│   └── ux-design.md           # 用户体验设计
+├── aps/                        # 业务样例数据
+└── scripts/                    # 数据库脚本
+    └── database-schema.sql     # 数据库结构
 ```
-
-#### 实现状态说明：
-- **✅ 已实现**: 功能完整，可正常运行
-- **❌ 未实现**: 功能缺失或仅有基础框架
 
 ## 2. 数据表结构设计（实现状态）
 
