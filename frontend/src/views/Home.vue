@@ -36,24 +36,12 @@
           </el-card>
         </el-col>
         <el-col :span="6">
-          <el-card class="stat-card work-orders-card">
-            <div class="work-orders-stats">
-              <div class="main-stat">
+          <el-card class="stat-card">
+            <el-statistic title="总工单数" :value="statistics.total_work_orders || 0" suffix="个">
+              <template #prefix>
                 <el-icon class="stat-icon batch-icon"><Document /></el-icon>
-                <div class="main-number">{{ statistics.total_work_orders || 0 }}</div>
-                <div class="main-label">总工单</div>
-              </div>
-              <div class="sub-stats">
-                <div class="sub-stat maker">
-                  <span class="sub-number">{{ statistics.maker_orders || 0 }}</span>
-                  <span class="sub-label">卷包</span>
-                </div>
-                <div class="sub-stat feeder">
-                  <span class="sub-number">{{ statistics.feeder_orders || 0 }}</span>
-                  <span class="sub-label">喂丝</span>
-                </div>
-              </div>
-            </div>
+              </template>
+            </el-statistic>
           </el-card>
         </el-col>
         <el-col :span="6">
@@ -243,8 +231,6 @@ const statistics = ref({
   today_uploads: 0,
   monthly_processed: 0,
   total_work_orders: 0,
-  maker_orders: 0,
-  feeder_orders: 0,
   scheduling_tasks: 0
 })
 
@@ -318,17 +304,13 @@ const loadStatistics = async () => {
     
     if (workOrdersResponse.code === 200 && workOrdersResponse.data?.work_orders) {
       const workOrders = workOrdersResponse.data.work_orders
-      const makerOrders = workOrders.filter((order: any) => order.work_order_type === 'HJB')
-      const feederOrders = workOrders.filter((order: any) => order.work_order_type === 'HWS')
       
       statistics.value = {
         // 保留原始统计
         today_uploads: baseStats.today_uploads || 0,
         monthly_processed: baseStats.monthly_processed || 0,
-        // 新增工单统计
+        // 新增工单统计（只显示总数）
         total_work_orders: workOrders.length,
-        maker_orders: makerOrders.length,
-        feeder_orders: feederOrders.length,
         scheduling_tasks: tasksResponse.code === 200 ? (tasksResponse.data?.pagination?.total_count || 0) : 0
       }
       
@@ -339,8 +321,6 @@ const loadStatistics = async () => {
         today_uploads: baseStats.today_uploads || 0,
         monthly_processed: baseStats.monthly_processed || 0,
         total_work_orders: 0,
-        maker_orders: 0,
-        feeder_orders: 0,
         scheduling_tasks: tasksResponse.code === 200 ? (tasksResponse.data?.pagination?.total_count || 0) : 0
       }
     }
@@ -351,8 +331,6 @@ const loadStatistics = async () => {
       today_uploads: 0,
       monthly_processed: 0,
       total_work_orders: 0,
-      maker_orders: 0,
-      feeder_orders: 0,
       scheduling_tasks: 0
     }
   }
@@ -435,66 +413,7 @@ onMounted(async () => {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
-/* 工单统计卡片样式 */
-.work-orders-card {
-  position: relative;
-  height: 140px !important;
-}
 
-.work-orders-stats {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 24px;
-  padding: 8px;
-}
-
-.main-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.main-number {
-  font-size: 24px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1;
-}
-
-.main-label {
-  font-size: 13px;
-  color: #606266;
-  font-weight: 500;
-}
-
-.sub-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.sub-stat {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sub-number {
-  font-size: 16px;
-  font-weight: 600;
-  color: #409eff;
-  min-width: 20px;
-  text-align: right;
-}
-
-.sub-label {
-  font-size: 12px;
-  color: #909399;
-  font-weight: 500;
-}
 
 .stat-card:hover {
   transform: translateY(-6px);

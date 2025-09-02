@@ -1,0 +1,115 @@
+# APS智慧排产系统 - Docker Compose 配置
+# 用于本地开发和测试环境部署
+
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: aps-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Mysql_Apex_2025.
+      MYSQL_DATABASE: aps
+      MYSQL_USER: aps_user
+      MYSQL_PASSWORD: Mysql_Apex_2025.
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/database-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - aps-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: aps-redis
+    restart: unless-stopped
+    command: redis-server --requirepass Redis_Apex_2025.
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aps-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 后端 API 服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aps-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # 数据库配置
+      MYSQL_URL: mysql+aiomysql://aps_user:Mysql_Apex_2025.@mysql:3306/aps
+      # Redis 配置
+      REDIS_URL: redis://:Redis_Apex_2025.@redis:6379/0
+      # 应用配置
+      DEBUG: "false"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      WORKERS: "4"
+    volumes:
+      - ./backend/app:/app/app:ro
+      - aps_uploads:/tmp/aps_uploads
+    networks:
+      - aps-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端 Web 服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aps-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - aps-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  aps_uploads:
+    driver: local
+
+networks:
+  aps-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

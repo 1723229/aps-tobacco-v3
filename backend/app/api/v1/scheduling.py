@@ -947,91 +947,77 @@ async def get_work_orders(
     try:
         from sqlalchemy import select, func, and_, outerjoin, or_
         
-        # 查询真实工单数据
+        # 查询工单调度数据（甘特图需要显示合并后的计划数据）
         work_orders = []
         total_count = 0
         
-        # 查询卷包机工单
-        if not order_type or order_type == 'HJB':
-            packing_query = select(PackingOrder)
-            
-            # 添加过滤条件
-            conditions = []
-            if task_id:
-                conditions.append(PackingOrder.task_id == task_id)
-            if import_batch_id:
-                # 通过 import_batch_id 查找对应的任务，然后通过 task_id 匹配
-                task_result = await db.execute(
-                    select(SchedulingTask.task_id).where(SchedulingTask.import_batch_id == import_batch_id)
-                )
-                matching_task_ids = [row[0] for row in task_result.fetchall()]
-                if matching_task_ids:
-                    conditions.append(PackingOrder.task_id.in_(matching_task_ids))
-            if status:
-                conditions.append(PackingOrder.order_status == status)
-                    
-            if conditions:
-                packing_query = packing_query.where(and_(*conditions))
-            
-            packing_result = await db.execute(packing_query)
-            packing_orders = packing_result.scalars().all()
-            
-            for order in packing_orders:
-                work_orders.append({
-                    "work_order_no": order.plan_id,
-                    "order_type": "PACKING",
-                    "machine_type": "卷包机", 
-                    "production_line": order.production_line,
-                    "material_code": order.material_code,
-                    "total_quantity": order.quantity,
-                    "order_status": order.order_status,
-                    "planned_start_time": order.plan_start_time.isoformat() if order.plan_start_time else None,
-                    "planned_finish_time": order.plan_end_time.isoformat() if order.plan_end_time else None,
-                    "task_id": order.task_id,
-                    "created_time": order.created_time.isoformat() if order.created_time else None,
-                    "updated_time": order.updated_time.isoformat() if order.updated_time else None
-                })
+        # 从 aps_work_order_schedule 表查询数据
+        from sqlalchemy import text
         
-        # 查询喂丝机工单
-        if not order_type or order_type == 'HWS':
-            feeding_query = select(FeedingOrder)
+        schedule_query = text("""
+            SELECT 
+                work_order_nr,
+                article_nr,
+                final_quantity,
+                quantity_total,
+                maker_code,
+                feeder_code,
+                planned_start,
+                planned_end,
+                task_id,
+                schedule_status,
+                created_time
+            FROM aps_work_order_schedule
+            WHERE 1=1
+        """)
+        
+        # 构建查询条件
+        query_conditions = []
+        query_params = {}
+        
+        if task_id:
+            query_conditions.append("AND task_id = :task_id")
+            query_params['task_id'] = task_id
             
-            # 添加过滤条件
-            conditions = []
-            if task_id:
-                conditions.append(FeedingOrder.task_id == task_id)
-            if import_batch_id:
-                # 通过 import_batch_id 查找对应的任务，然后通过 task_id 匹配
-                task_result = await db.execute(
-                    select(SchedulingTask.task_id).where(SchedulingTask.import_batch_id == import_batch_id)
-                )
-                matching_task_ids = [row[0] for row in task_result.fetchall()]
-                if matching_task_ids:
-                    conditions.append(FeedingOrder.task_id.in_(matching_task_ids))
-            if status:
-                conditions.append(FeedingOrder.order_status == status)
+        if import_batch_id:
+            # 通过 import_batch_id 查找对应的任务，然后通过 task_id 匹配
+            task_result = await db.execute(
+                select(SchedulingTask.task_id).where(SchedulingTask.import_batch_id == import_batch_id)
+            )
+            matching_task_ids = [row[0] for row in task_result.fetchall()]
+            if matching_task_ids:
+                placeholders = ', '.join([f':task_id_{i}' for i in range(len(matching_task_ids))])
+                query_conditions.append(f"AND task_id IN ({placeholders})")
+                for i, tid in enumerate(matching_task_ids):
+                    query_params[f'task_id_{i}'] = tid
                     
-            if conditions:
-                feeding_query = feeding_query.where(and_(*conditions))
-            
-            feeding_result = await db.execute(feeding_query)
-            feeding_orders = feeding_result.scalars().all()
-            
-            for order in feeding_orders:
-                work_orders.append({
-                    "work_order_no": order.plan_id,
-                    "order_type": "FEEDING",
-                    "machine_type": "喂丝机",
-                    "equipment_code": order.production_line,
-                    "material_code": order.material_code,
-                    "total_quantity": order.quantity if order.quantity else 0,
-                    "order_status": order.order_status,
-                    "planned_start_time": order.plan_start_time.isoformat() if order.plan_start_time else None,
-                    "planned_finish_time": order.plan_end_time.isoformat() if order.plan_end_time else None,
-                    "task_id": order.task_id,
-                    "created_time": order.created_time.isoformat() if order.created_time else None,
-                    "updated_time": order.updated_time.isoformat() if order.updated_time else None
-                })
+        if status:
+            query_conditions.append("AND schedule_status = :status")
+            query_params['status'] = status
+        
+        # 组合完整查询
+        final_query = schedule_query.text + ' ' + ' '.join(query_conditions) + ' ORDER BY planned_start, work_order_nr'
+        
+        schedule_result = await db.execute(text(final_query), query_params)
+        schedule_orders = schedule_result.fetchall()
+        
+        for row in schedule_orders:
+            work_orders.append({
+                "work_order_nr": row.work_order_nr,
+                "work_order_type": "HJB",  # 合并后的计划包含两种类型机台
+                "machine_type": "合并计划",
+                "machine_code": f"{row.maker_code}+{row.feeder_code}",  # 兼容旧字段
+                "maker_code": row.maker_code,  # 卷包机代码
+                "feeder_code": row.feeder_code,  # 喂丝机代码
+                "product_code": row.article_nr,
+                "plan_quantity": row.final_quantity,
+                "work_order_status": row.schedule_status or "PLANNED",
+                "planned_start_time": row.planned_start.isoformat() if row.planned_start else None,
+                "planned_end_time": row.planned_end.isoformat() if row.planned_end else None,
+                "task_id": row.task_id,
+                "created_time": row.created_time.isoformat() if row.created_time else None,
+                "updated_time": None  # schedule表没有updated_time字段
+            })
         
         total_count = len(work_orders)
         

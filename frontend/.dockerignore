@@ -1,0 +1,89 @@
+# APS智慧排产系统 - 前端 Docker 忽略文件
+
+# 依赖
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 构建输出
+dist/
+build/
+
+# 本地环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE 相关
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+logs/
+
+# 缓存
+.cache/
+.parcel-cache/
+.vite/
+
+# 测试相关
+coverage/
+.nyc_output/
+.coverage
+
+# 临时文件
+.tmp/
+tmp/
+temp/
+
+# 开发工具
+.eslintcache
+.stylelintcache
+
+# Docker 相关
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# 文档
+docs/
+README.md
+*.md
+
+# 版本控制
+.git/
+.gitignore
+
+# 包管理器
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# TypeScript
+*.tsbuildinfo
+
+# 压缩文件
+*.zip
+*.tar.gz
+
+# 开发服务器
+.vite/
+vite.config.ts.timestamp-*
+
+# 测试
+__tests__/
+test/
+tests/
+*.test.*
+*.spec.*

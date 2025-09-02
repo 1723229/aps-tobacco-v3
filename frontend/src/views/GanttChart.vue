@@ -111,6 +111,8 @@ interface WorkOrder {
   work_order_type: 'HJB' | 'HWS'
   machine_type: '卷包机' | '喂丝机'
   machine_code: string
+  maker_code?: string  // 卷包机代码
+  feeder_code?: string // 喂丝机代码
   product_code: string
   plan_quantity: number
   safety_stock?: number
@@ -184,10 +186,22 @@ const transformToGanttTasks = (orders: WorkOrder[]): GanttTask[] => {
       progress = 50
     }
     
+    // 构建组合机台名称：显示卷包机+喂丝机组合
+    let machineDisplay = ''
+    if (order.maker_code && order.feeder_code) {
+      machineDisplay = `${order.maker_code}+${order.feeder_code} (卷包+喂丝)`
+    } else if (order.maker_code) {
+      machineDisplay = `${order.maker_code} (卷包机)`
+    } else if (order.feeder_code) {
+      machineDisplay = `${order.feeder_code} (喂丝机)`
+    } else {
+      machineDisplay = order.machine_code || 'UNKNOWN'
+    }
+    
     const task: GanttTask = {
       id: order.work_order_nr,
       name: `${order.work_order_nr} - ${order.product_code}`,
-      machine: order.machine_code,
+      machine: machineDisplay,
       start: startTime,
       end: endTime,
       quantity: order.plan_quantity,
@@ -411,9 +425,9 @@ const renderGanttChart = () => {
 const createGanttChartOption = (tasks: GanttTask[]) => {
   console.log('🎯 开始生成ECharts甘特图配置...')
   
-  // 按机台分组
+  // 按机台分组（使用已经组合好的机台名称）
   const machineGroups = tasks.reduce((acc, task) => {
-    const machineKey = `${task.machine} (${task.type === 'HJB' ? '卷包机' : '喂丝机'})`
+    const machineKey = task.machine // 直接使用已经格式化的机台名称（如：C7+18 (卷包+喂丝)）
     if (!acc[machineKey]) {
       acc[machineKey] = {
         type: task.type,
@@ -497,7 +511,7 @@ const createGanttChartOption = (tasks: GanttTask[]) => {
             <div>
               <strong>${task.id}</strong><br/>
               产品: ${task.product}<br/>
-              机台: ${task.machine} (${task.type === 'HJB' ? '卷包机' : '喂丝机'})<br/>
+              机台: ${task.machine}<br/>
               数量: ${task.quantity} 件<br/>
               时长: ${duration} 小时<br/>
               开始: ${task.start}<br/>

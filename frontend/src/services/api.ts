@@ -41,8 +41,10 @@ export interface SchedulingTask {
 export interface WorkOrder {
     work_order_nr: string;
     work_order_type: "HJB" | "HWS"; // 后端实际返回的类型
-    machine_type: "卷包机" | "喂丝机"; // 后端实际返回的类型
+    machine_type: "卷包机" | "喂丝机" | "合并计划"; // 后端实际返回的类型
     machine_code: string;
+    maker_code?: string;  // 卷包机代码
+    feeder_code?: string; // 喂丝机代码
     product_code: string;
     plan_quantity: number;
     safety_stock?: number;

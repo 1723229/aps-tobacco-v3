@@ -153,14 +153,15 @@ async def get_work_orders(
             for schedule in schedule_data["schedules"]:
                 work_orders.append({
                     "work_order_nr": schedule["work_order_nr"],
-                    "work_order_type": "SCHEDULE",  # 标记为排程数据
-                    "machine_type": "卷包机+喂丝机",
-                    "machine_code": schedule["maker_code"],
-                    "feeder_code": schedule["feeder_code"],
+                    "work_order_type": "HJB",  # 标记为卷包机工单（合并计划包含两种机台）
+                    "machine_type": "合并计划",
+                    "machine_code": f"{schedule['maker_code']}+{schedule['feeder_code']}",  # 兼容旧格式
+                    "maker_code": schedule["maker_code"],     # 卷包机代码
+                    "feeder_code": schedule["feeder_code"],   # 喂丝机代码
                     "product_code": schedule["article_nr"],
                     "plan_quantity": schedule["final_quantity"],
                     "quantity_total": schedule["quantity_total"],
-                    "work_order_status": schedule["schedule_status"],
+                    "work_order_status": schedule["schedule_status"] or "PLANNED",
                     "planned_start_time": schedule["planned_start"],
                     "planned_end_time": schedule["planned_end"],
                     "created_time": schedule["created_time"],
