@@ -51,7 +51,7 @@
           <el-statistic title="总工单数" :value="workOrders.length" />
         </el-col>
         <el-col :span="6">
-          <el-statistic title="总计划产量" :value="totalQuantity" />
+          <el-statistic title="总计划产量" :value="totalQuantity" suffix="箱" />
         </el-col>
       </el-row>
     </div>
@@ -414,7 +414,7 @@ const renderGanttChart = () => {
   chartInstance.on('click', (params: any) => {
     if (params.data && params.data.taskInfo) {
       const task = params.data.taskInfo
-      ElMessage.info(`工单详情: ${task.id} - ${task.product} (${task.quantity}件)`)
+      ElMessage.info(`工单详情: ${task.id} - ${task.product} (${task.quantity}箱)`)
     }
   })
   
@@ -512,7 +512,7 @@ const createGanttChartOption = (tasks: GanttTask[]) => {
               <strong>${task.id}</strong><br/>
               产品: ${task.product}<br/>
               机台: ${task.machine}<br/>
-              数量: ${task.quantity} 件<br/>
+              数量: ${task.quantity} 箱<br/>
               时长: ${duration} 小时<br/>
               开始: ${task.start}<br/>
               结束: ${task.end}
