@@ -93,42 +93,58 @@
           <el-empty description="暂无工单数据" />
         </div>
 
-        <!-- Vue Ganttastic 甘特图 -->
-        <div v-else class="gantt-chart-wrapper">
-          <g-gantt-chart
-            :chart-start="chartTimeRange.start"
-            :chart-end="chartTimeRange.end"
-            precision="day"
-            :width="'100%'"
-            :height="chartHeight"
-            bar-start="startTime"
-            bar-end="endTime"
-            date-format="YYYY-MM-DD HH:mm"
-            color-scheme="default"
-            :push-on-overlap="false"
-            :grid="true"
-            :row-height="60"
-            font="Inter, sans-serif"
-            @click-bar="onBarClick"
-            @mouseenter-bar="onBarMouseenter"
-            @mouseleave-bar="onBarMouseleave"
-          >
-            <g-gantt-row
-              v-for="(row, index) in ganttRows"
+        <!-- 自定义甘特图布局：左侧机台 + 右侧甘特图 -->
+        <div v-else class="custom-gantt-layout">
+          <!-- 左侧机台标签列 -->
+          <div class="machine-labels-column">
+            <div class="machine-labels-header">机台</div>
+            <div 
+              v-for="(row, index) in ganttRows" 
               :key="row.machine"
-              :label="row.machine"
-              :bars="row.bars"
-              :highlight-on-hover="true"
+              class="machine-label-item"
             >
-                          <!-- 自定义条形标签 -->
-            <template #bar-label="{ bar }">
-              <div class="bar-label">
-                <span class="bar-product">{{ bar.product }}</span>
-                <span class="bar-quantity">{{ bar.quantity }}箱</span>
-              </div>
-            </template>
-            </g-gantt-row>
-          </g-gantt-chart>
+              {{ row.machine }}
+            </div>
+          </div>
+          
+          <!-- 右侧甘特图区域 -->
+          <div class="gantt-chart-area">
+            <g-gantt-chart
+              :chart-start="chartTimeRange.start"
+              :chart-end="chartTimeRange.end"
+              precision="day"
+              :width="'100%'"
+              :height="chartHeight"
+              bar-start="startTime"
+              bar-end="endTime"
+              date-format="YYYY-MM-DD HH:mm"
+              color-scheme="default"
+              :push-on-overlap="false"
+              :grid="true"
+              :row-height="60"
+              :row-label-width="0"
+              font="Inter, sans-serif"
+              @click-bar="onBarClick"
+              @mouseenter-bar="onBarMouseenter"
+              @mouseleave-bar="onBarMouseleave"
+            >
+              <g-gantt-row
+                v-for="(row, index) in ganttRows"
+                :key="row.machine"
+                label=""
+                :bars="row.bars"
+                :highlight-on-hover="true"
+              >
+                <!-- 自定义条形标签 -->
+                <template #bar-label="{ bar }">
+                  <div class="bar-label">
+                    <span class="bar-product">{{ bar.product }}</span>
+                    <span class="bar-quantity">{{ bar.quantity }}箱</span>
+                  </div>
+                </template>
+              </g-gantt-row>
+            </g-gantt-chart>
+          </div>
         </div>
       </div>
     </div>
@@ -736,8 +752,7 @@ watch(() => filterOptions.value, (newFilters) => {
 
 .gantt-chart-wrapper {
   height: 100%;
-  padding: 20px;
-  overflow: auto;
+  overflow: hidden;
   background: linear-gradient(145deg, #f8f9fa, #ffffff);
 }
 
@@ -780,18 +795,60 @@ watch(() => filterOptions.value, (newFilters) => {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* 隐藏Vue Ganttastic的内置标签，我们使用自定义左侧标签 */
 :deep(.g-gantt-row-label) {
-  font-weight: 600;
-  color: #2c3e50;
-  font-size: 12px;
-  padding: 10px 16px;
+  display: none;
+}
+
+/* 自定义甘特图布局 */
+.custom-gantt-layout {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+/* 左侧机台标签列 */
+.machine-labels-column {
+  width: 180px;
+  min-width: 180px;
   background: linear-gradient(135deg, #f8f9fa, #e9ecef);
   border-right: 2px solid #dee2e6;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.machine-labels-header {
+  height: 80px; /* 匹配时间轴头部高度 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #2c3e50;
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  border-bottom: 2px solid #dee2e6;
+}
+
+.machine-label-item {
+  height: 60px; /* 匹配甘特图行高 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e4e7ed;
+  font-weight: 600;
+  font-size: 12px;
+  color: #2c3e50;
+  text-align: center;
   white-space: pre-line;
   line-height: 1.4;
-  text-align: center;
-  min-width: 120px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* 右侧甘特图区域 */
+.gantt-chart-area {
+  flex: 1;
+  overflow: hidden;
 }
 
 :deep(.g-gantt-bar) {
