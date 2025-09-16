@@ -248,7 +248,7 @@ const formData = reactive({
 });
 
 // 防抖搜索
-let searchTimeout: NodeJS.Timeout;
+let searchTimeout: number;
 const debounceSearch = () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
@@ -261,7 +261,7 @@ const debounceSearch = () => {
 const loadData = async () => {
   loading.value = true;
   try {
-    const params = {
+    const params: Record<string, any> = {
       ...searchFilters,
       page: pagination.page,
       page_size: pagination.page_size

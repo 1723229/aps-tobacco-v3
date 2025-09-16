@@ -179,7 +179,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { MachineConfigAPI, type MachineSpeed, type Machine } from '@/services/api';
 
 // 状态管理

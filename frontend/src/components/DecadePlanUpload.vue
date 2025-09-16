@@ -289,7 +289,7 @@ const startUpload = async () => {
       startParsing()
     }, 1000)
 
-  } catch (error) {
+  } catch (error: any) {
     // 如果是HTTP 400错误（如文件已存在），直接显示后端返回的错误信息，不添加额外前缀
     if (error?.response?.status === 400) {
       ElMessage.error(error.response.data?.detail || error.response.data?.message || '上传失败')

@@ -179,7 +179,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { MachineConfigAPI, type MachineRelation, type Machine } from '@/services/api';
 
 // 状态管理
@@ -214,7 +214,7 @@ const formData = reactive({
 });
 
 // 防抖搜索
-let searchTimeout: NodeJS.Timeout;
+let searchTimeout: number;
 const debounceSearch = () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
@@ -227,7 +227,7 @@ const debounceSearch = () => {
 const loadData = async () => {
   loading.value = true;
   try {
-    const params = {
+    const params: Record<string, any> = {
       ...searchFilters,
       page: pagination.page,
       page_size: pagination.page_size

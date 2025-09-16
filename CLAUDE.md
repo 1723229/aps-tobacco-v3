@@ -64,15 +64,16 @@ flake8 .                         # Linting
 1. **Excel Upload** → File validation and storage
 2. **Excel Parsing** → Complex Excel parsing with merged cells support
 3. **Data Processing** → Apply business rules and validation
-4. **Scheduling Algorithm** → ⚠️ **NOT IMPLEMENTED** - Core scheduling engine missing
+4. **Scheduling Algorithm** → ✅ **IMPLEMENTED** - Complete scheduling engine with pipeline management
 5. **Work Order Generation** → Generate machine work orders
-6. **MES Integration** → ⚠️ **NOT IMPLEMENTED** - External system integration missing
+6. **MES Integration** → ✅ **IMPLEMENTED** - MES data export and integration services
 
 ### Critical Implementation Status
 - ✅ **Fully Implemented**: Excel upload, parsing, data storage, query APIs
-- ❌ **Missing Core Logic**: All scheduling algorithms (`/backend/app/algorithms/` is empty)
-- ❌ **Missing Integration**: MES system interfaces
-- ❌ **Missing Visualization**: Gantt chart components
+- ✅ **Core Algorithms**: Complete scheduling engine with merge, split, time correction, parallel processing algorithms
+- ✅ **MES Integration**: Basic MES system interfaces and data export services
+- ✅ **Gantt Visualization**: Gantt chart components and scheduling history views
+- ✅ **Comprehensive Testing**: 21 test files covering algorithms, API endpoints, and integration scenarios
 
 ## Key File Structure & Patterns
 
@@ -82,6 +83,10 @@ backend/app/
 ├── api/v1/                    # ✅ API routes (RESTful design)
 │   ├── data.py               # Data query endpoints
 │   ├── plans.py              # Plan upload/parsing endpoints
+│   ├── scheduling.py         # Scheduling execution endpoints
+│   ├── work_orders.py        # Work order management
+│   ├── machines.py           # Machine configuration
+│   ├── mes.py                # MES system integration
 │   └── router.py             # Route aggregation
 ├── core/config.py            # ✅ Configuration management
 ├── db/                       # ✅ Database layer
@@ -89,10 +94,27 @@ backend/app/
 │   └── cache.py              # Redis cache utilities
 ├── models/                   # ✅ SQLAlchemy models
 │   ├── base_models.py        # Machine, Material models
-│   └── decade_plan.py        # Plan data models
+│   ├── decade_plan.py        # Plan data models
+│   ├── scheduling_models.py  # Scheduling task models
+│   ├── work_order_models.py  # Work order data models
+│   ├── machine_config_models.py # Machine configuration models
+│   └── extended_models.py    # Extended business models
 ├── schemas/base.py           # ✅ Pydantic API schemas
-├── services/excel_parser.py  # ✅ Complex Excel parsing logic
-├── algorithms/               # ❌ EMPTY - Core scheduling missing
+├── services/                 # ✅ Business logic services
+│   ├── excel_parser.py       # Complex Excel parsing logic
+│   ├── database_query_service.py # Database query abstractions
+│   ├── mes_integration.py    # MES system integration
+│   ├── mes_data_export_service.py # MES data export
+│   └── work_order_sequence_service.py # Work order sequencing
+├── algorithms/               # ✅ Complete scheduling algorithms
+│   ├── base.py              # Algorithm base classes and interfaces
+│   ├── scheduling_engine.py  # Main scheduling pipeline manager
+│   ├── merge_algorithm.py    # Rule-based plan merging
+│   ├── split_algorithm.py    # Workload distribution logic
+│   ├── time_correction.py    # Maintenance and shift handling
+│   ├── parallel_processing.py # Synchronized machine operations
+│   ├── work_order_generation.py # Work order creation
+│   └── pipeline.py           # Algorithm pipeline orchestration
 └── main.py                   # ✅ FastAPI application entry
 ```
 
@@ -102,11 +124,22 @@ frontend/src/
 ├── components/               # ✅ Business components
 │   ├── DecadePlanUpload.vue  # File upload with drag-drop
 │   ├── DecadePlanTable.vue   # Data display tables
-│   └── ParseResult.vue       # Parse result visualization
+│   ├── ParseResult.vue       # Parse result visualization
+│   ├── WorkOrderTable.vue    # Work order display
+│   ├── GanttChartTab.vue     # Gantt chart visualization
+│   ├── MachineTable.vue      # Machine configuration
+│   ├── MachineSpeedTable.vue # Machine speed settings
+│   ├── ShiftConfigTable.vue  # Shift configuration
+│   └── MaintenancePlanTable.vue # Maintenance scheduling
 ├── views/                    # ✅ Page components
 │   ├── Home.vue              # Dashboard with statistics
 │   ├── DecadePlanEntry.vue   # Plan entry workflow
-│   └── DecadePlanDetail.vue  # Plan details view
+│   ├── DecadePlanDetail.vue  # Plan details view
+│   ├── SchedulingManagement.vue # Scheduling task management
+│   ├── SchedulingHistory.vue # Historical scheduling data
+│   ├── GanttChart.vue        # Gantt chart view
+│   ├── MachineConfig.vue     # Machine configuration page
+│   └── MESMonitoring.vue     # MES system monitoring
 ├── services/api.ts           # ✅ API client with axios
 ├── stores/decade-plan.ts     # ✅ Pinia state management
 ├── router/index.ts           # ✅ Vue Router configuration
@@ -133,34 +166,41 @@ The system implements complex tobacco manufacturing business rules:
 - **Time Correction**: Handle maintenance schedules and shift constraints
 - **Parallel Processing**: Ensure synchronized machine operations
 
-## Critical Missing Components
+## Recent Achievements
 
-### 1. Scheduling Algorithm Engine (High Priority)
-**Location**: `/backend/app/algorithms/` (currently empty)
-**Required**: Core scheduling algorithms for:
-- Rule-based merging (`merge_algorithm.py`)
-- Workload splitting (`split_algorithm.py`) 
-- Time correction (`time_correction.py`)
-- Parallel processing (`parallel_processing.py`)
+### ✅ Completed Core Features
+1. **Scheduling Algorithm Engine** - Complete implementation with:
+   - Rule-based merging algorithms
+   - Workload splitting and distribution  
+   - Time correction for maintenance schedules
+   - Parallel processing coordination
+   - Work order generation pipeline
 
-### 2. MES System Integration (Medium Priority)
-**Required**: External system interfaces for:
-- Maintenance schedule synchronization
-- Work order dispatch to MES
-- Production status feedback
+2. **MES System Integration** - Functional implementation with:
+   - MES data export services
+   - Work order dispatch interfaces
+   - Basic system monitoring capabilities
 
-### 3. Gantt Chart Visualization (Medium Priority)
-**Required**: Frontend visualization components for:
-- Timeline view of work orders
-- Machine utilization charts
-- Schedule conflict visualization
+3. **Gantt Chart Visualization** - Full implementation with:
+   - Interactive timeline views of work orders
+   - Machine utilization displays
+   - Scheduling history tracking
+   - Task detail visualization
+
+### 🔄 Areas for Enhancement (Medium Priority)
+1. **Performance Optimization** - Fine-tuning of scheduling algorithms
+2. **Advanced MES Features** - Real-time production status integration
+3. **Enhanced Visualizations** - More detailed analytics dashboards
+4. **Mobile Responsiveness** - Optimization for mobile devices
 
 ## Testing Strategy
 
 ### Backend Testing
-- **Unit Tests**: pytest with async test support
-- **Integration Tests**: Database and API endpoint testing
-- **Test Coverage**: Configured with coverage reporting
+- **Unit Tests**: pytest with async test support ✅ **IMPLEMENTED**
+- **Integration Tests**: Database and API endpoint testing ✅ **IMPLEMENTED**
+- **Algorithm Tests**: Comprehensive algorithm testing with boundary cases ✅ **IMPLEMENTED**
+- **End-to-End Tests**: Complete pipeline testing ✅ **IMPLEMENTED**
+- **Test Coverage**: Configured with coverage reporting (21 test files)
 - **Test Data**: Fixtures in `/backend/tests/fixtures/`
 
 ### Frontend Testing
@@ -194,3 +234,7 @@ The system implements complex tobacco manufacturing business rules:
 This system handles **烟草生产排产** (tobacco production scheduling) with specific Chinese business terminology and processes. The Excel parsing supports complex formats with merged cells representing machine assignments and time ranges. All user-facing text and error messages are in Chinese to match the business context.
 
 **Important**: When implementing missing scheduling algorithms, ensure deep understanding of tobacco manufacturing constraints, machine capabilities, and regulatory requirements specific to Chinese tobacco industry standards.
+
+## Task Master AI Instructions
+**Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
+@./.taskmaster/CLAUDE.md

@@ -136,9 +136,17 @@ import { formatDateTime } from '@/utils'
 const router = useRouter()
 const route = useRoute()
 
+// 定义通知类型
+interface Notification {
+  id: string
+  title: string
+  content: string
+  time: string
+}
+
 // 响应式数据
 const notificationDrawer = ref(false)
-const notifications = ref([])
+const notifications = ref<Notification[]>([])
 
 // 计算属性
 const activeMenuIndex = computed(() => {
