@@ -1,0 +1,1714 @@
+openapi: 3.0.3
+info:
+  title: APS智慧排产系统API - 月计划功能
+  description: |
+    APS (Advanced Planning and Scheduling) 智慧排产系统API规范 - 月计划扩展功能
+    
+    **🔥 重要：冲突避免设计**
+    为避免与现有旬计划(`/plans`)接口冲突，月计划功能采用独立的路由前缀：
+    - 月计划接口：`/monthly-plans`
+    - 月度排产：`/monthly-scheduling` 
+    - 月度工单：`/monthly-work-orders`
+    
+    专为烟草制造业设计的月度生产计划排产系统，支持：
+    - 月计划Excel文件上传与解析（浙江中烟2019年7月份格式）
+    - 杭州厂数据提取与验证
+    - 智能月度排产算法执行
+    - 排产结果查询（表格/甘特图）
+    - 工作日历管理
+    - 与现有旬计划系统完全独立
+    
+    **核心业务流程：**
+    1. 上传月计划Excel → 2. 解析提取杭州厂数据 → 3. 执行月度排产算法 → 4. 查询排产结果
+    
+    **数据格式：**
+    - 所有时间字段使用ISO 8601格式
+    - 所有响应使用标准JSON格式
+    - 支持中文业务术语
+  version: 1.0.0
+  contact:
+    name: APS开发团队
+    email: aps-support@company.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://10.0.0.87:8000/api/v1
+    description: 开发环境
+  - url: https://aps-api.company.com/api/v1
+    description: 生产环境
+
+tags:
+  - name: 月计划文件管理
+    description: 月计划Excel文件上传、解析、状态管理
+  - name: 月度排产算法管理
+    description: 月度排产算法执行、任务状态查询
+  - name: 月度工单管理
+    description: 月度工单查询、甘特图数据
+  - name: 月度数据查询
+    description: 月度基础数据查询、统计信息
+  - name: 工作日历管理
+    description: 工作日历配置、节假日管理
+
+paths:
+  # ==================== 月计划文件管理 ====================
+  /monthly-plans/upload:
+    post:
+      tags:
+        - 月计划文件管理
+      summary: 上传月计划Excel文件
+      description: |
+        上传月计划Excel文件，专门处理浙江中烟月度生产计划格式
+        
+        **支持的文件格式：** .xlsx, .xls  
+        **最大文件大小：** 50MB  
+        **文件名唯一性：** 可选择覆盖已存在的同名文件
+        **处理范围：** 仅处理杭州厂数据，忽略宁波厂
+      operationId: uploadMonthlyPlanFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Excel文件
+                allow_overwrite:
+                  type: boolean
+                  default: false
+                  description: 是否允许覆盖已存在的同名文件
+              required:
+                - file
+      responses:
+        '200':
+          description: 文件上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadResponse'
+              example:
+                code: 200
+                message: "月计划文件上传成功"
+                timestamp: "2024-10-16T15:30:00Z"
+                status: "success"
+                data:
+                  import_batch_id: "MONTHLY_20241016_153000_a1b2c3d4"
+                  file_name: "浙江中烟2019年7月份生产计划安排表.xlsx"
+                  file_size: 2048576
+                  upload_time: "2024-10-16T15:30:00Z"
+                  plan_type: "monthly"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: 文件过大
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-plans/{import_batch_id}/parse:
+    post:
+      tags:
+        - 月计划文件管理
+      summary: 解析月计划Excel提取杭州厂数据
+      description: |
+        解析上传的月计划Excel文件，专门提取杭州厂相关的生产计划数据
+        
+        **解析功能：**
+        - 识别合并单元格中的机台分配
+        - 提取产品信息（品牌规格+原计划目标箱数）
+        - 解析时间范围和生产数量
+        - 过滤杭州厂数据，忽略宁波厂
+        - 验证数据完整性和合规性
+      operationId: parseMonthlyPlanFile
+      parameters:
+        - name: import_batch_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 导入批次ID
+        - name: force_reparse
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: 是否强制重新解析
+      responses:
+        '200':
+          description: 解析成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyParseResponse'
+              example:
+                code: 200
+                message: "月计划文件解析成功"
+                timestamp: "2024-10-16T15:35:00Z"
+                status: "success"
+                data:
+                  import_batch_id: "MONTHLY_20241016_153000_a1b2c3d4"
+                  total_records: 85
+                  valid_records: 80
+                  error_records: 5
+                  hangzhou_records: 80
+                  ningbo_records: 0
+                  records:
+                    - row_number: 5
+                      brand_specification: "中华（软）84mm条盒"
+                      target_quantity_boxes: 5000
+                      machine_assignments: ["C1", "C2", "15", "16"]
+                      production_month: "2019-07"
+                      factory: "杭州"
+                      validation_status: "VALID"
+                  errors: []
+                  warnings: []
+                  parse_time: "2024-10-16T15:35:00Z"
+        '202':
+          description: 解析进行中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-plans/{import_batch_id}/status:
+    get:
+      tags:
+        - 月计划文件管理
+      summary: 查询月计划文件解析状态
+      description: 查询月计划Excel文件的解析进度和状态信息
+      operationId: getMonthlyParseStatus
+      parameters:
+        - name: import_batch_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 导入批次ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MonthlyPlanStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-plans/{import_batch_id}/plans:
+    get:
+      tags:
+        - 月计划文件管理
+      summary: 查询月计划记录
+      description: 查询解析后的月计划详细记录，用于数据验证和确认
+      operationId: getMonthlyPlans
+      parameters:
+        - name: import_batch_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 导入批次ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          import_batch_id:
+                            type: string
+                          total_plans:
+                            type: integer
+                          plans:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MonthlyPlanRecord'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-plans/history:
+    get:
+      tags:
+        - 月计划文件管理
+      summary: 获取月计划文件上传历史记录
+      description: |
+        获取月计划文件上传历史记录，支持分页和过滤
+        
+        **包含月度排产状态信息：**
+        - unscheduled: 未排产
+        - scheduling: 排产中
+        - completed: 排产完成
+        - failed: 排产失败
+      operationId: getMonthlyUploadHistory
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 页码
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: 每页大小
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [UPLOADING, PARSING, COMPLETED, FAILED]
+          description: 过滤状态
+        - name: scheduling_status
+          in: query
+          schema:
+            type: string
+            enum: [unscheduled, scheduling, completed, failed]
+          description: 月度排产状态过滤
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          records:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MonthlyPlanHistoryRecord'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationInfo'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-plans/available-for-scheduling:
+    get:
+      tags:
+        - 月计划文件管理
+      summary: 获取可月度排产的批次列表
+      description: 获取已完成解析但尚未进行月度排产的批次列表
+      operationId: getAvailableMonthlyBatchesForScheduling
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          available_batches:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AvailableMonthlyBatch'
+                          total_count:
+                            type: integer
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 月度排产算法管理 ====================
+  /monthly-scheduling/execute:
+    post:
+      tags:
+        - 月度排产算法管理
+      summary: 执行月度智能排产算法
+      description: |
+        对指定批次的月计划数据执行月度智能排产算法
+        
+        **月度算法功能：**
+        - 机台选择算法：基于aps_machine_speed表选择最优机台
+        - 时间计算算法：根据速度和效率计算生产时间
+        - 工作日历算法：考虑节假日和工作日约束
+        - 维护窗口算法：避开维护计划时间段
+        - 班次约束算法：遵守班次时间限制
+        - 容量平衡算法：均衡机台负载
+        - 时间分配算法：优化时间窗口分配
+        - 约束求解算法：满足多重约束条件
+        - 负载均衡算法：最小化机台空闲时间
+      operationId: executeMonthlySchedulingAlgorithm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MonthlySchedulingRequest'
+            example:
+              import_batch_id: "MONTHLY_20241016_153000_a1b2c3d4"
+              algorithm_config:
+                efficiency_rate: 0.85
+                maintenance_buffer_minutes: 30
+                work_calendar_enabled: true
+                shift_constraint_enabled: true
+                load_balancing_enabled: true
+      responses:
+        '200':
+          description: 月度排产任务创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MonthlySchedulingTaskInfo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-scheduling/tasks:
+    get:
+      tags:
+        - 月度排产算法管理
+      summary: 查询月度排产任务历史记录
+      description: |
+        支持多维度筛选的月度排产任务历史查询
+        
+        **支持的状态：**
+        - PENDING: 等待执行
+        - RUNNING: 执行中
+        - COMPLETED: 执行完成
+        - FAILED: 执行失败
+        - CANCELLED: 已取消
+      operationId: getMonthlySchedulingTasks
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, RUNNING, COMPLETED, FAILED, CANCELLED]
+          description: 任务状态过滤
+        - name: import_batch_id
+          in: query
+          schema:
+            type: string
+          description: 导入批次ID过滤
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 开始日期过滤
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 结束日期过滤
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 页码
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: 每页大小
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          tasks:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MonthlySchedulingTaskRecord'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationInfo'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-scheduling/tasks/{task_id}:
+    get:
+      tags:
+        - 月度排产算法管理
+      summary: 获取月度排产任务详情
+      description: |
+        获取月度排产任务的完整详情，包括：
+        - 任务基本信息和执行状态
+        - 月度算法配置参数
+        - 执行日志和错误信息
+        - 工单生成统计
+      operationId: getMonthlySchedulingTaskDetail
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 月度排产任务ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          task:
+                            $ref: '#/components/schemas/MonthlySchedulingTaskDetail'
+                          logs:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ProcessingLog'
+                          logs_count:
+                            type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-scheduling/tasks/{task_id}/status:
+    get:
+      tags:
+        - 月度排产算法管理
+      summary: 查询月度排产任务状态
+      description: 实时查询月度排产任务的执行状态和进度信息
+      operationId: getMonthlySchedulingTaskStatus
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 月度排产任务ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MonthlySchedulingTaskStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 月度工单管理 ====================
+  /monthly-work-orders:
+    get:
+      tags:
+        - 月度工单管理
+      summary: 查询月度排产生成的工单列表
+      description: |
+        查询月度排产算法生成的工单列表，支持多维度过滤
+        
+        **月度工单类型：**
+        - HJB: 卷包机工单
+        - HWS: 喂丝机工单
+        - 协调工单: 包含两种机台的同步排产工单
+      operationId: getMonthlyWorkOrders
+      parameters:
+        - name: task_id
+          in: query
+          schema:
+            type: string
+          description: 月度排产任务ID过滤
+        - name: import_batch_id
+          in: query
+          schema:
+            type: string
+          description: 导入批次ID过滤
+        - name: order_type
+          in: query
+          schema:
+            type: string
+            enum: [HJB, HWS]
+          description: 工单类型过滤
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PLANNED, RUNNING, COMPLETED, PAUSED, CANCELLED]
+          description: 工单状态过滤
+        - name: machine_code
+          in: query
+          schema:
+            type: string
+          description: 机台代码过滤
+        - name: product_code
+          in: query
+          schema:
+            type: string
+          description: 产品代码过滤
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 页码
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2000
+            default: 100
+          description: 每页大小
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          work_orders:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MonthlyWorkOrder'
+                          total_count:
+                            type: integer
+                          page:
+                            type: integer
+                          page_size:
+                            type: integer
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monthly-work-orders/schedule:
+    get:
+      tags:
+        - 月度工单管理
+      summary: 获取月度工单排程数据（甘特图专用）
+      description: |
+        专为月度甘特图显示优化的工单排程数据接口
+        
+        **月度甘特图格式：**
+        - work_order_nr: M0001, M0002, M0003
+        - 时间范围：planned_start ~ planned_end
+        - 机台关系：maker_code + feeder_code
+        - 同步组：sync_group_id标识协调工单
+      operationId: getMonthlyWorkOrderSchedule
+      parameters:
+        - name: task_id
+          in: query
+          schema:
+            type: string
+          description: 月度排产任务ID过滤
+        - name: work_order_nr
+          in: query
+          schema:
+            type: string
+          description: 工单号过滤
+        - name: machine_code
+          in: query
+          schema:
+            type: string
+          description: 机台代码过滤
+        - name: article_nr
+          in: query
+          schema:
+            type: string
+          description: 产品代码过滤
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 页码
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2000
+            default: 100
+          description: 每页大小
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          schedules:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MonthlyWorkOrderSchedule'
+                          total_count:
+                            type: integer
+                          page:
+                            type: integer
+                          page_size:
+                            type: integer
+                          total_pages:
+                            type: integer
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 工作日历管理 ====================
+  /work-calendar:
+    get:
+      tags:
+        - 工作日历管理
+      summary: 查询工作日历配置
+      description: |
+        查询工作日历配置，包括工作日、节假日、班次信息
+        
+        **日历类型：**
+        - WORKDAY: 工作日
+        - HOLIDAY: 节假日
+        - WEEKEND: 周末
+      operationId: getWorkCalendar
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: 开始日期
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: 结束日期
+        - name: calendar_type
+          in: query
+          schema:
+            type: string
+            enum: [WORKDAY, HOLIDAY, WEEKEND]
+          description: 日历类型过滤
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          calendar_entries:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/WorkCalendarEntry'
+                          total_count:
+                            type: integer
+                          work_days:
+                            type: integer
+                          holidays:
+                            type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - 工作日历管理
+      summary: 创建工作日历配置
+      description: 创建新的工作日历配置项
+      operationId: createWorkCalendar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkCalendarRequest'
+      responses:
+        '200':
+          description: 工作日历创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== 月度数据查询 ====================
+  /monthly-data/statistics:
+    get:
+      tags:
+        - 月度数据查询
+      summary: 获取月度系统统计信息
+      description: |
+        获取月度系统整体统计信息
+        
+        **统计维度：**
+        - 月度导入计划统计（按状态分组）
+        - 月度排产任务统计
+        - 月度工单统计
+      operationId: getMonthlySystemStatistics
+      responses:
+        '200':
+          description: 统计信息查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MonthlySystemStatistics'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    # ==================== 基础响应模型 ====================
+    BaseResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 响应代码
+        message:
+          type: string
+          description: 响应消息
+        timestamp:
+          type: string
+          format: date-time
+          description: 响应时间
+      required:
+        - code
+        - message
+        - timestamp
+
+    SuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [success]
+              default: success
+            data:
+              type: object
+              description: 响应数据
+
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [error]
+              default: error
+            error_details:
+              type: object
+              description: 错误详情
+
+    # ==================== 分页相关模型 ====================
+    PaginationInfo:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: 当前页码
+        page_size:
+          type: integer
+          description: 每页大小
+        total_count:
+          type: integer
+          description: 总记录数
+        total_pages:
+          type: integer
+          description: 总页数
+        has_next:
+          type: boolean
+          description: 是否有下一页
+        has_prev:
+          type: boolean
+          description: 是否有上一页
+
+    # ==================== 月计划文件上传相关模型 ====================
+    MonthlyImportBatchInfo:
+      type: object
+      properties:
+        import_batch_id:
+          type: string
+          description: 导入批次ID
+        file_name:
+          type: string
+          description: 文件名
+        file_size:
+          type: integer
+          description: 文件大小（字节）
+        total_records:
+          type: integer
+          default: 0
+          description: 总记录数
+        upload_time:
+          type: string
+          format: date-time
+          description: 上传时间
+        plan_type:
+          type: string
+          enum: [monthly]
+          default: monthly
+          description: 计划类型
+
+    FileUploadResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MonthlyImportBatchInfo'
+
+    MonthlyPlanStatus:
+      type: object
+      properties:
+        import_batch_id:
+          type: string
+          description: 导入批次ID
+        file_name:
+          type: string
+          description: 文件名
+        import_status:
+          type: string
+          enum: [UPLOADING, PARSING, COMPLETED, FAILED]
+          description: 导入状态
+        total_records:
+          type: integer
+          description: 总记录数
+        valid_records:
+          type: integer
+          description: 有效记录数
+        error_records:
+          type: integer
+          description: 错误记录数
+        hangzhou_records:
+          type: integer
+          description: 杭州厂记录数
+        ningbo_records:
+          type: integer
+          description: 宁波厂记录数（应为0）
+        import_start_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 导入开始时间
+        import_end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 导入结束时间
+        error_message:
+          type: string
+          nullable: true
+          description: 错误消息
+        created_time:
+          type: string
+          format: date-time
+          description: 创建时间
+
+    # ==================== 月计划Excel解析相关模型 ====================
+    MonthlyParseResultRecord:
+      type: object
+      properties:
+        row_number:
+          type: integer
+          description: 行号
+        brand_specification:
+          type: string
+          description: 品牌规格（如"中华（软）84mm条盒"）
+        target_quantity_boxes:
+          type: integer
+          description: 目标箱数
+        machine_assignments:
+          type: array
+          items:
+            type: string
+          description: 机台分配列表（卷包机+喂丝机）
+        production_month:
+          type: string
+          description: 生产月份（如"2019-07"）
+        factory:
+          type: string
+          enum: [杭州, 宁波]
+          description: 工厂
+        planned_start:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划开始时间
+        planned_end:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划结束时间
+        validation_status:
+          type: string
+          default: VALID
+          description: 验证状态
+        validation_message:
+          type: string
+          nullable: true
+          description: 验证信息
+
+    ParseErrorInfo:
+      type: object
+      properties:
+        type:
+          type: string
+          description: 错误类型
+        message:
+          type: string
+          description: 错误消息
+        timestamp:
+          type: string
+          format: date-time
+          description: 错误时间
+      required:
+        - type
+        - message
+        - timestamp
+
+    MonthlyParseResult:
+      type: object
+      properties:
+        import_batch_id:
+          type: string
+          description: 导入批次ID
+        total_records:
+          type: integer
+          description: 总记录数
+        valid_records:
+          type: integer
+          description: 有效记录数
+        error_records:
+          type: integer
+          description: 错误记录数
+        hangzhou_records:
+          type: integer
+          description: 杭州厂记录数
+        ningbo_records:
+          type: integer
+          description: 宁波厂记录数（应为0）
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonthlyParseResultRecord'
+          description: 解析记录列表
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParseErrorInfo'
+          description: 错误列表
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParseErrorInfo'
+          description: 警告列表
+        parse_time:
+          type: string
+          format: date-time
+          description: 解析时间
+
+    MonthlyParseResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MonthlyParseResult'
+
+    # ==================== 月计划记录相关模型 ====================
+    MonthlyPlanRecord:
+      type: object
+      properties:
+        plan_id:
+          type: string
+          description: 计划ID
+        brand_specification:
+          type: string
+          description: 品牌规格
+        target_quantity_boxes:
+          type: integer
+          description: 目标箱数
+        machine_assignments:
+          type: array
+          items:
+            type: string
+          description: 机台分配列表
+        production_month:
+          type: string
+          description: 生产月份
+        planned_start:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划开始时间
+        planned_end:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划结束时间
+        row_number:
+          type: integer
+          description: 行号
+        validation_status:
+          type: string
+          description: 验证状态
+        validation_message:
+          type: string
+          nullable: true
+          description: 验证信息
+
+    # ==================== 月度排产相关模型 ====================
+    MonthlySchedulingRequest:
+      type: object
+      properties:
+        import_batch_id:
+          type: string
+          description: 导入批次ID
+        algorithm_config:
+          type: object
+          properties:
+            efficiency_rate:
+              type: number
+              minimum: 0.1
+              maximum: 1.0
+              default: 0.85
+              description: 效率系数
+            maintenance_buffer_minutes:
+              type: integer
+              minimum: 0
+              default: 30
+              description: 维护缓冲时间（分钟）
+            work_calendar_enabled:
+              type: boolean
+              default: true
+              description: 是否启用工作日历约束
+            shift_constraint_enabled:
+              type: boolean
+              default: true
+              description: 是否启用班次约束
+            load_balancing_enabled:
+              type: boolean
+              default: true
+              description: 是否启用负载均衡
+          description: 月度算法配置参数（可选）
+      required:
+        - import_batch_id
+
+    MonthlySchedulingTaskInfo:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: 月度排产任务ID
+        import_batch_id:
+          type: string
+          description: 导入批次ID
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED, CANCELLED]
+          description: 任务状态
+        message:
+          type: string
+          description: 状态消息
+
+    MonthlySchedulingTaskStatus:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: 月度排产任务ID
+        import_batch_id:
+          type: string
+          description: 导入批次ID
+        task_name:
+          type: string
+          description: 任务名称
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED, CANCELLED]
+          description: 任务状态
+        current_stage:
+          type: string
+          description: 当前阶段
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 进度百分比
+        total_records:
+          type: integer
+          nullable: true
+          description: 总记录数
+        processed_records:
+          type: integer
+          nullable: true
+          description: 已处理记录数
+        start_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 开始时间
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 结束时间
+        execution_duration:
+          type: number
+          nullable: true
+          description: 执行时长（秒）
+        error_message:
+          type: string
+          nullable: true
+          description: 错误消息
+        result_summary:
+          type: object
+          nullable: true
+          description: 结果摘要
+        algorithm_config:
+          type: object
+          properties:
+            efficiency_rate:
+              type: number
+            maintenance_buffer_minutes:
+              type: integer
+            work_calendar_enabled:
+              type: boolean
+            shift_constraint_enabled:
+              type: boolean
+            load_balancing_enabled:
+              type: boolean
+
+    MonthlySchedulingTaskRecord:
+      allOf:
+        - $ref: '#/components/schemas/MonthlySchedulingTaskStatus'
+        - type: object
+          properties:
+            created_time:
+              type: string
+              format: date-time
+              description: 创建时间
+
+    MonthlySchedulingTaskDetail:
+      allOf:
+        - $ref: '#/components/schemas/MonthlySchedulingTaskRecord'
+        - type: object
+          properties:
+            created_by:
+              type: string
+              description: 创建人
+            updated_time:
+              type: string
+              format: date-time
+              description: 更新时间
+
+    ProcessingLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 日志ID
+        stage:
+          type: string
+          description: 阶段名称
+        step_name:
+          type: string
+          description: 步骤名称
+        level:
+          type: string
+          enum: [DEBUG, INFO, WARNING, ERROR]
+          description: 日志级别
+        message:
+          type: string
+          description: 日志消息
+        execution_time:
+          type: string
+          format: date-time
+          description: 执行时间
+        duration_ms:
+          type: integer
+          nullable: true
+          description: 执行时长（毫秒）
+        processing_data:
+          type: object
+          nullable: true
+          description: 处理数据
+
+    # ==================== 月度工单相关模型 ====================
+    MonthlyWorkOrder:
+      type: object
+      properties:
+        work_order_nr:
+          type: string
+          description: 工单号
+        work_order_type:
+          type: string
+          enum: [HJB, HWS]
+          description: 工单类型（HJB-卷包机，HWS-喂丝机）
+        machine_type:
+          type: string
+          description: 机台类型描述
+        machine_code:
+          type: string
+          description: 机台代码
+        maker_code:
+          type: string
+          nullable: true
+          description: 卷包机代码
+        feeder_code:
+          type: string
+          nullable: true
+          description: 喂丝机代码
+        product_code:
+          type: string
+          description: 产品代码
+        brand_specification:
+          type: string
+          description: 品牌规格
+        target_quantity_boxes:
+          type: integer
+          description: 目标箱数
+        work_order_status:
+          type: string
+          enum: [PLANNED, RUNNING, COMPLETED, PAUSED, CANCELLED]
+          description: 工单状态
+        planned_start_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划开始时间
+        planned_end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划结束时间
+        actual_start_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 实际开始时间
+        actual_end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 实际结束时间
+        created_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 创建时间
+        updated_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 更新时间
+        task_id:
+          type: string
+          nullable: true
+          description: 关联的月度排产任务ID
+        sync_group_id:
+          type: string
+          nullable: true
+          description: 同步组ID
+
+    MonthlyWorkOrderSchedule:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 记录ID
+        work_order_nr:
+          type: string
+          description: 工单号
+        brand_specification:
+          type: string
+          description: 品牌规格
+        target_quantity_boxes:
+          type: integer
+          description: 目标箱数
+        maker_code:
+          type: string
+          description: 卷包机代码
+        feeder_code:
+          type: string
+          description: 喂丝机代码
+        planned_start:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划开始时间
+        planned_end:
+          type: string
+          format: date-time
+          nullable: true
+          description: 计划结束时间
+        task_id:
+          type: string
+          description: 月度排产任务ID
+        schedule_status:
+          type: string
+          enum: [PLANNED, RUNNING, COMPLETED, PAUSED, CANCELLED]
+          description: 排程状态
+        sync_group_id:
+          type: string
+          nullable: true
+          description: 同步组ID
+        created_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 创建时间
+
+    # ==================== 历史记录相关模型 ====================
+    MonthlyPlanHistoryRecord:
+      type: object
+      properties:
+        batch_id:
+          type: string
+          description: 批次ID
+        file_name:
+          type: string
+          description: 文件名
+        file_size:
+          type: integer
+          nullable: true
+          description: 文件大小
+        upload_time:
+          type: string
+          format: date-time
+          description: 上传时间
+        import_start_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 导入开始时间
+        import_end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 导入结束时间
+        status:
+          type: string
+          enum: [UPLOADING, PARSING, COMPLETED, FAILED]
+          description: 导入状态
+        total_records:
+          type: integer
+          description: 总记录数
+        valid_records:
+          type: integer
+          description: 有效记录数
+        hangzhou_records:
+          type: integer
+          description: 杭州厂记录数
+        error_records:
+          type: integer
+          description: 错误记录数
+        error_message:
+          type: string
+          nullable: true
+          description: 错误消息
+        task_id:
+          type: string
+          nullable: true
+          description: 关联的月度排产任务ID
+        scheduling_status:
+          type: string
+          enum: [unscheduled, scheduling, completed, failed]
+          description: 月度排产状态
+        scheduling_text:
+          type: string
+          description: 月度排产状态描述
+        work_orders_summary:
+          type: integer
+          description: 工单数量摘要
+        can_schedule:
+          type: boolean
+          description: 是否可以进行月度排产
+
+    AvailableMonthlyBatch:
+      type: object
+      properties:
+        batch_id:
+          type: string
+          description: 批次ID
+        file_name:
+          type: string
+          description: 文件名
+        total_records:
+          type: integer
+          description: 总记录数
+        valid_records:
+          type: integer
+          description: 有效记录数
+        hangzhou_records:
+          type: integer
+          description: 杭州厂记录数
+        import_end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: 导入完成时间
+        display_name:
+          type: string
+          description: 显示名称
+        can_schedule:
+          type: boolean
+          description: 是否可以月度排产
+
+    # ==================== 工作日历相关模型 ====================
+    WorkCalendarEntry:
+      type: object
+      properties:
+        calendar_date:
+          type: string
+          format: date
+          description: 日历日期
+        calendar_type:
+          type: string
+          enum: [WORKDAY, HOLIDAY, WEEKEND]
+          description: 日历类型
+        is_working_day:
+          type: boolean
+          description: 是否工作日
+        holiday_name:
+          type: string
+          nullable: true
+          description: 节假日名称
+        shift_config:
+          type: object
+          nullable: true
+          description: 班次配置
+        created_time:
+          type: string
+          format: date-time
+          description: 创建时间
+
+    WorkCalendarRequest:
+      type: object
+      properties:
+        calendar_date:
+          type: string
+          format: date
+          description: 日历日期
+        calendar_type:
+          type: string
+          enum: [WORKDAY, HOLIDAY, WEEKEND]
+          description: 日历类型
+        is_working_day:
+          type: boolean
+          description: 是否工作日
+        holiday_name:
+          type: string
+          nullable: true
+          description: 节假日名称
+        shift_config:
+          type: object
+          nullable: true
+          description: 班次配置
+      required:
+        - calendar_date
+        - calendar_type
+        - is_working_day
+
+    # ==================== 统计相关模型 ====================
+    MonthlySystemStatistics:
+      type: object
+      properties:
+        monthly_plans:
+          type: object
+          additionalProperties:
+            type: integer
+          description: 月度导入计划统计（按状态分组）
+        monthly_scheduling_tasks:
+          type: object
+          additionalProperties:
+            type: integer
+          description: 月度排产任务统计（按状态分组）
+        monthly_work_orders:
+          type: object
+          properties:
+            total:
+              type: integer
+              description: 总月度工单数
+            packing_orders:
+              type: integer
+              description: 卷包机工单数
+            feeding_orders:
+              type: integer
+              description: 喂丝机工单数
+        timestamp:
+          type: string
+          format: date-time
+          description: 统计时间
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 400
+            message: "请求参数错误"
+            timestamp: "2024-10-16T15:30:00Z"
+            status: "error"
+            error_details:
+              field: "import_batch_id"
+              message: "导入批次ID不能为空"
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 404
+            message: "资源不存在"
+            timestamp: "2024-10-16T15:30:00Z"
+            status: "error"
+
+    InternalServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 500
+            message: "服务器内部错误"
+            timestamp: "2024-10-16T15:30:00Z"
+            status: "error"
+            error_details:
+              error_type: "DatabaseConnectionError"
+              message: "数据库连接失败"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API密钥认证
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT令牌认证
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+# 扩展信息
+x-tagGroups:
+  - name: 月度核心业务流程
+    tags:
+      - 月计划文件管理
+      - 月度排产算法管理
+      - 月度工单管理
+  - name: 月度数据管理
+    tags:
+      - 月度数据查询
+      - 工作日历管理
+
+x-business-glossary:
+  - term: "月计划"
+    definition: "以月为周期的生产计划，处理浙江中烟月度生产计划安排表"
+  - term: "品牌规格"
+    definition: "香烟产品的完整规格描述，如'中华（软）84mm条盒'"
+  - term: "目标箱数"
+    definition: "月度生产计划中设定的目标产量，以箱为单位"
+  - term: "杭州厂"
+    definition: "指杭州卷烟厂，该月计划功能专门处理杭州厂的生产数据"
+
+x-conflict-avoidance:
+  design_principle: "完全独立的API路由设计"
+  existing_routes: "/plans/*（旬计划专用）"
+  new_routes: "/monthly-plans/*（月计划专用）"
+  separation_benefits:
+    - "零干扰现有旬计划功能"
+    - "独立的数据模型和业务逻辑"
+    - "独立的任务队列和调度"
+    - "独立的错误处理和日志"
+    - "未来可独立扩展和优化"
