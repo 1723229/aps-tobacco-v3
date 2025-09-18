@@ -11,6 +11,11 @@ from app.api.v1.scheduling import router as scheduling_router
 from app.api.v1.mes import router as mes_router
 from app.api.v1.work_orders import router as work_orders_router
 from app.api.v1.machines import router as machines_router
+from app.api.v1.monthly_work_orders import router as monthly_work_orders_router
+from app.api.v1.monthly_data import router as monthly_data_router
+from app.api.v1.monthly_plans import router as monthly_plans_router
+from app.api.v1.work_calendar import router as work_calendar_router
+from app.api.v1.monthly_scheduling import router as monthly_scheduling_router
 
 # 创建v1版本的主路由
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -22,6 +27,11 @@ api_v1_router.include_router(scheduling_router)
 api_v1_router.include_router(mes_router)
 api_v1_router.include_router(work_orders_router)
 api_v1_router.include_router(machines_router)
+api_v1_router.include_router(monthly_work_orders_router)
+api_v1_router.include_router(monthly_data_router)
+api_v1_router.include_router(monthly_plans_router)
+api_v1_router.include_router(work_calendar_router)
+api_v1_router.include_router(monthly_scheduling_router)
 
 # 导出路由
 __all__ = ["api_v1_router"]

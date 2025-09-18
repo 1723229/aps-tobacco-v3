@@ -75,8 +75,8 @@
                 <el-icon><UploadFilled /></el-icon>
               </div>
               <div class="action-text">
-                <h3>卷包旬计划录入</h3>
-                <p>上传Excel文件进行旬计划数据录入，查看历史记录</p>
+                <h3>卷包旬计划</h3>
+                <p>上传Excel文件进行旬计划数据录入，执行智能排产</p>
               </div>
               <div class="action-arrow">
                 <el-icon><ArrowRight /></el-icon>
@@ -110,7 +110,7 @@
           </el-card>
         </el-col>
         <el-col :span="8">
-          <el-card class="action-card scheduling-card" @click="goToScheduling">
+          <el-card class="action-card scheduling-card" @click="goToMonthlyPlan">
             <div class="card-header">
               <div class="header-logo">
                 <el-icon><Lightning /></el-icon>
@@ -125,8 +125,8 @@
                 <el-icon><Lightning /></el-icon>
               </div>
               <div class="action-text">
-                <h3>智能排产管理</h3>
-                <p>智能算法排产，优化生产计划，提升生产效率</p>
+                <h3>月度计划</h3>
+                <p>上传Excel文件进行月度计划数据录入，执行排产管理</p>
               </div>
               <div class="action-arrow">
                 <el-icon><ArrowRight /></el-icon>
@@ -249,6 +249,10 @@ const goToMachineConfig = () => {
 
 const goToScheduling = () => {
   router.push('/scheduling')
+}
+
+const goToMonthlyPlan = () => {
+  router.push('/monthly-plan/entry')
 }
 
 const downloadTemplate = () => {

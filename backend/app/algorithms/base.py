@@ -93,3 +93,22 @@ class AlgorithmBase(ABC):
         result.status = ProcessingStatus.COMPLETED
         
         return result
+
+
+class BaseAlgorithm(ABC):
+    """算法基类，为所有算法提供统一接口"""
+    
+    def __init__(self, name: str = "BaseAlgorithm"):
+        self.name = name
+        self.logger = self._setup_logger()
+    
+    def _setup_logger(self):
+        """Setup algorithm logger"""
+        import logging
+        logger = logging.getLogger(f"algorithm.{self.name}")
+        return logger
+    
+    @abstractmethod
+    async def execute(self, *args, **kwargs):
+        """算法执行方法"""
+        pass

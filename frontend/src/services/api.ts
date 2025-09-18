@@ -107,6 +107,95 @@ export interface AvailableBatchesResponse {
     };
 }
 
+// 通用响应接口
+export interface ApiResponse<T> {
+    code: number;
+    message: string;
+    data: T;
+}
+
+export interface PaginatedResponse<T> {
+    code: number;
+    message: string;
+    data: {
+        items: T[];
+        total: number;
+        page: number;
+        page_size: number;
+    };
+}
+
+// 机台配置相关接口类型
+export interface Machine {
+    id: number;
+    machine_code: string;
+    machine_name: string;
+    machine_type: 'PACKING' | 'FEEDING';
+    equipment_type?: string;
+    production_line?: string;
+    status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+    created_time: string;
+    updated_time: string;
+}
+
+export interface MachineRelation {
+    id: number;
+    feeder_code: string;
+    maker_code: string;
+    relation_type: string;
+    priority: number;
+    created_time: string;
+    updated_time: string;
+}
+
+export interface MachineSpeed {
+    id: number;
+    machine_code: string;
+    article_nr: string;
+    speed: number;  // 生产速度（箱/小时）
+    efficiency_rate: number;  // 效率率（百分比）
+    effective_from: string;
+    effective_to?: string;
+    status: string;
+    created_time: string;
+    updated_time: string;
+}
+
+export interface MaintenancePlan {
+    id: number;
+    plan_code: string;
+    machine_code: string;
+    maintenance_type: string;
+    planned_start_time: string;
+    planned_end_time: string;
+    actual_start_time?: string;
+    actual_end_time?: string;
+    status: string;
+    description?: string;
+    created_time: string;
+    updated_time: string;
+}
+
+export interface ShiftConfig {
+    id: number;
+    shift_name: string;
+    shift_code: string;
+    start_time: string;
+    end_time: string;
+    is_active: boolean;
+    created_time: string;
+    updated_time: string;
+}
+
+export interface MachineRequest {
+    machine_code: string;
+    machine_name: string;
+    machine_type: 'PACKING' | 'FEEDING';
+    equipment_type?: string;
+    production_line?: string;
+    status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+}
+
 export class DecadePlanAPI {
     /**
      * 上传旬计划文件
@@ -537,97 +626,6 @@ export class MESAPI {
     }
 }
 
-// === 机台配置管理API ===
-
-// 机台配置相关接口类型
-export interface Machine {
-    id: number;
-    machine_code: string;
-    machine_name: string;
-    machine_type: 'PACKING' | 'FEEDING';
-    equipment_type?: string;
-    production_line?: string;
-    status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
-    created_time: string;
-    updated_time: string;
-}
-
-export interface MachineRelation {
-    id: number;
-    feeder_code: string;
-    maker_code: string;
-    relation_type: string;
-    priority: number;
-    created_time: string;
-    updated_time: string;
-}
-
-export interface MachineSpeed {
-    id: number;
-    machine_code: string;
-    article_nr: string;
-    speed: number;  // 生产速度（箱/小时）
-    efficiency_rate: number;  // 效率率（百分比）
-    effective_from: string;
-    effective_to?: string;
-    status: string;
-    created_time: string;
-    updated_time: string;
-}
-
-export interface MaintenancePlan {
-    id: number;
-    plan_code: string;
-    machine_code: string;
-    maintenance_type: string;
-    planned_start_time: string;
-    planned_end_time: string;
-    actual_start_time?: string;
-    actual_end_time?: string;
-    status: string;
-    description?: string;
-    created_time: string;
-    updated_time: string;
-}
-
-export interface ShiftConfig {
-    id: number;
-    shift_name: string;
-    shift_code: string;
-    start_time: string;
-    end_time: string;
-    is_active: boolean;
-    created_time: string;
-    updated_time: string;
-}
-
-// 请求/响应类型
-export interface MachineRequest {
-    machine_code: string;
-    machine_name: string;
-    machine_type: 'PACKING' | 'FEEDING';
-    equipment_type?: string;
-    production_line?: string;
-    status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
-}
-
-export interface PaginatedResponse<T> {
-    code: number;
-    message: string;
-    data: {
-        items: T[];
-        total: number;
-        page: number;
-        page_size: number;
-    };
-}
-
-export interface ApiResponse<T> {
-    code: number;
-    message: string;
-    data: T;
-}
-
 export class MachineConfigAPI {
     /**
      * 机台基础信息 CRUD
@@ -838,4 +836,167 @@ export class MachineConfigAPI {
     }
 }
 
-export default DecadePlanAPI;
+// === 月度计划 API ===
+export class MonthlyPlanAPI {
+    /**
+     * 上传月度计划文件
+     * @param file Excel文件
+     * @param onProgress 上传进度回调
+     * @returns 上传结果
+     */
+    static async uploadFile(
+        file: File,
+        onProgress?: (progress: number) => void,
+    ): Promise<any> {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await httpClient.post(`${API_PREFIX}/monthly-plans/upload`, formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+            onUploadProgress: (progressEvent) => {
+                if (progressEvent.total && onProgress) {
+                    const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    onProgress(progress);
+                }
+            },
+        });
+
+        return response.data;
+    }
+
+    /**
+     * 获取月度计划列表
+     * @param params 查询参数
+     * @returns 计划列表
+     */
+    static async getMonthlyPlans(params?: {
+        batch_id?: string;
+        page?: number;
+        page_size?: number;
+    }): Promise<any> {
+        const response = await httpClient.get(`${API_PREFIX}/monthly-plans`, {
+            params,
+        });
+
+        return response.data;
+    }
+
+    /**
+     * 获取月度计划详情
+     * @param batchId 批次ID
+     * @returns 计划详情
+     */
+    static async getMonthlyPlanDetail(batchId: string): Promise<any> {
+        const response = await httpClient.get(`${API_PREFIX}/monthly-data/imports/${batchId}`);
+        return response.data;
+    }
+}
+
+// === 工作日历 API ===
+export class WorkCalendarAPI {
+    /**
+     * 获取工作日历
+     * @param year 年份
+     * @param month 月份
+     * @returns 工作日历数据
+     */
+    static async getWorkCalendar(year: number, month: number): Promise<any> {
+        const response = await httpClient.get(`${API_PREFIX}/work-calendar`, {
+            params: { year, month }
+        });
+        return response.data;
+    }
+
+    /**
+     * 更新工作日历配置
+     * @param calendarData 日历配置数据
+     * @returns 更新结果
+     */
+    static async updateWorkCalendar(calendarData: any): Promise<any> {
+        const response = await httpClient.put(`${API_PREFIX}/work-calendar`, calendarData);
+        return response.data;
+    }
+}
+
+// 创建API类的实例，以便组件能够使用API方法
+export const decadePlanAPI = DecadePlanAPI;
+export const schedulingAPI = SchedulingAPI;
+export const workOrderAPI = WorkOrderAPI;
+export const mesAPI = MESAPI;
+export const machineConfigAPI = MachineConfigAPI;
+export const monthlyPlanAPI = MonthlyPlanAPI;
+export const workCalendarAPI = WorkCalendarAPI;
+
+// 导出组合API对象，包含所有API方法和httpClient实例方法
+const api = {
+  // HttpClient方法
+  get: httpClient.get.bind(httpClient),
+  post: httpClient.post.bind(httpClient),
+  put: httpClient.put.bind(httpClient),
+  delete: httpClient.delete.bind(httpClient),
+  patch: httpClient.patch.bind(httpClient),
+  
+  // DecadePlan API方法
+  uploadFile: DecadePlanAPI.uploadFile,
+  parseFile: DecadePlanAPI.parseFile,
+  getParseStatus: DecadePlanAPI.getParseStatus,
+  getDecadePlans: DecadePlanAPI.getDecadePlans,
+  pollParseStatus: DecadePlanAPI.pollParseStatus,
+  getUploadHistory: DecadePlanAPI.getUploadHistory,
+  getStatistics: DecadePlanAPI.getStatistics,
+  getSchedulingStatistics: DecadePlanAPI.getSchedulingStatistics,
+  getAvailableBatchesForScheduling: DecadePlanAPI.getAvailableBatchesForScheduling,
+  
+  // Scheduling API方法
+  executeScheduling: SchedulingAPI.executeScheduling,
+  getTaskStatus: SchedulingAPI.getTaskStatus,
+  pollTaskStatus: SchedulingAPI.pollTaskStatus,
+  getSchedulingHistory: SchedulingAPI.getSchedulingHistory,
+  
+  // WorkOrder API方法
+  getWorkOrders: WorkOrderAPI.getWorkOrders,
+  
+  // MES API方法
+  checkHealth: mesAPI.checkHealth,
+  getMachineStatus: mesAPI.getMachineStatus,
+  pushWorkOrders: mesAPI.pushWorkOrders,
+  getWorkOrderStatus: mesAPI.getWorkOrderStatus,
+  getMaintenanceSchedule: mesAPI.getMaintenanceSchedule,
+  getRecentEvents: mesAPI.getRecentEvents,
+  
+  // Machine Config API方法
+  getMachines: MachineConfigAPI.getMachines,
+  createMachine: MachineConfigAPI.createMachine,
+  updateMachine: MachineConfigAPI.updateMachine,
+  deleteMachine: MachineConfigAPI.deleteMachine,
+  getMachineRelations: MachineConfigAPI.getMachineRelations,
+  createMachineRelation: MachineConfigAPI.createMachineRelation,
+  updateMachineRelation: MachineConfigAPI.updateMachineRelation,
+  deleteMachineRelation: MachineConfigAPI.deleteMachineRelation,
+  getMachineSpeeds: MachineConfigAPI.getMachineSpeeds,
+  createMachineSpeed: MachineConfigAPI.createMachineSpeed,
+  updateMachineSpeed: MachineConfigAPI.updateMachineSpeed,
+  deleteMachineSpeed: MachineConfigAPI.deleteMachineSpeed,
+  getMaintenancePlans: MachineConfigAPI.getMaintenancePlans,
+  createMaintenancePlan: MachineConfigAPI.createMaintenancePlan,
+  updateMaintenancePlan: MachineConfigAPI.updateMaintenancePlan,
+  deleteMaintenancePlan: MachineConfigAPI.deleteMaintenancePlan,
+  getShiftConfigs: MachineConfigAPI.getShiftConfigs,
+  createShiftConfig: MachineConfigAPI.createShiftConfig,
+  updateShiftConfig: MachineConfigAPI.updateShiftConfig,
+  deleteShiftConfig: MachineConfigAPI.deleteShiftConfig,
+  
+  // Monthly Plan API方法
+  uploadMonthlyFile: MonthlyPlanAPI.uploadFile,
+  getMonthlyPlans: MonthlyPlanAPI.getMonthlyPlans,
+  getMonthlyPlanDetail: MonthlyPlanAPI.getMonthlyPlanDetail,
+  
+  // Work Calendar API方法
+  getWorkCalendar: WorkCalendarAPI.getWorkCalendar,
+  updateWorkCalendar: WorkCalendarAPI.updateWorkCalendar
+};
+
+// 导出组合API作为默认导出
+export default api;

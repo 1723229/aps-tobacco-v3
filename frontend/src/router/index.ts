@@ -71,6 +71,40 @@ const router = createRouter({
                 title: "机台配置管理",
             },
         },
+        {
+            path: "/monthly-plan/entry",
+            name: "monthly-plan-entry",
+            component: () => import("../views/MonthlyPlanEntry.vue"),
+            meta: {
+                title: "月度计划录入",
+            },
+        },
+        {
+            path: "/monthly-plan/detail/:batchId",
+            name: "monthly-plan-detail",
+            component: () => import("../views/MonthlyPlanDetail.vue"),
+            meta: {
+                title: "月度计划详情",
+            },
+            props: true,
+        },
+        {
+            path: "/monthly-scheduling",
+            name: "monthly-scheduling",
+            component: () => import("../views/MonthlyScheduling.vue"),
+            meta: {
+                title: "月度排产管理",
+            },
+        },
+        {
+            path: "/monthly-scheduling/results/:taskId",
+            name: "monthly-scheduling-results",
+            component: () => import("../views/MonthlySchedulingResults.vue"),
+            meta: {
+                title: "月度排产结果",
+            },
+            props: true,
+        },
     ],
 });
 

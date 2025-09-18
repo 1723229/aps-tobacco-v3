@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     mysql_pool_recycle: int = 1800
     
     # Redis配置 - 7.0+
-    redis_url: str = "redis://:Redis_Apex_2025.@10.0.0.66:6379/13"
+    redis_url: str = "redis://10.0.0.99:6379/13"
     redis_max_connections: int = 50
     redis_decode_responses: bool = True
     

@@ -1,7 +1,7 @@
 # Tasks: 月计划Excel直接排产功能（冲突避免版本）
 
 **Input**: 冲突避免设计文档来自 `/Users/spuerman/work/self_code/aps-tobacco-v3/specs/001-aps-v2-2019/`
-**Prerequisites**: plan.md (required), research.md, data-model-revised.md, contracts/api-spec-revised.yaml
+**Prerequisites**: plan.md (required), research.md, data-model.md, contracts/api-spec.yaml
 **重要**: 本版本任务列表基于冲突避免设计，确保与现有旬计划系统零冲突
 
 ## 🔥 冲突避免设计要点

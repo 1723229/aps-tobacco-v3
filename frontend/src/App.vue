@@ -32,7 +32,7 @@
                 <span class="nav-text">机台配置</span>
               </div>
               
-              <div class="nav-dropdown" :class="{ active: activeMenuIndex.includes('/decade-plan') || activeMenuIndex.includes('/scheduling') }">
+              <div class="nav-dropdown" :class="{ active: activeMenuIndex.includes('/decade-plan') || activeMenuIndex.includes('/monthly-plan') || activeMenuIndex.includes('/scheduling') }">
                 <div class="nav-item dropdown-trigger">
                   <div class="nav-icon">
                     <el-icon><Operation /></el-icon>
@@ -43,11 +43,11 @@
                 <div class="dropdown-menu">
                   <div class="dropdown-item" @click="handleMenuSelect('/decade-plan/entry')">
                     <el-icon><UploadFilled /></el-icon>
-                    <span>卷包旬计划录入</span>
+                    <span>卷包旬计划</span>
                   </div>
-                  <div class="dropdown-item" @click="handleMenuSelect('/scheduling')">
-                    <el-icon><TrendCharts /></el-icon>
-                    <span>智能排产管理</span>
+                  <div class="dropdown-item" @click="handleMenuSelect('/monthly-plan/entry')">
+                    <el-icon><Calendar /></el-icon>
+                    <span>月度计划</span>
                   </div>
                 </div>
               </div>
@@ -129,7 +129,9 @@ import {
   ArrowDown,
   Bell,
   User,
-  TrendCharts
+  TrendCharts,
+  Calendar,
+  Timer
 } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils'
 
@@ -154,8 +156,17 @@ const activeMenuIndex = computed(() => {
   if (path.startsWith('/decade-plan/entry')) {
     return '/decade-plan/entry'
   }
+  if (path.startsWith('/monthly-plan/entry')) {
+    return '/monthly-plan/entry'
+  }
+  if (path.startsWith('/monthly-plan/detail')) {
+    return '/monthly-plan/entry'
+  }
   if (path === '/scheduling') {
     return '/scheduling'
+  }
+  if (path.startsWith('/monthly-scheduling')) {
+    return '/monthly-scheduling'
   }
   if (path.startsWith('/scheduling/history')) {
     return '/scheduling/history'

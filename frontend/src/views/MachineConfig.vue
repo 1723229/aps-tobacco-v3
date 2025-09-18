@@ -4,7 +4,7 @@
     <div class="page-header">
       <h1>机台配置管理</h1>
       <p class="page-description">
-        管理机台基础信息、机台关系、速度配置、维护计划和班次配置
+        管理机台基础信息、机台关系、速度配置、维护计划、班次配置和工作日历
       </p>
     </div>
 
@@ -49,6 +49,11 @@
       <div v-if="activeTab === 'shifts'" class="tab-panel">
         <ShiftConfigTable />
       </div>
+
+      <!-- 工作日历 -->
+      <div v-if="activeTab === 'calendar'" class="tab-panel">
+        <WorkCalendarTable />
+      </div>
     </div>
   </div>
 </template>
@@ -60,6 +65,7 @@ import MachineRelationTable from '@/components/MachineRelationTable.vue';
 import MachineSpeedTable from '@/components/MachineSpeedTable.vue';
 import MaintenancePlanTable from '@/components/MaintenancePlanTable.vue';
 import ShiftConfigTable from '@/components/ShiftConfigTable.vue';
+import WorkCalendarTable from '@/components/WorkCalendarTable.vue';
 
 // 标签页配置
 const tabs = [
@@ -87,6 +93,11 @@ const tabs = [
     key: 'shifts',
     label: '班次配置',
     icon: 'fas fa-clock'
+  },
+  {
+    key: 'calendar',
+    label: '工作日历',
+    icon: 'fas fa-calendar-alt'
   }
 ];
 

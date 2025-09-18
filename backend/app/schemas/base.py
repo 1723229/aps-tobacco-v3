@@ -30,6 +30,20 @@ class BaseResponse(BaseModel):
     )
 
 
+class APIResponse(BaseModel):
+    """标准API响应模型"""
+    code: int = Field(..., description="响应代码")
+    message: str = Field(..., description="响应消息")
+    data: Optional[Dict[str, Any]] = Field(None, description="响应数据")
+    timestamp: datetime = Field(default_factory=datetime.now, description="响应时间")
+    
+    model_config = ConfigDict(
+        json_encoders={
+            datetime: lambda v: v.isoformat()
+        }
+    )
+
+
 class SuccessResponse(BaseResponse):
     """成功响应模型"""
     code: int = Field(200, description="成功响应代码")

@@ -1,0 +1,302 @@
+INFO:     Will watch for changes in these directories: ['/Users/spuerman/work/self_code/aps-tobacco-v3/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8810 (Press CTRL+C to quit)
+INFO:     Started reloader process [56006] using StatReload
+INFO:     Started server process [56157]
+INFO:     Waiting for application startup.
+2025-09-18 18:19:25,862 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 18:19:25,862 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 18:19:26,118 - app.db.connection - INFO - Database connection healthy
+2025-09-18 18:19:26,163 - app.main - INFO - ✅ Database connection established
+2025-09-18 18:19:26,242 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 18:19:26,243 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+2025-09-18 18:19:27,427 - app.api.v1.monthly_data - ERROR - 查询月度数据导入记录失败: (pymysql.err.OperationalError) (1305, 'FUNCTION aps.literal does not exist')
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT aps_monthly_plan.monthly_batch_id AS monthly_batch_id, min(aps_monthly_plan.source_file) AS file_name, count(aps_monthly_plan.monthly_plan_id) AS total_records, count(aps_monthly_plan.monthly_plan_id) AS valid_records, literal(%s) AS error_records, literal(%s) AS warning_records, min(aps_monthly_plan.created_time) AS upload_time, min(aps_monthly_plan.created_time) AS created_time, max(aps_monthly_plan.updated_time) AS updated_time, min(aps_monthly_plan.created_by) AS created_by 
+FROM aps_monthly_plan 
+WHERE aps_monthly_plan.monthly_batch_id LIKE %s GROUP BY aps_monthly_plan.monthly_batch_id) AS anon_1]
+[parameters: (0, 0, 'MONTHLY_%')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+INFO:     127.0.0.1:60702 - "GET /api/v1/monthly-data/imports HTTP/1.1" 500 Internal Server Error
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 18:19:38,416 - app.main - INFO - Shutting down application...
+2025-09-18 18:19:38,416 - app.db.connection - INFO - Database connections closed
+2025-09-18 18:19:38,417 - app.db.cache - INFO - Redis connections closed
+2025-09-18 18:19:38,417 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [56157]
+INFO:     Started server process [60638]
+INFO:     Waiting for application startup.
+2025-09-18 18:19:47,610 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 18:19:47,610 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 18:19:47,986 - app.db.connection - INFO - Database connection healthy
+2025-09-18 18:19:48,032 - app.main - INFO - ✅ Database connection established
+2025-09-18 18:19:48,140 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 18:19:48,140 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 18:19:53,928 - app.main - INFO - Shutting down application...
+2025-09-18 18:19:53,930 - app.db.connection - INFO - Database connections closed
+2025-09-18 18:19:53,930 - app.db.cache - INFO - Redis connections closed
+2025-09-18 18:19:53,931 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [60638]
+INFO:     Started server process [62880]
+INFO:     Waiting for application startup.
+2025-09-18 18:20:01,757 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 18:20:01,758 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 18:20:02,006 - app.db.connection - INFO - Database connection healthy
+2025-09-18 18:20:02,053 - app.main - INFO - ✅ Database connection established
+2025-09-18 18:20:02,219 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 18:20:02,219 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+INFO:     127.0.0.1:60935 - "GET /api/v1/monthly-data/imports HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61005 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61062 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61067 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61069 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61068 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61062 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61100 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61100 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61237 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61236 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61288 - "GET /api/v1/monthly-work-orders/schedule?task_id=MONTHLY_TASK_20250918_174611_A9DE9D50&page=1&page_size=20 HTTP/1.1" 422 Unprocessable Entity
+INFO:     10.0.0.87:61287 - "GET /api/v1/monthly-scheduling/tasks/MONTHLY_TASK_20250918_174611_A9DE9D50 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61479 - "GET /api/v1/monthly-work-orders/schedule?task_id=MONTHLY_TASK_20250918_174611_A9DE9D50&page=1&page_size=20 HTTP/1.1" 422 Unprocessable Entity
+INFO:     10.0.0.87:61478 - "GET /api/v1/monthly-scheduling/tasks/MONTHLY_TASK_20250918_174611_A9DE9D50 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61478 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61478 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61501 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61500 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61500 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61501 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61500 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61501 - "GET /api/v1/monthly-work-orders/schedule?task_id=MONTHLY_TASK_20250918_174611_A9DE9D50&page=1&page_size=20 HTTP/1.1" 422 Unprocessable Entity
+INFO:     10.0.0.87:61500 - "GET /api/v1/monthly-scheduling/tasks/MONTHLY_TASK_20250918_174611_A9DE9D50 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61501 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61500 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+sys:1: SAWarning: SELECT statement has a cartesian product between FROM element(s) "aps_machine" and FROM element "anon_1".  Apply join condition(s) between each element to resolve.
+INFO:     10.0.0.87:62216 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62218 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62219 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62222 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62216 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62216 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62244 - "OPTIONS /api/v1/machines/machines/77 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62244 - "DELETE /api/v1/machines/machines/77 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62244 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+sys:1: SAWarning: SELECT statement has a cartesian product between FROM element(s) "anon_1" and FROM element "aps_machine_relation".  Apply join condition(s) between each element to resolve.
+INFO:     10.0.0.87:62244 - "GET /api/v1/machines/machine-relations?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62245 - "GET /api/v1/machines/machines?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62245 - "GET /api/v1/machines/machine-speeds?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62244 - "GET /api/v1/machines/machines?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62245 - "GET /api/v1/machines/machines?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62244 - "GET /api/v1/machines/maintenance-plans?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62244 - "GET /api/v1/machines/shift-configs?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62244 - "GET /api/v1/work-calendar?year=2025&month=09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62293 - "GET /api/v1/monthly-work-orders/schedule?task_id=MONTHLY_TASK_20250918_174611_A9DE9D50&page=1&size=20 HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:62351 - "GET /api/v1/monthly-scheduling/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62380 - "GET /api/v1/monthly-work-orders/schedule?monthly_batch_id=MONTHLY_20250918_174555_0186&page=1&size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62735 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62735 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62753 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62752 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62756 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62735 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62779 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62779 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62803 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62804 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62807 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62779 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:62779 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63244 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63244 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63256 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63255 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63723 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63724 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63728 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63727 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63727 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63727 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63727 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63727 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63757 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63756 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63756 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63757 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 18:33:03,365 - app.main - INFO - Shutting down application...
+2025-09-18 18:33:03,393 - app.db.connection - INFO - Database connections closed
+2025-09-18 18:33:03,421 - app.db.cache - INFO - Redis connections closed
+2025-09-18 18:33:03,421 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62880]
+INFO:     Started server process [81837]
+INFO:     Waiting for application startup.
+2025-09-18 18:33:11,924 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 18:33:11,924 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 18:33:12,184 - app.db.connection - INFO - Database connection healthy
+2025-09-18 18:33:12,235 - app.main - INFO - ✅ Database connection established
+2025-09-18 18:33:12,315 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 18:33:12,315 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+sys:1: SAWarning: SELECT statement has a cartesian product between FROM element(s) "anon_1" and FROM element "aps_machine".  Apply join condition(s) between each element to resolve.
+INFO:     10.0.0.87:64132 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64131 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64137 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64332 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64333 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64337 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64336 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64515 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64516 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64514 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64513 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64537 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64538 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64514 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64513 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64548 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64549 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64514 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64513 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65035 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65036 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65034 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65033 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65048 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65049 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65034 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65033 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65161 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65162 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65160 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65159 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65174 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65175 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65160 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65159 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65185 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65186 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65160 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65159 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65160 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65159 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65197 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65213 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65159 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65214 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65197 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65390 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65393 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65392 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65391 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65391 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65443 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65444 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65442 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65391 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65391 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65442 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65462 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65442 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65487 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65488 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65462 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65462 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65462 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65462 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65462 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:65462 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49203 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49203 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49213 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49212 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49212 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49235 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49213 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49212 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49212 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49252 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49213 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49256 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49212 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49279 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49392 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49393 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49391 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49390 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49390 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49390 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49417 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49417 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49417 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49417 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49455 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49454 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49455 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49471 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49454 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49472 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49455 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49578 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49577 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49576 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50682 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50680 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50681 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50682 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50681 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50695 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50696 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50682 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50682 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50682 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50682 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50682 - "GET /api/v1/plans/IMPORT_20250918_104619_c8cb6ede/decade-plans HTTP/1.1" 404 Not Found
+INFO:     10.0.0.87:50741 - "GET /api/v1/plans/IMPORT_20250918_104619_c8cb6ede/status HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50742 - "GET /api/v1/plans/history?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50742 - "GET /api/v1/plans/IMPORT_20250918_104619_c8cb6ede/decade-plans HTTP/1.1" 404 Not Found
+INFO:     10.0.0.87:50742 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50746 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50746 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50872 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/status HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50873 - "GET /api/v1/plans/history?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50877 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50906 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50906 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50906 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_174555_0186 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50925 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_174555_0186&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50925 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50925 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_174555_0186 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:50906 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_174555_0186&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51167 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51168 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51170 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51169 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51209 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51397 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_174555_0186 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51398 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_174555_0186&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51404 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51397 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51405 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51398 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51398 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51419 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51397 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51420 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51398 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51398 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51431 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51432 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51397 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51398 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK

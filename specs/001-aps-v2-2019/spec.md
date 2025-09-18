@@ -92,17 +92,17 @@
 - **FR-015**: 系统必须处理Excel中的合并单元格和复杂表格格式
 
 ### 排产算法具体规则
-基于现有数据表结构和完整技术实现方案：
+基于修正后的表结构设计（单位：箱）：
 
 - **ALG-001**: **机台选择算法**：查询`aps_machine_speed`表，根据`article_nr`(品牌规格)匹配`machine_code`，选择`speed`最高且`status='ACTIVE'`的机台
-- **ALG-002**: **时间计算算法**：生产时间(小时) = `target_quantity` ÷ (`speed` × `efficiency_rate`/100)，向上取整到最小时间单位
-- **ALG-003**: **工作日历算法**：基于新建`aps_work_calendar`表，只在`is_workday=1`且`day_type='WORKDAY'`的日期安排生产
+- **ALG-002**: **时间计算算法**：生产时间(小时) = `target_quantity_boxes` ÷ (`speed` × `efficiency_rate`/100)，向上取整到最小时间单位
+- **ALG-003**: **工作日历算法**：基于`aps_monthly_work_calendar`表，只在`monthly_is_working=1`且`monthly_day_type='WORKDAY'`的日期安排生产
 - **ALG-004**: **维修约束算法**：查询`aps_maintenance_plan`表，在`maint_start_time`到`maint_end_time`期间该`machine_code`不可用
 - **ALG-005**: **班次约束算法**：结合`aps_shift_config`表，生产时间必须在`start_time`到`end_time`范围内
 - **ALG-006**: **时间分配算法**：从`plan_month`第一个工作日开始，按优先级顺序分配时间段，确保无机台冲突
 - **ALG-007**: **负载均衡算法**：当多个机台可生产同一`article_nr`时，选择当前已分配工作量最少的机台
-- **ALG-008**: **产能拆分算法**：当`target_quantity`超过单台机台月产能时，按比例拆分到多台机台，存储为多条`aps_monthly_schedule_result`记录
-- **ALG-009**: **时间窗口算法**：确保每个`planned_start_time`到`planned_end_time`不与同机台其他任务重叠
+- **ALG-008**: **产能拆分算法**：当`target_quantity_boxes`超过单台机台月产能时，按比例拆分到多台机台，存储为多条`aps_monthly_schedule_result`记录
+- **ALG-009**: **时间窗口算法**：确保每个`scheduled_start_time`到`scheduled_end_time`不与同机台其他任务重叠
 
 ### 数据表依赖关系
 **现有表**：
@@ -117,18 +117,24 @@
 - `aps_monthly_schedule_result`: 排产结果
 
 ### 算法执行流程
-1. **Excel解析** → 提取杭州厂`article_nr` + `target_quantity` → 存入`aps_monthly_plan`
-2. **机台匹配** → 从`aps_machine_speed`查询可用机台列表
-3. **时间计算** → 基于`speed`和`efficiency_rate`计算所需生产时间
-4. **约束检查** → 检查`aps_work_calendar`、`aps_maintenance_plan`、`aps_shift_config`
-5. **时间分配** → 分配具体`planned_start_time`和`planned_end_time`
-6. **结果存储** → 生成`aps_monthly_schedule_result`记录
+1. **Excel解析** → 提取杭州厂`article_nr` + `target_quantity_boxes` + `hard_pack_boxes` + `soft_pack_boxes` → 存入`aps_monthly_plan`
+2. **机台匹配** → 从`aps_machine_speed`查询可用机台列表（基于`article_nr`匹配）
+3. **时间计算** → 基于`speed`和`efficiency_rate`计算所需生产时间：生产时间 = `target_quantity_boxes` ÷ (`speed` × `efficiency_rate`/100)
+4. **约束检查** → 检查`aps_monthly_work_calendar`、`aps_maintenance_plan`、`aps_shift_config`
+5. **时间分配** → 分配具体`scheduled_start_time`和`scheduled_end_time`
+6. **结果存储** → 生成`aps_monthly_schedule_result`记录（包含`allocated_boxes`）
 7. **工单生成** → 转换为MES兼容的工单格式
 
-*需要澄清的：*
-- **ALG-010**: 优先级排序规则 [需要澄清：`aps_monthly_plan.priority_level`的具体排序逻辑]
-- **ALG-011**: 产能溢出处理策略 [需要澄清：总需求超过月产能时的处理方式]
-- **ALG-012**: 机台关系处理 [需要澄清：是否需要考虑`aps_machine_relation`中的卷包机-喂丝机配对约束]
+### 算法遗漏检查和补充规则
+- **ALG-010**: **数据过滤算法**：在Excel解析阶段，过滤掉`target_quantity_boxes`为0或NULL的记录，只处理杭州厂有效生产需求
+- **ALG-011**: **品牌优先级算法**：当机台产能有限时，按品牌重要性排序（如：利群 > 其他品牌），确保重点品牌优先排产
+- **ALG-012**: **机台关系约束算法**：必须考虑`aps_machine_relation`表，确保分配的喂丝机和卷包机是配对的，避免生产线不匹配
+- **ALG-013**: **Excel列识别算法**：自动识别Excel中"杭州卷烟厂"相关列（原计划、硬包、软包），忽略宁波厂等其他工厂数据
+- **ALG-014**: **产能溢出处理算法**：当总需求超过月产能时，按比例缩减各品牌目标产量，或延期处理到下月
+
+*重要补充：*
+- **ALG-015**: **数据完整性检查**：确保`aps_machine_speed`表中存在与Excel品牌规格对应的`article_nr`记录，否则无法进行机台匹配
+- **ALG-016**: **时间边界检查**：排产时间不能超出`plan_month`的月份范围，避免跨月排产
 
 ### 关键实体 *(涉及数据时填写)*
 基于完整技术实现方案的数据模型：
