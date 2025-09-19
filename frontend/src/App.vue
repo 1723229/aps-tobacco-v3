@@ -24,14 +24,14 @@
                 </div>
                 <span class="nav-text">首页</span>
               </div>
-              
+
               <div class="nav-item" :class="{ active: activeMenuIndex === '/machine-config' }" @click="handleMenuSelect('/machine-config')">
                 <div class="nav-icon">
                   <el-icon><Setting /></el-icon>
                 </div>
                 <span class="nav-text">机台配置</span>
               </div>
-              
+
               <div class="nav-dropdown" :class="{ active: activeMenuIndex.includes('/decade-plan') || activeMenuIndex.includes('/monthly-plan') || activeMenuIndex.includes('/scheduling') }">
                 <div class="nav-item dropdown-trigger">
                   <div class="nav-icon">
@@ -43,11 +43,11 @@
                 <div class="dropdown-menu">
                   <div class="dropdown-item" @click="handleMenuSelect('/decade-plan/entry')">
                     <el-icon><UploadFilled /></el-icon>
-                    <span>卷包旬计划</span>
+                    <span>卷包旬计划合并</span>
                   </div>
                   <div class="dropdown-item" @click="handleMenuSelect('/monthly-plan/entry')">
                     <el-icon><Calendar /></el-icon>
-                    <span>月度计划</span>
+                    <span>月度计划排产</span>
                   </div>
                 </div>
               </div>
@@ -568,47 +568,47 @@ const handleMenuSelect = (index: string) => {
   .header-content {
     padding: 0 16px;
   }
-  
+
   .logo-container {
     width: 40px;
     height: 40px;
   }
-  
+
   .logo-title {
     font-size: 16px;
   }
-  
+
   .logo-subtitle {
     font-size: 10px;
   }
-  
+
   .modern-nav {
     gap: 4px;
     padding: 4px;
   }
-  
+
   .nav-item {
     padding: 8px 12px;
     min-width: 80px;
   }
-  
+
   .nav-text {
     font-size: 12px;
   }
-  
+
   .header-actions {
     gap: 8px;
   }
-  
+
   .user-name {
     display: none;
   }
-  
+
   .action-item {
     width: 36px;
     height: 36px;
   }
-  
+
   .user-avatar {
     width: 32px;
     height: 32px;

@@ -25,7 +25,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-item decade-item">
-                <span class="plan-type">旬计划</span>
+                <span class="plan-type">旬计划合并</span>
                 <span class="stat-value">{{ decadeStatistics.today_uploads || 0 }}</span>
               </div>
               <div class="stat-item monthly-item">
@@ -46,7 +46,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-item decade-item">
-                <span class="plan-type">旬计划</span>
+                <span class="plan-type">旬计划合并</span>
                 <span class="stat-value">{{ decadeStatistics.monthly_processed || 0 }}</span>
               </div>
               <div class="stat-item monthly-item">
@@ -67,7 +67,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-item decade-item">
-                <span class="plan-type">旬计划</span>
+                <span class="plan-type">旬计划合并</span>
                 <span class="stat-value">{{ decadeStatistics.total_work_orders || 0 }}</span>
               </div>
               <div class="stat-item monthly-item">
@@ -88,7 +88,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-item decade-item">
-                <span class="plan-type">旬计划</span>
+                <span class="plan-type">旬计划合并</span>
                 <span class="stat-value">{{ decadeStatistics.scheduling_tasks || 0 }}</span>
               </div>
               <div class="stat-item monthly-item">
@@ -123,7 +123,7 @@
                 <el-icon><UploadFilled /></el-icon>
               </div>
               <div class="action-text">
-                <h3>卷包旬计划</h3>
+                <h3>卷包旬计划合并</h3>
                 <p>上传Excel文件进行旬计划数据录入，执行智能排产</p>
               </div>
               <div class="action-arrow">
@@ -148,7 +148,7 @@
                 <el-icon><Lightning /></el-icon>
               </div>
               <div class="action-text">
-                <h3>月度计划</h3>
+                <h3>月度计划排产</h3>
                 <p>上传Excel文件进行月度计划数据录入，执行排产管理</p>
               </div>
               <div class="action-arrow">
@@ -211,8 +211,8 @@
             <template #default="{ row }">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span>{{ row.file_name }}</span>
-                <el-tag 
-                  :type="row.plan_type === 'decade' ? 'primary' : 'success'" 
+                <el-tag
+                  :type="row.plan_type === 'decade' ? 'primary' : 'success'"
                   size="small"
                 >
                   {{ row.plan_type === 'decade' ? '旬计划' : '月度计划' }}
@@ -356,13 +356,13 @@ const refreshActivity = async () => {
 const loadStatistics = async () => {
   try {
     console.log('📊 开始加载统计数据...')
-    
+
     // 并行加载旬计划和月度计划的统计数据
     await Promise.all([
       loadDecadeStatistics(),
       loadMonthlyStatistics()
     ])
-    
+
     console.log('✅ 统计数据加载完成')
   } catch (error) {
     console.error('❌ 加载统计数据失败:', error)
@@ -405,17 +405,17 @@ const loadMonthlyStatistics = async () => {
 
     const today = new Date().toISOString().split('T')[0]
     const currentMonth = new Date().toISOString().substring(0, 7)
-    
+
     let todayUploads = 0
     let monthlyProcessed = 0
-    
+
     if (monthlyDataResponse.code === 200 && monthlyDataResponse.data?.imports) {
       const imports = monthlyDataResponse.data.imports
-      todayUploads = imports.filter((item: any) => 
+      todayUploads = imports.filter((item: any) =>
         item.upload_time?.startsWith(today)
       ).length
-      
-      monthlyProcessed = imports.filter((item: any) => 
+
+      monthlyProcessed = imports.filter((item: any) =>
         item.created_time?.startsWith(currentMonth)
       ).length
     }
@@ -438,15 +438,15 @@ const loadMonthlyStatistics = async () => {
 const loadRecentActivity = async () => {
   try {
     activityLoading.value = true
-    
+
     // 并行加载旬计划和月度计划的活动记录
     const [decadeResponse, monthlyResponse] = await Promise.all([
       DecadePlanAPI.getUploadHistory(1, 10), // 增加获取数量
       fetch('/api/v1/monthly-data/imports?page=1&page_size=10').then(res => res.json())
     ])
-    
+
     const activities: any[] = []
-    
+
     // 添加旬计划记录
     if (decadeResponse.data?.records) {
       decadeResponse.data.records.forEach((record: any) => {
@@ -458,7 +458,7 @@ const loadRecentActivity = async () => {
         })
       })
     }
-    
+
     // 添加月度计划记录
     if (monthlyResponse.code === 200 && monthlyResponse.data?.imports) {
       monthlyResponse.data.imports.forEach((record: any) => {
@@ -475,19 +475,19 @@ const loadRecentActivity = async () => {
         })
       })
     }
-    
+
     // 按上传时间排序，最新的在前面
     activities.sort((a, b) => {
       const timeA = new Date(a.upload_time || a.import_end_time || 0).getTime()
       const timeB = new Date(b.upload_time || b.import_end_time || 0).getTime()
       return timeB - timeA
     })
-    
+
     // 只保留最近5条记录
     recentActivity.value = activities.slice(0, 5)
-    
+
     console.log('✅ 最近活动记录加载完成:', recentActivity.value.length, '条')
-    
+
   } catch (error) {
     console.error('加载最近活动失败:', error)
     recentActivity.value = []
