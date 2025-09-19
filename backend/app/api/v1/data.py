@@ -28,6 +28,7 @@ async def list_import_plans(
     file_name: Optional[str] = Query(None, description="文件名过滤"),
     start_date: Optional[datetime] = Query(None, description="开始日期"),
     end_date: Optional[datetime] = Query(None, description="结束日期"),
+    plan_type: str = Query("DECADE", description="计划类型 (DECADE=旬计划, MONTHLY=月度计划)"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -37,7 +38,7 @@ async def list_import_plans(
     """
     try:
         # 构建查询条件
-        conditions = []
+        conditions = [ImportPlan.plan_type == plan_type]  # 始终按计划类型筛选
         
         if import_status:
             conditions.append(ImportPlan.import_status == import_status)

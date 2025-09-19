@@ -300,3 +300,573 @@ INFO:     127.0.0.1:51431 - "GET /api/v1/scheduling/work-orders?page=1&page_size
 INFO:     127.0.0.1:51432 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
 INFO:     10.0.0.87:51397 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
 INFO:     10.0.0.87:51398 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51710 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51715 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51716 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51719 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51710 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51710 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51710 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51761 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51710 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51760 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51760 - "GET /api/v1/machines/machines?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51761 - "GET /api/v1/work-orders?page=1&page_size=1000&task_id=SCHEDULE_20250903_195316_0a297971 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51761 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51760 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51788 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51788 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51788 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51872 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:51919 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52009 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52067 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52438 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52451 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52453 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52454 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52438 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52438 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52451 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52438 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52451 - "GET /api/v1/monthly-work-orders/schedule?task_id=MONTHLY_TASK_20250918_174611_A9DE9D50&page=1&page_size=20 HTTP/1.1" 422 Unprocessable Entity
+INFO:     10.0.0.87:52438 - "GET /api/v1/monthly-scheduling/tasks/MONTHLY_TASK_20250918_174611_A9DE9D50 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52438 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52451 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52681 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52680 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52680 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52681 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52799 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+2025-09-18 18:49:45,330 - app.api.v1.monthly_plans - INFO - 文件已保存: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_184945_8274.xlsx
+2025-09-18 18:49:45,362 - app.api.v1.monthly_plans - INFO - 开始解析月度Excel文件: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_184945_8274.xlsx
+2025-09-18 18:49:45,362 - app.services.monthly_excel_parser - INFO - 开始解析月度计划Excel文件: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_184945_8274.xlsx
+2025-09-18 18:49:45,515 - app.services.monthly_excel_parser - INFO - 工作表名称: 7月份生产计划（6.20）
+2025-09-18 18:49:45,515 - app.services.monthly_excel_parser - INFO - 数据起始行: 3
+2025-09-18 18:49:45,515 - app.services.monthly_excel_parser - INFO - 列映射: {'品牌规格': 1, '杭州_原计划': 4, '杭州_硬包': 5, '杭州_软包': 6}
+2025-09-18 18:49:45,516 - app.services.monthly_excel_parser - INFO - 遇到合计行，停止解析: 月度生产总计 (第75行)
+2025-09-18 18:49:45,516 - app.services.monthly_excel_parser - INFO - 解析完成: 总行数=66, 有效记录=26, 错误记录=0
+2025-09-18 18:49:46,230 - app.api.v1.monthly_plans - INFO - 月度计划解析完成: 总行数=66, 有效记录=26
+2025-09-18 18:49:46,230 - app.api.v1.monthly_plans - INFO - 月度计划文件上传并解析成功: MONTHLY_20250918_184945_8274
+INFO:     10.0.0.87:52851 - "POST /api/v1/monthly-plans/upload HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52851 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52851 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52907 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52907 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52907 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:52967 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:53084 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:53813 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:53813 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:53813 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:53813 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:54322 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54368 - "GET /api/v1/scheduling/work-orders?page=1&page_size=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54369 - "GET /api/v1/scheduling/tasks?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:54372 - "GET /api/v1/plans/history?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:54322 - "GET /api/v1/plans/statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:54475 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:54523 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54738 - "GET /api/v1/monthly-data/imports?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:54773 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:54962 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55012 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55056 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55215 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55215 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55376 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55394 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55394 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55394 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55394 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55394 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55495 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55660 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55860 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55879 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55879 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55895 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55895 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55895 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:55932 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56029 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56105 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56276 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56339 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56339 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56277 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56339 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56397 - "GET /api/v1/monthly-work-orders/schedule?task_id=MONTHLY_TASK_20250918_174611_A9DE9D50&page=1&page_size=20 HTTP/1.1" 422 Unprocessable Entity
+INFO:     10.0.0.87:56396 - "GET /api/v1/monthly-scheduling/tasks/MONTHLY_TASK_20250918_174611_A9DE9D50 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56397 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56396 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56479 - "GET /api/v1/machines/machines?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56479 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56479 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56479 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56517 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56517 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56595 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56596 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56623 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56624 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56624 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56623 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56787 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56787 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56811 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56810 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56811 - "GET /api/v1/machines/machines?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56810 - "GET /api/v1/work-orders?page=1&page_size=1000&task_id=SCHEDULE_20250903_195316_0a297971 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56787 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56811 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:56810 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57482 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57534 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57532 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57533 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57534 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57534 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57534 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57534 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57590 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57590 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57745 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57745 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57763 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57839 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57840 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57861 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57861 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57871 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/status HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57872 - "GET /api/v1/plans/history?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57876 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57912 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57925 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57925 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57939 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57940 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57981 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57981 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57995 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:57995 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58079 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58080 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58211 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58211 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58211 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58235 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58504 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58680 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58709 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/status HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58708 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58710 - "GET /api/v1/plans/history?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58710 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58946 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58946 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58964 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58964 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58946 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:58946 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59121 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59122 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59155 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59156 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59795 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59795 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59824 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59824 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59824 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:59867 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60381 - "GET /api/v1/monthly-data/imports?page=1&page_size=1 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/models/base_models.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:15:04,970 - app.main - INFO - Shutting down application...
+2025-09-18 19:15:04,990 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:15:04,997 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:15:04,998 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [81837]
+INFO:     Started server process [93670]
+INFO:     Waiting for application startup.
+2025-09-18 19:15:11,471 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:15:11,471 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:15:11,715 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:15:11,758 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:15:11,838 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:15:11,838 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+INFO:     10.0.0.87:60894 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:60896 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:60897 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:60895 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61109 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61110 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61111 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61112 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61181 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61182 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61282 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61283 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61323 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61324 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61323 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61324 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61414 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61497 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61521 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61520 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61520 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61520 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_174555_0186 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61521 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_174555_0186&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:61521 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_plans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:20:04,333 - app.main - INFO - Shutting down application...
+2025-09-18 19:20:04,348 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:20:04,357 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:20:04,357 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [93670]
+INFO:     Started server process [7491]
+INFO:     Waiting for application startup.
+2025-09-18 19:20:10,252 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:20:10,252 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:20:10,498 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:20:10,559 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:20:10,645 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:20:10,645 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_plans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:20:21,331 - app.main - INFO - Shutting down application...
+2025-09-18 19:20:21,331 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:20:21,332 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:20:21,332 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [7491]
+INFO:     Started server process [10510]
+INFO:     Waiting for application startup.
+2025-09-18 19:20:27,528 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:20:27,528 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:20:27,774 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:20:27,814 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:20:27,888 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:20:27,889 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:20:44,312 - app.main - INFO - Shutting down application...
+2025-09-18 19:20:44,314 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:20:44,314 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:20:44,314 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10510]
+INFO:     Started server process [14421]
+INFO:     Waiting for application startup.
+2025-09-18 19:20:50,511 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:20:50,511 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:20:50,787 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:20:50,832 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:20:50,908 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:20:50,908 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:21:14,662 - app.main - INFO - Shutting down application...
+2025-09-18 19:21:14,662 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:21:14,662 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:21:14,662 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [14421]
+INFO:     Started server process [18654]
+INFO:     Waiting for application startup.
+2025-09-18 19:21:19,931 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:21:19,931 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:21:20,284 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:21:20,353 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:21:20,469 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:21:20,469 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:21:57,343 - app.main - INFO - Shutting down application...
+2025-09-18 19:21:57,344 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:21:57,344 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:21:57,344 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [18654]
+INFO:     Started server process [23040]
+INFO:     Waiting for application startup.
+2025-09-18 19:22:01,575 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:22:01,576 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:22:01,833 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:22:01,877 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:22:01,956 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:22:01,956 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:22:34,994 - app.main - INFO - Shutting down application...
+2025-09-18 19:22:34,997 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:22:34,997 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:22:34,997 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [23040]
+INFO:     Started server process [27277]
+INFO:     Waiting for application startup.
+2025-09-18 19:22:41,447 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:22:41,447 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:22:41,715 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:22:41,764 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:22:41,851 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:22:41,851 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:22:50,616 - app.main - INFO - Shutting down application...
+2025-09-18 19:22:50,617 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:22:50,617 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:22:50,617 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [27277]
+INFO:     Started server process [30076]
+INFO:     Waiting for application startup.
+2025-09-18 19:22:57,481 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:22:57,481 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:22:57,789 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:22:57,921 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:22:57,996 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:22:57,996 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+INFO:     127.0.0.1:62896 - "GET /api/v1/monthly-data/imports?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63016 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63016 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63036 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_plans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:23:55,034 - app.main - INFO - Shutting down application...
+2025-09-18 19:23:55,035 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:23:55,035 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:23:55,035 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30076]
+INFO:     Started server process [34620]
+INFO:     Waiting for application startup.
+2025-09-18 19:23:59,427 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:23:59,427 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:23:59,673 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:23:59,716 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:23:59,794 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:23:59,794 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+INFO:     10.0.0.87:63057 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63067 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63068 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63126 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63126 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63145 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63349 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63359 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/status HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63349 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63360 - "GET /api/v1/plans/history?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63360 - "GET /api/v1/plans/IMPORT_20250902_104948_4c1bb8f9/decade-plans HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63364 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63418 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63418 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63418 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63440 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63466 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63466 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63489 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63488 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+2025-09-18 19:26:12,058 - app.api.v1.monthly_plans - INFO - 文件已保存: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_192611_4522.xlsx
+2025-09-18 19:26:12,062 - app.api.v1.monthly_plans - INFO - 开始解析月度Excel文件: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_192611_4522.xlsx
+2025-09-18 19:26:12,062 - app.services.monthly_excel_parser - INFO - 开始解析月度计划Excel文件: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_192611_4522.xlsx
+2025-09-18 19:26:12,177 - app.services.monthly_excel_parser - INFO - 工作表名称: 7月份生产计划（6.20）
+2025-09-18 19:26:12,178 - app.services.monthly_excel_parser - INFO - 数据起始行: 3
+2025-09-18 19:26:12,178 - app.services.monthly_excel_parser - INFO - 列映射: {'品牌规格': 1, '杭州_原计划': 4, '杭州_硬包': 5, '杭州_软包': 6}
+2025-09-18 19:26:12,178 - app.services.monthly_excel_parser - INFO - 遇到合计行，停止解析: 月度生产总计 (第75行)
+2025-09-18 19:26:12,178 - app.services.monthly_excel_parser - INFO - 解析完成: 总行数=66, 有效记录=26, 错误记录=0
+2025-09-18 19:26:12,942 - app.api.v1.monthly_plans - INFO - 月度计划解析完成: 总行数=66, 有效记录=26
+2025-09-18 19:26:12,943 - app.api.v1.monthly_plans - INFO - 月度计划文件上传并解析成功: MONTHLY_20250918_192611_4522
+INFO:     127.0.0.1:63703 - "POST /api/v1/monthly-plans/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63727 - "GET /api/v1/monthly-data/imports?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_192611_4522 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63784 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63784 - "GET /api/v1/plans/history?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63806 - "GET /api/v1/plans/scheduling-statistics HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63805 - "GET /api/v1/plans/history?page=1&page_size=10&status=COMPLETED HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63825 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63825 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:63833 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_plans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:26:48,092 - app.main - INFO - Shutting down application...
+2025-09-18 19:26:48,105 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:26:48,105 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:26:48,105 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34620]
+INFO:     Started server process [40150]
+INFO:     Waiting for application startup.
+2025-09-18 19:26:53,316 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:26:53,316 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:26:53,707 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:26:53,761 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:26:53,868 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:26:53,868 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+2025-09-18 19:26:59,858 - app.api.v1.monthly_plans - INFO - 文件已保存: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_192659_9782.xlsx
+2025-09-18 19:26:59,860 - app.api.v1.monthly_plans - INFO - 开始解析月度Excel文件: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_192659_9782.xlsx
+2025-09-18 19:26:59,860 - app.services.monthly_excel_parser - INFO - 开始解析月度计划Excel文件: /Users/spuerman/work/self_code/aps-tobacco-v3/backend/app/uploads/monthly/MONTHLY_20250918_192659_9782.xlsx
+2025-09-18 19:27:00,090 - app.services.monthly_excel_parser - INFO - 工作表名称: 7月份生产计划（6.20）
+2025-09-18 19:27:00,090 - app.services.monthly_excel_parser - INFO - 数据起始行: 3
+2025-09-18 19:27:00,091 - app.services.monthly_excel_parser - INFO - 列映射: {'品牌规格': 1, '杭州_原计划': 4, '杭州_硬包': 5, '杭州_软包': 6}
+2025-09-18 19:27:00,091 - app.services.monthly_excel_parser - INFO - 遇到合计行，停止解析: 月度生产总计 (第75行)
+2025-09-18 19:27:00,092 - app.services.monthly_excel_parser - INFO - 解析完成: 总行数=66, 有效记录=26, 错误记录=0
+2025-09-18 19:27:00,864 - app.api.v1.monthly_plans - INFO - 月度计划解析完成: 总行数=66, 有效记录=26
+2025-09-18 19:27:01,074 - app.api.v1.monthly_plans - INFO - 月度计划文件上传并解析成功: MONTHLY_20250918_192659_9782
+INFO:     127.0.0.1:63925 - "POST /api/v1/monthly-plans/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63949 - "GET /api/v1/monthly-data/imports?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63979 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_192659_9782 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64005 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64004 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64017 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_192659_9782&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64004 - "GET /api/v1/plans/history?page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64004 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64004 - "GET /api/v1/monthly-scheduling/tasks?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64041 - "GET /api/v1/monthly-data/imports?status=COMPLETED&page_size=100 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64041 - "GET /api/v1/monthly-data/imports?page=1&page_size=10&sort_by=created_time&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64041 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_192659_9782 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:64004 - "GET /api/v1/monthly-plans?monthly_batch_id=MONTHLY_20250918_192659_9782&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64058 - "POST /api/v1/monthly-scheduling/execute HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64129 - "GET /api/v1/monthly-scheduling/status/MONTHLY_TASK_20250918_192729_CC2D2279 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64172 - "GET /api/v1/monthly-work-orders?batch_id=MONTHLY_20250918_192659_9782&page=1&page_size=5 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64210 - "GET /api/v1/monthly-work-orders?batch_id=MONTHLY_20250918_192659_9782&page=1&page_size=5 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64249 - "GET /api/v1/monthly-scheduling HTTP/1.1" 404 Not Found
+WARNING:  StatReload detected changes in 'app/api/v1/monthly_plans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:28:25,751 - app.main - INFO - Shutting down application...
+2025-09-18 19:28:25,753 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:28:25,753 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:28:25,753 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40150]
+INFO:     Started server process [57031]
+INFO:     Waiting for application startup.
+2025-09-18 19:28:31,441 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:28:31,441 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:28:31,755 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:28:31,804 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:28:31,911 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:28:31,911 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+INFO:     10.0.0.87:49267 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_192659_9782 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49263 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 404 Not Found
+INFO:     10.0.0.87:49264 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49268 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_192659_9782&page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.87:49264 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 404 Not Found
+INFO:     10.0.0.87:49263 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=20 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/api/v1/data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:33:34,593 - app.main - INFO - Shutting down application...
+2025-09-18 19:33:34,603 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:33:34,618 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:33:34,618 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57031]
+INFO:     Started server process [69806]
+INFO:     Waiting for application startup.
+2025-09-18 19:33:41,575 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:33:41,576 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:33:41,846 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:33:41,888 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:33:41,971 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:33:41,972 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/data.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:33:59,434 - app.main - INFO - Shutting down application...
+2025-09-18 19:33:59,434 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:33:59,435 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:33:59,435 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [69806]
+INFO:     Started server process [71592]
+INFO:     Waiting for application startup.
+2025-09-18 19:34:07,924 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:34:07,924 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:34:08,184 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:34:08,226 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:34:08,303 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:34:08,303 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+INFO:     10.0.0.87:49692 - "GET /api/v1/monthly-data/imports/MONTHLY_20250918_184945_8274 HTTP/1.1" 404 Not Found
+INFO:     10.0.0.87:49693 - "GET /api/v1/monthly-plans?batch_id=MONTHLY_20250918_184945_8274&page=1&page_size=20 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/api/v1/plans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:34:36,964 - app.main - INFO - Shutting down application...
+2025-09-18 19:34:36,964 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:34:36,964 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:34:36,965 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [71592]
+INFO:     Started server process [76925]
+INFO:     Waiting for application startup.
+2025-09-18 19:34:45,769 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:34:45,769 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:34:46,151 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:34:46,193 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:34:46,270 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:34:46,270 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/v1/plans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 19:38:04,571 - app.main - INFO - Shutting down application...
+2025-09-18 19:38:04,576 - app.db.connection - INFO - Database connections closed
+2025-09-18 19:38:04,577 - app.db.cache - INFO - Redis connections closed
+2025-09-18 19:38:04,577 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [76925]
+INFO:     Started server process [82878]
+INFO:     Waiting for application startup.
+2025-09-18 19:38:08,373 - app.main - INFO - Starting APS智慧排产系统 v1.0.0
+2025-09-18 19:38:08,373 - app.main - INFO - ✅ Configuration validation passed
+2025-09-18 19:38:08,616 - app.db.connection - INFO - Database connection healthy
+2025-09-18 19:38:08,657 - app.main - INFO - ✅ Database connection established
+2025-09-18 19:38:08,736 - app.db.cache - INFO - Redis connection healthy
+2025-09-18 19:38:08,736 - app.main - INFO - ✅ Redis connection established
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-09-18 20:04:48,736 - app.main - INFO - Shutting down application...
+2025-09-18 20:04:48,740 - app.db.connection - INFO - Database connections closed
+2025-09-18 20:04:48,740 - app.db.cache - INFO - Redis connections closed
+2025-09-18 20:04:48,741 - app.main - INFO - Application shutdown complete
+INFO:     Application shutdown complete.
+INFO:     Finished server process [82878]
+INFO:     Stopping reloader process [56006]

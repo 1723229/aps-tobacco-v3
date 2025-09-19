@@ -1,55 +1,52 @@
 <template>
   <div class="monthly-plan-entry">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-text">
-          <h1>
-            <i class="fas fa-calendar-plus"></i>
-            月度生产计划录入
-          </h1>
-          <p class="page-description">
-            上传Excel文件进行月度生产计划数据录入与解析，支持完整的月度排产功能
-          </p>
+    <!-- 页面标题区 -->
+    <div class="page-title-section">
+      <div class="title-content">
+        <div class="title-left">
+          <div class="title-icon">
+            <el-icon><Calendar /></el-icon>
+          </div>
+          <div class="title-text">
+            <h1>月度生产计划录入</h1>
+            <p>上传Excel文件进行月度生产计划数据录入与解析，支持完整的月度排产功能</p>
+          </div>
         </div>
-        <div class="header-actions">
-          <el-button type="primary" icon="List" @click="$router.push('/monthly-scheduling')">
+        <div class="title-actions">
+          <el-button type="primary" @click="$router.push('/monthly-scheduling')">
+            <el-icon><Setting /></el-icon>
             月度排产管理
           </el-button>
         </div>
       </div>
     </div>
 
-    <!-- 月度计划录入区域 -->
-    <div class="upload-section">
-      <el-card class="upload-card">
-        <template #header>
-          <div class="upload-header">
-            <div class="header-icon">
-              <i class="fas fa-cloud-upload-alt"></i>
+    <!-- 主要内容区域 -->
+    <div class="main-content">
+      <!-- 文件上传区域 -->
+      <div class="upload-section">
+        <el-card class="upload-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <el-icon class="header-icon"><Upload /></el-icon>
+              <span class="header-title">月度计划文件上传</span>
             </div>
-            <div class="header-info">
-              <h2>月度计划文件上传</h2>
-              <p>请上传标准的月度生产计划Excel文件</p>
-            </div>
-          </div>
-        </template>
+          </template>
 
-        <!-- 文件上传提示 -->
-        <div class="upload-notice">
-          <el-alert
-            title="月度生产计划上传说明"
-            type="info"
-            :closable="false"
-            show-icon
-          >
-            <div class="notice-content">
-              <p><strong>支持的文件格式：</strong>.xlsx、.xls（文件大小不超过50MB）</p>
-              <p><strong>文件内容要求：</strong>包含月度生产任务、产品信息、产量目标、机台安排等</p>
-              <p><strong>处理功能：</strong>系统将自动解析文件并进行月度容量分析、工作日历匹配、资源优化分配</p>
-            </div>
-          </el-alert>
-        </div>
+          <!-- 文件上传提示 -->
+          <div class="upload-notice">
+            <el-alert
+              title="月度计划录入说明"
+              type="info"
+              :closable="false"
+              show-icon
+            >
+              <div class="notice-content">
+                <p>请上传标准的月度计划Excel文件（.xlsx格式），文件大小不超过50MB。</p>
+                <p>系统将自动解析文件内容并生成月度计划记录，包括产品信息、产量目标等信息。</p>
+              </div>
+            </el-alert>
+          </div>
 
         <!-- 文件上传组件 -->
         <div class="upload-area">
@@ -116,89 +113,51 @@
             </div>
           </div>
         </div>
-      </el-card>
-    </div>
+        </el-card>
+      </div>
 
-    <!-- 月度计划功能介绍 -->
-    <div class="features-section">
-      <el-card>
-        <template #header>
-          <h3>
-            <i class="fas fa-star"></i>
-            月度计划功能特色
-          </h3>
-        </template>
-        <div class="features-grid">
-          <div class="feature-item">
-            <div class="feature-icon calendar">
-              <i class="fas fa-calendar-check"></i>
+      <!-- 最近上传记录 -->
+      <div class="history-section">
+        <el-card class="history-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <div class="header-left">
+                <el-icon class="header-icon"><Clock /></el-icon>
+                <span class="header-title">最近上传记录</span>
+              </div>
+              <div class="header-actions">
+                <el-button 
+                  type="text" 
+                  icon="Refresh" 
+                  @click="loadRecentUploads"
+                  :loading="loadingRecords"
+                  size="small"
+                >
+                  刷新
+                </el-button>
+                <el-button 
+                  :type="showHistory ? 'primary' : 'default'" 
+                  @click="toggleHistory"
+                  size="small"
+                  text
+                >
+                  {{ showHistory ? '收起' : '展开' }}
+                  <el-icon class="expand-icon" :class="{ 'expanded': showHistory }">
+                    <ArrowDown />
+                  </el-icon>
+                </el-button>
+              </div>
             </div>
-            <div class="feature-content">
-              <h4>工作日历集成</h4>
-              <p>自动匹配工作日历，识别工作日、节假日和维护日，精确计算可用工时</p>
-            </div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon capacity">
-              <i class="fas fa-chart-line"></i>
-            </div>
-            <div class="feature-content">
-              <h4>产能分析</h4>
-              <p>智能分析月度产能需求，计算机台负荷，提供产能预警和优化建议</p>
-            </div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon optimization">
-              <i class="fas fa-cogs"></i>
-            </div>
-            <div class="feature-content">
-              <h4>资源优化</h4>
-              <p>基于约束条件进行资源优化分配，确保生产任务合理分布和机台高效利用</p>
-            </div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon timeline">
-              <i class="fas fa-clock"></i>
-            </div>
-            <div class="feature-content">
-              <h4>时间线规划</h4>
-              <p>生成详细的月度生产时间线，支持甘特图可视化和进度跟踪</p>
-            </div>
-          </div>
-        </div>
-      </el-card>
-    </div>
+          </template>
 
-    <!-- 最近上传记录 -->
-    <div class="recent-uploads">
-      <el-card>
-        <template #header>
-          <div class="section-header">
-            <div class="header-left">
-              <h3>
-                <i class="fas fa-history"></i>
-                最近上传记录
-              </h3>
-            </div>
-            <div class="header-right">
-              <el-button 
-                type="text" 
-                icon="Refresh" 
-                @click="loadRecentUploads"
-                :loading="loadingRecords"
-              >
-                刷新
-              </el-button>
-            </div>
-          </div>
-        </template>
-
-        <div v-loading="loadingRecords">
-          <el-table
-            :data="recentUploads"
-            style="width: 100%"
-            :empty-text="recentUploads.length === 0 ? '暂无月度计划上传记录' : ''"
-          >
+          <div v-loading="loadingRecords" v-show="showHistory" class="history-content">
+            <el-table
+              :data="recentUploads"
+              style="width: 100%"
+              :empty-text="recentUploads.length === 0 ? '暂无月度计划上传记录' : ''"
+              class="modern-table"
+              size="default"
+            >
             <el-table-column prop="batch_id" label="批次ID" width="200">
               <template #default="scope">
                 <el-tag size="small" type="info">{{ scope.row.batch_id }}</el-tag>
@@ -262,22 +221,27 @@
                 </div>
               </template>
             </el-table-column>
-          </el-table>
+            </el-table>
 
-          <!-- 分页 -->
-          <div class="pagination">
-            <el-pagination
-              v-model:current-page="pagination.page"
-              v-model:page-size="pagination.pageSize"
-              :page-sizes="[10, 20, 50]"
-              :total="pagination.total"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="handleSizeChange"
-              @current-change="handleCurrentChange"
-            />
+            <!-- 分页 -->
+            <div class="pagination">
+              <el-pagination
+                v-model:current-page="pagination.page"
+                v-model:page-size="pagination.pageSize"
+                :page-sizes="[10, 20, 50]"
+                :total="pagination.total"
+                layout="total, sizes, prev, pager, next, jumper"
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+              />
+            </div>
+            
+            <div v-if="recentUploads.length === 0 && !loadingRecords" class="empty-state">
+              <el-empty description="暂无上传记录" />
+            </div>
           </div>
-        </div>
-      </el-card>
+        </el-card>
+      </div>
     </div>
   </div>
 </template>
@@ -285,6 +249,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, Calendar, Setting, Upload, Clock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
 
@@ -296,6 +261,7 @@ const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
 const loadingRecords = ref(false)
 const recentUploads = ref<any[]>([])
+const showHistory = ref(true) // 默认展示历史记录
 
 // 上传进度
 const uploadProgress = reactive({
@@ -459,6 +425,14 @@ const goToScheduling = (row: any) => {
   router.push(`/monthly-scheduling?batch_id=${row.batch_id}`)
 }
 
+// 展开/收起控制
+const toggleHistory = () => {
+  showHistory.value = !showHistory.value
+  if (showHistory.value && recentUploads.value.length === 0) {
+    loadRecentUploads()
+  }
+}
+
 // 辅助方法
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 B'
@@ -496,78 +470,214 @@ const getStatusText = (status: string) => {
 
 <style scoped>
 .monthly-plan-entry {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 0;
+  border: none !important;
+  outline: none !important;
 }
 
-.page-header {
-  margin-bottom: 32px;
+/* Remove any yellow borders/outlines globally */
+.monthly-plan-entry *,
+.monthly-plan-entry *::before,
+.monthly-plan-entry *::after {
+  border-color: transparent !important;
+  outline: none !important;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+.monthly-plan-entry *:focus {
+  outline: none !important;
+  border-color: #409eff !important;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2) !important;
 }
 
-.header-text h1 {
-  margin: 0 0 8px 0;
-  color: #2c3e50;
-  font-size: 28px;
-  font-weight: 600;
-}
-
-.header-text h1 i {
-  margin-right: 10px;
-  color: #409eff;
-}
-
-.page-description {
-  color: #7f8c8d;
-  font-size: 16px;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.upload-section {
-  margin-bottom: 32px;
-}
-
-.upload-card {
-  border-radius: 12px;
+/* 页面标题区 */
+.page-title-section {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  padding: 40px 0 60px 0;
+  position: relative;
   overflow: hidden;
 }
 
-.upload-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.page-title-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
 }
 
-.header-icon {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #409eff, #66b1ff);
-  border-radius: 12px;
+.title-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.title-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+.title-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 36px;
   color: white;
-  font-size: 20px;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
 }
 
-.header-info h2 {
-  margin: 0 0 4px 0;
-  color: #303133;
-  font-size: 18px;
-  font-weight: 600;
+.title-text h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0 0 8px 0;
 }
 
-.header-info p {
+.title-text p {
+  font-size: 1.1rem;
+  color: #4a5568;
   margin: 0;
-  color: #909399;
-  font-size: 14px;
+  font-weight: 400;
+}
+
+.title-actions {
+  margin-left: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.title-actions .el-button {
+  padding: 16px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  color: #667eea;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.title-actions .el-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  background: white;
+}
+
+/* 主要内容区域 */
+.main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+  transform: translateY(-30px);
+  position: relative;
+  z-index: 2;
+}
+
+/* 顶部内容 */
+.upload-section {
+  margin-bottom: 40px;
+}
+
+.upload-card {
+  border-radius: 20px;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  background: white;
+}
+
+.upload-card :deep(.el-card__header) {
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  border-bottom: 1px solid #e8eaed;
+  padding: 24px 32px;
+}
+
+.upload-card :deep(.el-card__body) {
+  padding: 40px 32px;
+}
+
+/* 历史记录 */
+.history-section {
+  margin-bottom: 40px;
+}
+
+.history-card {
+  border-radius: 20px;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  background: white;
+}
+
+.history-card :deep(.el-card__header) {
+  background: linear-gradient(135deg, #fff8f0 0%, #fff2e6 100%);
+  border-bottom: 1px solid #e8eaed;
+  padding: 24px 32px;
+}
+
+.history-card :deep(.el-card__body) {
+  padding: 0;
+}
+
+.history-content {
+  padding: 32px;
+}
+
+/* 卡片头部样式 */
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  color: #2d3748;
+}
+
+.header-icon {
+  font-size: 20px;
+  color: #667eea;
+}
+
+.header-title {
+  flex: 1;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 展开/收起图标样式 */
+.expand-icon {
+  transition: transform 0.3s ease;
+  margin-left: 4px;
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
 }
 
 .upload-notice {
@@ -664,95 +774,6 @@ const getStatusText = (status: string) => {
   text-align: center;
 }
 
-.features-section {
-  margin-bottom: 32px;
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-}
-
-.feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-.feature-item:hover {
-  background: #f0f2f5;
-  transform: translateY(-2px);
-}
-
-.feature-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.feature-icon.calendar {
-  background: linear-gradient(135deg, #409eff, #66b1ff);
-}
-
-.feature-icon.capacity {
-  background: linear-gradient(135deg, #67c23a, #85ce61);
-}
-
-.feature-icon.optimization {
-  background: linear-gradient(135deg, #e6a23c, #ebb563);
-}
-
-.feature-icon.timeline {
-  background: linear-gradient(135deg, #f56c6c, #f78989);
-}
-
-.feature-content h4 {
-  margin: 0 0 8px 0;
-  color: #303133;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.feature-content p {
-  margin: 0;
-  color: #606266;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.recent-uploads {
-  margin-bottom: 32px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.section-header h3 {
-  margin: 0;
-  color: #303133;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.section-header h3 i {
-  margin-right: 8px;
-  color: #409eff;
-}
-
 .file-cell {
   display: flex;
   align-items: center;
@@ -775,32 +796,85 @@ const getStatusText = (status: string) => {
   justify-content: flex-end;
 }
 
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+/* 表格样式 */
+.modern-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.modern-table :deep(.el-table__header-wrapper) {
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+}
+
+.modern-table :deep(.el-table__header) {
+  background: transparent;
+}
+
+.modern-table :deep(.el-table__header th) {
+  background: transparent;
+  border-bottom: 1px solid #e8eaed;
+  color: #2d3748;
+  font-weight: 600;
+}
+
+.modern-table :deep(.el-table__row) {
+  transition: all 0.3s ease;
+}
+
+.modern-table :deep(.el-table__row:hover > td) {
+  background-color: #f8f9ff !important;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .monthly-plan-entry {
-    padding: 16px;
+    padding: 0;
   }
   
-  .header-content {
+  .title-content {
     flex-direction: column;
     gap: 16px;
     align-items: stretch;
+    padding: 0 20px;
   }
   
-  .features-grid {
-    grid-template-columns: 1fr;
+  .title-left {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
   }
   
-  .feature-item {
-    padding: 16px;
+  .title-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    align-self: center;
   }
   
-  .upload-content {
-    padding: 24px 16px;
+  .title-text h1 {
+    font-size: 1.8rem;
   }
   
-  .upload-icon {
-    font-size: 36px;
+  .title-text p {
+    font-size: 1rem;
+  }
+  
+  .main-content {
+    padding: 0 20px;
+    transform: translateY(-20px);
+  }
+  
+  .upload-card :deep(.el-card__body) {
+    padding: 24px 20px;
+  }
+  
+  .history-content {
+    padding: 20px;
   }
   
   .file-card {
@@ -817,16 +891,26 @@ const getStatusText = (status: string) => {
 
 /* 深色模式支持 */
 @media (prefers-color-scheme: dark) {
-  .feature-item {
-    background: #2d3748;
+  .page-title-section {
+    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
   }
   
-  .feature-item:hover {
-    background: #4a5568;
+  .title-text h1 {
+    color: #f7fafc;
+  }
+  
+  .title-text p {
+    color: #e2e8f0;
+  }
+  
+  .upload-card,
+  .history-card {
+    background: #2d3748;
+    color: #f7fafc;
   }
   
   .file-card {
-    background: #2d3748;
+    background: #4a5568;
   }
 }
 </style>

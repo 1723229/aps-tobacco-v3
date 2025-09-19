@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 from app.db.connection import get_async_session
 from app.models.monthly_plan_models import MonthlyPlan
+from app.models.base_models import ImportPlan
 from app.schemas.base import APIResponse
 
 # 设置日志
@@ -146,13 +147,54 @@ async def upload_monthly_plan(
         # 3. 生成批次ID
         batch_id = generate_monthly_batch_id()
         
-        # 4. 保存文件
-        file_path = await save_uploaded_file(file, batch_id)
-        
-        # 5. 自动解析并创建计划记录
-        parse_result = await _parse_and_save_monthly_plan(
-            file_path, batch_id, file.filename, db
+        # 4. 在 aps_import_plan 表中创建导入记录
+        import_plan = ImportPlan(
+            import_batch_id=batch_id,
+            plan_type='MONTHLY',  # 设置为月度计划类型
+            file_name=file.filename,
+            file_size=file.size or 0,
+            import_status='UPLOADING',
+            import_start_time=datetime.now(),
+            created_by='system'
         )
+        db.add(import_plan)
+        await db.flush()  # 获取 ID
+        
+        try:
+            # 5. 保存文件
+            file_path = await save_uploaded_file(file, batch_id)
+            
+            # 更新文件路径
+            import_plan.file_path = file_path
+            import_plan.import_status = 'PARSING'
+            
+            # 6. 自动解析并创建计划记录
+            parse_result = await _parse_and_save_monthly_plan(
+                file_path, batch_id, file.filename, db
+            )
+            
+            # 7. 更新导入记录状态
+            if parse_result["success"]:
+                import_plan.import_status = 'COMPLETED'
+                import_plan.import_end_time = datetime.now()
+                import_plan.total_records = parse_result.get("total_rows", 0)
+                import_plan.valid_records = parse_result.get("valid_rows", 0)
+                import_plan.error_records = parse_result.get("error_rows", 0)
+            else:
+                import_plan.import_status = 'FAILED'
+                import_plan.import_end_time = datetime.now()
+                import_plan.error_message = parse_result.get("message", "解析失败")
+            
+            # 提交导入记录状态更新
+            await db.commit()
+                
+        except Exception as e:
+            # 8. 处理异常
+            import_plan.import_status = 'FAILED'
+            import_plan.import_end_time = datetime.now()
+            import_plan.error_message = str(e)
+            await db.commit()
+            raise
         
         if not parse_result["success"]:
             raise HTTPException(
@@ -344,3 +386,60 @@ async def _parse_and_save_monthly_plan(
             "plans_created": 0,
             "error": str(e)
         }
+
+
+@router.get("/scheduling-statistics", response_model=APIResponse)
+async def get_monthly_scheduling_statistics(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取月度排产相关统计信息
+    
+    返回月度计划系统的全局统计数据，包括待排产计划数、进行中任务数、已完成任务数等。
+    """
+    try:
+        # 1. 统计待排产计划数 (已完成导入的月度计划)
+        available_plans_query = select(func.count(ImportPlan.id)).where(
+            and_(
+                ImportPlan.import_status == 'COMPLETED',
+                ImportPlan.plan_type == 'MONTHLY',  # 月度计划类型
+                ImportPlan.valid_records > 0  # 有有效记录
+            )
+        )
+        available_result = await db.execute(available_plans_query)
+        available_plans_count = available_result.scalar() or 0
+        
+        # 2. 统计进行中的排产任务数
+        from app.models.monthly_task_models import MonthlySchedulingTask, MonthlyTaskStatus
+        
+        running_tasks_query = select(func.count(MonthlySchedulingTask.task_id)).where(
+            MonthlySchedulingTask.task_status.in_([MonthlyTaskStatus.PENDING, MonthlyTaskStatus.RUNNING])
+        )
+        running_result = await db.execute(running_tasks_query)
+        running_tasks_count = running_result.scalar() or 0
+        
+        # 3. 统计已完成的排产任务数
+        completed_tasks_query = select(func.count(MonthlySchedulingTask.task_id)).where(
+            MonthlySchedulingTask.task_status == MonthlyTaskStatus.COMPLETED
+        )
+        completed_result = await db.execute(completed_tasks_query)
+        completed_tasks_count = completed_result.scalar() or 0
+        
+        logger.info(f"月度排产统计查询完成: 待排产={available_plans_count}, 进行中={running_tasks_count}, 已完成={completed_tasks_count}")
+        
+        return APIResponse(
+            code=200,
+            message="月度排产统计信息获取成功",
+            data={
+                "available_plans_count": available_plans_count,
+                "running_tasks_count": running_tasks_count,
+                "completed_tasks_count": completed_tasks_count
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"获取月度排产统计信息失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取统计信息失败: {str(e)}"
+        )

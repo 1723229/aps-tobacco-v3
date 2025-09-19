@@ -26,6 +26,7 @@ import logging
 
 from app.db.connection import get_async_session
 from app.models.monthly_plan_models import MonthlyPlan
+from app.models.base_models import ImportPlan
 from app.schemas.base import APIResponse
 
 logger = logging.getLogger(__name__)
@@ -88,51 +89,43 @@ async def get_monthly_data_imports(
         if sort_order not in ["asc", "desc"]:
             sort_order = "desc"
         
-        # 构建查询条件
-        query_conditions = []
+        # 构建查询条件 - 从 aps_import_plan 表查询月度计划记录
+        query_conditions = [ImportPlan.plan_type == 'MONTHLY']  # 只查询月度计划类型
         
-        # 只查询月度数据（批次ID以MONTHLY_开头）
-        query_conditions.append(MonthlyPlan.monthly_batch_id.like("MONTHLY_%"))
-        
-        # 注意：新版本的MonthlyPlan模型没有validation_status字段，所有记录默认为COMPLETED状态
-        # if status:
-        #     # 保留原有逻辑但不实际过滤，因为新模型没有这些字段
-        #     pass
+        if status:
+            # 将状态映射到 import_status
+            status_mapping = {
+                "UPLOADED": "UPLOADING",
+                "PARSING": "PARSING", 
+                "PARSED": "COMPLETED",
+                "SCHEDULING": "COMPLETED",
+                "COMPLETED": "COMPLETED",
+                "FAILED": "FAILED"
+            }
+            mapped_status = status_mapping.get(status, status)
+            query_conditions.append(ImportPlan.import_status == mapped_status)
         
         if upload_after_dt:
-            query_conditions.append(MonthlyPlan.created_time >= upload_after_dt)
+            query_conditions.append(ImportPlan.created_time >= upload_after_dt)
         
         if upload_before_dt:
-            query_conditions.append(MonthlyPlan.created_time <= upload_before_dt)
+            query_conditions.append(ImportPlan.created_time <= upload_before_dt)
         
         if file_name:
-            query_conditions.append(MonthlyPlan.source_file.like(f"%{file_name}%"))
+            query_conditions.append(ImportPlan.file_name.like(f"%{file_name}%"))
         
-        # 按批次ID分组聚合导入记录信息
-        import_subquery = (
-            select(
-                MonthlyPlan.monthly_batch_id,
-                func.min(MonthlyPlan.source_file).label("file_name"),
-                func.count(MonthlyPlan.monthly_plan_id).label("total_records"),
-                func.count(MonthlyPlan.monthly_plan_id).label("valid_records"),  # 所有记录都视为有效
-                func.sum(0).label("error_records"),  # 新模型中没有错误记录
-                func.sum(0).label("warning_records"),  # 新模型中没有警告记录
-                func.min(MonthlyPlan.created_time).label("upload_time"),
-                func.min(MonthlyPlan.created_time).label("created_time"),
-                func.max(MonthlyPlan.updated_time).label("updated_time"),
-                func.min(MonthlyPlan.created_by).label("created_by")
-            )
+        # 直接查询 aps_import_plan 表
+        import_query = (
+            select(ImportPlan)
             .where(and_(*query_conditions))
-            .group_by(MonthlyPlan.monthly_batch_id)
-            .subquery()
         )
         
         # 构建排序
-        sort_column = import_subquery.c.created_time  # 默认排序字段
+        sort_column = ImportPlan.created_time  # 默认排序字段
         if sort_by == "upload_time":
-            sort_column = import_subquery.c.upload_time
+            sort_column = ImportPlan.created_time
         elif sort_by == "file_size":
-            sort_column = import_subquery.c.total_records  # 用记录数代替文件大小
+            sort_column = ImportPlan.file_size
         
         if sort_order == "desc":
             sort_column = desc(sort_column)
@@ -140,32 +133,39 @@ async def get_monthly_data_imports(
             sort_column = asc(sort_column)
         
         # 查询总数
-        count_query = select(func.count()).select_from(import_subquery)
+        count_query = select(func.count()).select_from(ImportPlan).where(and_(*query_conditions))
         count_result = await db.execute(count_query)
         total_count = count_result.scalar()
         
         # 分页查询
         offset = (page - 1) * page_size
-        data_query = select(import_subquery).order_by(sort_column).offset(offset).limit(page_size)
+        data_query = import_query.order_by(sort_column).offset(offset).limit(page_size)
         
         result = await db.execute(data_query)
-        import_records = result.all()
+        import_records = result.scalars().all()
         
         # 构建导入记录列表
         imports = []
         for record in import_records:
-            # 新模型中所有记录都是已完成状态
-            import_status = "COMPLETED"
+            # 状态映射回前端期望的格式
+            status_reverse_mapping = {
+                "UPLOADING": "UPLOADED",
+                "PARSING": "PARSING",
+                "COMPLETED": "COMPLETED", 
+                "FAILED": "FAILED"
+            }
+            import_status = status_reverse_mapping.get(record.import_status, record.import_status)
             
             imports.append({
-                "monthly_batch_id": record.monthly_batch_id,
-                "file_name": record.file_name.split('/')[-1] if record.file_name else "未知文件",
-                "file_size": record.total_records * 1024,  # 模拟文件大小
-                "upload_time": record.upload_time.isoformat() if record.upload_time else None,
+                "monthly_batch_id": record.import_batch_id,
+                "file_name": record.file_name,
+                "file_size": record.file_size or 0,
+                "upload_time": record.created_time.isoformat() if record.created_time else None,
                 "status": import_status,
-                "total_records": record.total_records,
-                "valid_records": record.valid_records,
-                "error_records": record.error_records,
+                "total_records": record.total_records or 0,
+                "valid_records": record.valid_records or 0,
+                "error_records": record.error_records or 0,
+                "warning_records": 0,  # aps_import_plan 表中没有 warning_records
                 "created_by": record.created_by,
                 "created_time": record.created_time.isoformat() if record.created_time else None,
                 "updated_time": record.updated_time.isoformat() if record.updated_time else None
@@ -222,28 +222,36 @@ async def get_monthly_data_import_detail(
                 detail=f"无效的月度批次ID格式，应以MONTHLY_开头: {batch_id}"
             )
         
-        # 查询批次记录
-        query = select(MonthlyPlan).where(MonthlyPlan.monthly_batch_id == batch_id)
+        # 从 aps_import_plan 表查询批次记录
+        query = select(ImportPlan).where(
+            and_(
+                ImportPlan.import_batch_id == batch_id,
+                ImportPlan.plan_type == 'MONTHLY'
+            )
+        )
         result = await db.execute(query)
-        plans = result.scalars().all()
+        import_record = result.scalar_one_or_none()
         
-        if not plans:
+        if not import_record:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"月度导入批次不存在: {batch_id}"
             )
         
-        # 计算统计信息
-        total_records = len(plans)
-        valid_records = total_records  # 新模型中所有记录都是有效的
-        error_records = 0  # 新模型中没有错误记录
-        warning_records = 0  # 新模型中没有警告记录
+        # 获取统计信息
+        total_records = import_record.total_records or 0
+        valid_records = import_record.valid_records or 0
+        error_records = import_record.error_records or 0
+        warning_records = 0  # aps_import_plan 表中没有 warning_records
         
-        # 推断状态
-        import_status = "COMPLETED"  # 新模型中所有记录都是已完成状态
-        
-        # 获取第一条记录的基本信息
-        first_plan = plans[0]
+        # 状态映射
+        status_reverse_mapping = {
+            "UPLOADING": "UPLOADED",
+            "PARSING": "PARSING",
+            "COMPLETED": "COMPLETED", 
+            "FAILED": "FAILED"
+        }
+        import_status = status_reverse_mapping.get(import_record.import_status, import_record.import_status)
         
         # 构建处理摘要
         processing_summary = {
@@ -265,17 +273,17 @@ async def get_monthly_data_import_detail(
         # 构建详情响应
         import_detail = {
             "monthly_batch_id": batch_id,
-            "file_name": first_plan.source_file.split('/')[-1] if first_plan.source_file else "未知文件",
-            "file_size": total_records * 1024,  # 模拟文件大小
-            "upload_time": first_plan.created_time.isoformat() if first_plan.created_time else None,
+            "file_name": import_record.file_name or "未知文件",
+            "file_size": import_record.file_size or 0,
+            "upload_time": import_record.created_time.isoformat() if import_record.created_time else None,
             "status": import_status,
             "total_records": total_records,
             "valid_records": valid_records,
             "error_records": error_records,
             "warning_records": warning_records,
-            "created_by": first_plan.created_by,
-            "created_time": first_plan.created_time.isoformat() if first_plan.created_time else None,
-            "updated_time": max(p.updated_time for p in plans).isoformat() if plans else None,
+            "created_by": import_record.created_by,
+            "created_time": import_record.created_time.isoformat() if import_record.created_time else None,
+            "updated_time": import_record.updated_time.isoformat() if import_record.updated_time else None,
             "processing_summary": processing_summary,
             "error_details": error_details[:10],  # 限制返回前10条错误
             "warning_details": warning_details[:10]  # 限制返回前10条警告

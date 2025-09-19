@@ -118,6 +118,7 @@ async def create_import_record(
     """创建导入记录"""
     import_plan = ImportPlan(
         import_batch_id=import_batch_id,
+        plan_type="DECADE",  # 设置为旬计划类型
         file_name=file_name,
         file_path=file_path,
         file_size=file_size,
@@ -837,7 +838,7 @@ async def get_upload_history(
         )
         
         # 构建查询条件
-        conditions = []
+        conditions = [ImportPlan.plan_type == 'DECADE']  # 只查询旬计划记录
         if status:
             conditions.append(ImportPlan.import_status == status)
             
@@ -855,8 +856,8 @@ async def get_upload_history(
             base_query = base_query.where(and_(*conditions))
         
         # 获取总数
-        count_query = select(func.count()).select_from(ImportPlan)
-        if conditions:
+        count_query = select(func.count()).select_from(ImportPlan).where(ImportPlan.plan_type == 'DECADE')
+        if conditions[1:]:  # 排除第一个plan_type条件，避免重复
             count_query = count_query.outerjoin(
                 SchedulingTask, 
                 ImportPlan.import_batch_id == SchedulingTask.import_batch_id
@@ -960,7 +961,8 @@ async def get_upload_statistics(
             select(func.count()).select_from(ImportPlan)
             .where(and_(
                 ImportPlan.created_time >= today_start,
-                ImportPlan.created_time <= today_end
+                ImportPlan.created_time <= today_end,
+                ImportPlan.plan_type == 'DECADE'  # 只统计旬计划
             ))
         )
         today_uploads = today_uploads_result.scalar() or 0
@@ -970,7 +972,8 @@ async def get_upload_statistics(
             select(func.sum(ImportPlan.total_records)).select_from(ImportPlan)
             .where(and_(
                 ImportPlan.created_time >= month_start_dt,
-                ImportPlan.import_status == 'COMPLETED'
+                ImportPlan.import_status == 'COMPLETED',
+                ImportPlan.plan_type == 'DECADE'  # 只统计旬计划
             ))
         )
         monthly_processed = monthly_records_result.scalar() or 0
@@ -979,7 +982,10 @@ async def get_upload_statistics(
         thirty_days_ago = datetime.now() - timedelta(days=30)
         total_recent_result = await db.execute(
             select(func.count()).select_from(ImportPlan)
-            .where(ImportPlan.created_time >= thirty_days_ago)
+            .where(and_(
+                ImportPlan.created_time >= thirty_days_ago,
+                ImportPlan.plan_type == 'DECADE'  # 只统计旬计划
+            ))
         )
         total_recent = total_recent_result.scalar() or 0
         
@@ -987,7 +993,8 @@ async def get_upload_statistics(
             select(func.count()).select_from(ImportPlan)
             .where(and_(
                 ImportPlan.created_time >= thirty_days_ago,
-                ImportPlan.import_status == 'COMPLETED'
+                ImportPlan.import_status == 'COMPLETED',
+                ImportPlan.plan_type == 'DECADE'  # 只统计旬计划
             ))
         )
         success_recent = success_recent_result.scalar() or 0
@@ -997,7 +1004,10 @@ async def get_upload_statistics(
         # 活跃批次（解析中或最近完成的）
         active_batches_result = await db.execute(
             select(func.count()).select_from(ImportPlan)
-            .where(ImportPlan.import_status.in_(['PARSING', 'UPLOADING']))
+            .where(and_(
+                ImportPlan.import_status.in_(['PARSING', 'UPLOADING']),
+                ImportPlan.plan_type == 'DECADE'  # 只统计旬计划
+            ))
         )
         active_batches = active_batches_result.scalar() or 0
         
@@ -1035,7 +1045,10 @@ async def get_scheduling_statistics(
         ).outerjoin(
             SchedulingTask, 
             ImportPlan.import_batch_id == SchedulingTask.import_batch_id
-        ).where(ImportPlan.import_status == 'COMPLETED')  # 只统计已解析完成的
+        ).where(and_(
+            ImportPlan.import_status == 'COMPLETED',
+            ImportPlan.plan_type == 'DECADE'  # 只统计旬计划
+        ))
         
         result = await db.execute(base_query)
         all_plans = result.fetchall()
@@ -1142,6 +1155,7 @@ async def get_available_batches_for_scheduling(
             ImportPlan.import_batch_id == SchedulingTask.import_batch_id
         ).where(and_(
             ImportPlan.import_status == 'COMPLETED',
+            ImportPlan.plan_type == 'DECADE',  # 只查询旬计划
             ImportPlan.valid_records > 0,  # 必须有有效记录
             SchedulingTask.task_id == None  # 未排产
         )).order_by(desc(ImportPlan.created_time))

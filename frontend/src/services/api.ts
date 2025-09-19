@@ -37,6 +37,31 @@ export interface SchedulingTask {
     algorithm_config: SchedulingAlgorithmConfig;
 }
 
+// 月度排产任务接口
+export interface MonthlySchedulingTaskResponse {
+    task_id: string;
+    monthly_batch_id: string;
+    task_name: string;
+    status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+    current_stage: string;
+    progress: number;
+    total_plans: number;
+    scheduled_plans: number;
+    start_time?: string;
+    end_time?: string;
+    execution_time?: number;
+    error_message?: string;
+    algorithm_summary?: {
+        algorithms_used?: string[];
+        efficiency_achieved?: string;
+        execution_time?: number;
+    };
+    optimization_level?: string;
+    enable_load_balancing?: boolean;
+    max_execution_time?: number;
+    target_efficiency?: number;
+}
+
 // 工单接口
 export interface WorkOrder {
     work_order_nr: string;
@@ -892,6 +917,165 @@ export class MonthlyPlanAPI {
         const response = await httpClient.get(`${API_PREFIX}/monthly-data/imports/${batchId}`);
         return response.data;
     }
+
+    /**
+     * 获取月度计划上传历史记录
+     * @param page 页码
+     * @param pageSize 每页大小
+     * @param status 过滤状态
+     * @returns 历史记录列表
+     */
+    static async getUploadHistory(
+        page: number = 1,
+        pageSize: number = 20,
+        status?: string,
+    ): Promise<HistoryResponse> {
+        const params: any = {
+            page,
+            page_size: pageSize,
+        };
+
+        if (status) {
+            params.status = status;
+        }
+
+        const response = await httpClient.get<HistoryResponse>(`${API_PREFIX}/monthly-data/imports`, {
+            params,
+        });
+
+        return response.data;
+    }
+
+    /**
+     * 获取月度排产相关统计信息（全局）
+     * @returns 排产统计数据
+     */
+    static async getSchedulingStatistics(): Promise<ApiResponse<{
+        available_plans_count: number;
+        running_tasks_count: number;
+        completed_tasks_count: number;
+    }>> {
+        const response = await httpClient.get<ApiResponse<{
+            available_plans_count: number;
+            running_tasks_count: number;
+            completed_tasks_count: number;
+        }>>(`${API_PREFIX}/monthly-plans/scheduling-statistics`);
+
+        return response.data;
+    }
+}
+
+// === 月度排产 API ===
+export class MonthlySchedulingAPI {
+    /**
+     * 执行月度排产算法
+     * @param monthlyBatchId 月度批次ID
+     * @param algorithmConfig 算法配置
+     * @returns 排产任务信息
+     */
+    static async executeScheduling(
+        monthlyBatchId: string,
+        algorithmConfig?: any
+    ): Promise<any> {
+        const response = await httpClient.post(`${API_PREFIX}/monthly-scheduling/execute`, {
+            monthly_batch_id: monthlyBatchId,
+            algorithm_config: {
+                optimization_level: 'medium',
+                enable_load_balancing: true,
+                max_execution_time: 300,
+                target_efficiency: 0.85,
+                ...algorithmConfig,
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * 查询月度排产任务状态
+     * @param taskId 任务ID
+     * @returns 任务状态信息
+     */
+    static async getTaskStatus(taskId: string): Promise<any> {
+        const response = await httpClient.get(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}/status`);
+        return response.data;
+    }
+
+    /**
+     * 获取月度排产结果
+     * @param taskId 任务ID
+     * @returns 排产结果
+     */
+    static async getSchedulingResult(taskId: string): Promise<any> {
+        const response = await httpClient.get(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}/result`);
+        return response.data;
+    }
+
+    /**
+     * 获取月度排产任务历史记录
+     * @param params 查询参数
+     * @returns 任务历史列表
+     */
+    static async getTaskHistory(params?: any): Promise<ApiResponse<{
+        tasks: MonthlySchedulingTaskResponse[];
+        pagination: {
+            current_page: number;
+            page_size: number;
+            total_count: number;
+            total_pages: number;
+        };
+    }>> {
+        const response = await httpClient.get<ApiResponse<{
+            tasks: MonthlySchedulingTaskResponse[];
+            pagination: {
+                current_page: number;
+                page_size: number;
+                total_count: number;
+                total_pages: number;
+            };
+        }>>(`${API_PREFIX}/monthly-scheduling/tasks`, {
+            params
+        });
+        return response.data;
+    }
+
+    /**
+     * 重试月度排产任务
+     * @param taskId 任务ID
+     * @returns 重试结果
+     */
+    static async retryTask(taskId: string): Promise<any> {
+        const response = await httpClient.post(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}/retry`);
+        return response.data;
+    }
+
+    /**
+     * 取消月度排产任务
+     * @param taskId 任务ID
+     * @returns 取消结果
+     */
+    static async cancelTask(taskId: string): Promise<any> {
+        const response = await httpClient.post(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}/cancel`);
+        return response.data;
+    }
+
+    /**
+     * 获取月度排产统计信息
+     * @returns 统计数据
+     */
+    static async getStatistics(): Promise<ApiResponse<{
+        running_tasks_count: number;
+        completed_tasks_count: number;
+        failed_tasks_count: number;
+        today_tasks_count: number;
+    }>> {
+        const response = await httpClient.get<ApiResponse<{
+            running_tasks_count: number;
+            completed_tasks_count: number;
+            failed_tasks_count: number;
+            today_tasks_count: number;
+        }>>(`${API_PREFIX}/monthly-scheduling/statistics`);
+        return response.data;
+    }
 }
 
 // === 工作日历 API ===
@@ -927,6 +1111,7 @@ export const workOrderAPI = WorkOrderAPI;
 export const mesAPI = MESAPI;
 export const machineConfigAPI = MachineConfigAPI;
 export const monthlyPlanAPI = MonthlyPlanAPI;
+export const monthlySchedulingAPI = MonthlySchedulingAPI;
 export const workCalendarAPI = WorkCalendarAPI;
 
 // 导出组合API对象，包含所有API方法和httpClient实例方法

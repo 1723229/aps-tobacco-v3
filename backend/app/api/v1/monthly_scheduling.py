@@ -701,7 +701,7 @@ async def cancel_monthly_scheduling_task(
             )
         
         # 验证是否是月度任务
-        if not task.import_batch_id.startswith("MONTHLY_"):
+        if not task.monthly_batch_id.startswith("MONTHLY_"):
             raise HTTPException(
                 status_code=400,
                 detail=f"任务 {task_id} 不是月度排产任务"
@@ -770,7 +770,7 @@ async def retry_monthly_scheduling_task(
             )
         
         # 验证是否是月度任务
-        if not task.import_batch_id.startswith("MONTHLY_"):
+        if not task.monthly_batch_id.startswith("MONTHLY_"):
             raise HTTPException(
                 status_code=400,
                 detail=f"任务 {task_id} 不是月度排产任务"
@@ -797,13 +797,10 @@ async def retry_monthly_scheduling_task(
         
         # 从原始算法配置重新生成请求参数
         algorithm_config = {
-            "enable_load_balancing": task.merge_enabled,
-            "enable_time_allocation": task.split_enabled,
-            "enable_constraint_solving": task.correction_enabled,
-            "enable_parallel_processing": task.parallel_enabled,
-            "optimization_level": "medium",
-            "max_execution_time": 300,
-            "target_efficiency": 0.85
+            "optimization_level": task.optimization_level or "medium",
+            "enable_load_balancing": task.enable_load_balancing if task.enable_load_balancing is not None else True,
+            "max_execution_time": task.max_execution_time or 300,
+            "target_efficiency": float(task.target_efficiency) if task.target_efficiency else 0.85
         }
         
         constraints = {
@@ -859,54 +856,53 @@ async def get_monthly_scheduling_statistics(
         
         # 构建月度任务查询条件
         base_conditions = [
-            SchedulingTask.created_time >= start_date,
-            SchedulingTask.import_batch_id.like("MONTHLY_%")
+            MonthlySchedulingTask.created_time >= start_date
         ]
         
         # 总任务数
         total_result = await db.execute(
-            select(func.count()).select_from(SchedulingTask)
+            select(func.count()).select_from(MonthlySchedulingTask)
             .where(and_(*base_conditions))
         )
         total_tasks = total_result.scalar() or 0
         
         # 成功任务数
         success_result = await db.execute(
-            select(func.count()).select_from(SchedulingTask)
+            select(func.count()).select_from(MonthlySchedulingTask)
             .where(and_(
                 *base_conditions,
-                SchedulingTask.task_status == SchedulingTaskStatus.COMPLETED
+                MonthlySchedulingTask.task_status == MonthlyTaskStatus.COMPLETED
             ))
         )
         success_tasks = success_result.scalar() or 0
         
         # 失败任务数
         failed_result = await db.execute(
-            select(func.count()).select_from(SchedulingTask)
+            select(func.count()).select_from(MonthlySchedulingTask)
             .where(and_(
                 *base_conditions,
-                SchedulingTask.task_status == SchedulingTaskStatus.FAILED
+                MonthlySchedulingTask.task_status == MonthlyTaskStatus.FAILED
             ))
         )
         failed_tasks = failed_result.scalar() or 0
         
         # 运行中任务数
         running_result = await db.execute(
-            select(func.count()).select_from(SchedulingTask)
+            select(func.count()).select_from(MonthlySchedulingTask)
             .where(and_(
-                SchedulingTask.task_status == SchedulingTaskStatus.RUNNING,
-                SchedulingTask.import_batch_id.like("MONTHLY_%")
+                MonthlySchedulingTask.task_status == MonthlyTaskStatus.RUNNING,
+                MonthlySchedulingTask.created_time >= start_date
             ))
         )
         running_tasks = running_result.scalar() or 0
         
         # 平均执行时长
         avg_duration_result = await db.execute(
-            select(func.avg(SchedulingTask.execution_duration)).select_from(SchedulingTask)
+            select(func.avg(MonthlySchedulingTask.execution_time_seconds)).select_from(MonthlySchedulingTask)
             .where(and_(
                 *base_conditions,
-                SchedulingTask.task_status == SchedulingTaskStatus.COMPLETED,
-                SchedulingTask.execution_duration != None
+                MonthlySchedulingTask.task_status == MonthlyTaskStatus.COMPLETED,
+                MonthlySchedulingTask.execution_time_seconds != None
             ))
         )
         avg_duration = avg_duration_result.scalar() or 0
@@ -919,10 +915,10 @@ async def get_monthly_scheduling_statistics(
         successful_plans = 0
         
         summary_result = await db.execute(
-            select(SchedulingTask.total_records, SchedulingTask.processed_records).select_from(SchedulingTask)
+            select(MonthlySchedulingTask.total_records, MonthlySchedulingTask.processed_records).select_from(MonthlySchedulingTask)
             .where(and_(
                 *base_conditions,
-                SchedulingTask.task_status == SchedulingTaskStatus.COMPLETED
+                MonthlySchedulingTask.task_status == MonthlyTaskStatus.COMPLETED
             ))
         )
         

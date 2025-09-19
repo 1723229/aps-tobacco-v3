@@ -67,7 +67,7 @@
               </div>
               <div class="header-menu">
                 <el-icon><Upload /></el-icon>
-                <span>数据录入</span>
+                <span>旬计划数据录入</span>
               </div>
             </div>
             <div class="action-content">
@@ -77,6 +77,31 @@
               <div class="action-text">
                 <h3>卷包旬计划</h3>
                 <p>上传Excel文件进行旬计划数据录入，执行智能排产</p>
+              </div>
+              <div class="action-arrow">
+                <el-icon><ArrowRight /></el-icon>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="8">
+           <el-card class="action-card scheduling-card" @click="goToMonthlyPlan">
+            <div class="card-header">
+              <div class="header-logo">
+                <el-icon><Lightning /></el-icon>
+              </div>
+              <div class="header-menu">
+                <el-icon><DataAnalysis /></el-icon>
+                <span>月度计划数据录入</span>
+              </div>
+            </div>
+            <div class="action-content">
+              <div class="action-icon scheduling-action">
+                <el-icon><Lightning /></el-icon>
+              </div>
+              <div class="action-text">
+                <h3>月度计划</h3>
+                <p>上传Excel文件进行月度计划数据录入，执行排产管理</p>
               </div>
               <div class="action-arrow">
                 <el-icon><ArrowRight /></el-icon>
@@ -102,31 +127,6 @@
               <div class="action-text">
                 <h3>机台配置管理</h3>
                 <p>管理机台信息、关系配置、速度设置、维护计划和班次</p>
-              </div>
-              <div class="action-arrow">
-                <el-icon><ArrowRight /></el-icon>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="8">
-          <el-card class="action-card scheduling-card" @click="goToMonthlyPlan">
-            <div class="card-header">
-              <div class="header-logo">
-                <el-icon><Lightning /></el-icon>
-              </div>
-              <div class="header-menu">
-                <el-icon><DataAnalysis /></el-icon>
-                <span>智能排产</span>
-              </div>
-            </div>
-            <div class="action-content">
-              <div class="action-icon scheduling-action">
-                <el-icon><Lightning /></el-icon>
-              </div>
-              <div class="action-text">
-                <h3>月度计划</h3>
-                <p>上传Excel文件进行月度计划数据录入，执行排产管理</p>
               </div>
               <div class="action-arrow">
                 <el-icon><ArrowRight /></el-icon>
@@ -282,17 +282,17 @@ const refreshActivity = async () => {
 const loadStatistics = async () => {
   try {
     console.log('📊 开始加载统计数据...')
-    
+
     // 并发获取各项统计数据
     const [originalStatsResponse, workOrdersResponse, tasksResponse] = await Promise.all([
       // 获取原始统计数据（文件上传相关）
       DecadePlanAPI.getStatistics(),
       // 获取工单统计
       fetch('/api/v1/scheduling/work-orders?page=1&page_size=1000').then(res => res.json()),
-      // 获取排产任务统计  
+      // 获取排产任务统计
       fetch('/api/v1/scheduling/tasks?page=1&page_size=100').then(res => res.json())
     ])
-    
+
     console.log('📦 原始统计响应:', originalStatsResponse.data)
     console.log('📦 工单数据响应:', {
       code: workOrdersResponse.code,
@@ -302,13 +302,13 @@ const loadStatistics = async () => {
       code: tasksResponse.code,
       total_count: tasksResponse.data?.pagination?.total_count
     })
-    
+
     // 合并所有统计数据
     const baseStats = originalStatsResponse.data
-    
+
     if (workOrdersResponse.code === 200 && workOrdersResponse.data?.work_orders) {
       const workOrders = workOrdersResponse.data.work_orders
-      
+
       statistics.value = {
         // 保留原始统计
         today_uploads: baseStats.today_uploads || 0,
@@ -317,7 +317,7 @@ const loadStatistics = async () => {
         total_work_orders: workOrders.length,
         scheduling_tasks: tasksResponse.code === 200 ? (tasksResponse.data?.pagination?.total_count || 0) : 0
       }
-      
+
       console.log('✅ 合并统计数据更新完成:', statistics.value)
     } else {
       // 只保留原始统计数据
@@ -328,7 +328,7 @@ const loadStatistics = async () => {
         scheduling_tasks: tasksResponse.code === 200 ? (tasksResponse.data?.pagination?.total_count || 0) : 0
       }
     }
-    
+
   } catch (error) {
     console.error('❌ 加载统计数据失败:', error)
     statistics.value = {

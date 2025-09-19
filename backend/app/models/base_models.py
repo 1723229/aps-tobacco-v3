@@ -87,6 +87,12 @@ class ImportPlan(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
     import_batch_id = Column(String(50), nullable=False, unique=True, comment='导入批次ID')
+    plan_type = Column(
+        Enum('DECADE', 'MONTHLY', name='plan_type_enum'),
+        default='DECADE',
+        nullable=False,
+        comment='计划类型：DECADE=旬计划，MONTHLY=月度计划'
+    )
     file_name = Column(String(255), nullable=False, comment='文件名')
     file_path = Column(String(500), comment='文件路径')
     file_size = Column(BigInteger, comment='文件大小（字节）')
