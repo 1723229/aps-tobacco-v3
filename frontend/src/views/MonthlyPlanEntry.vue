@@ -95,6 +95,7 @@
                 :percentage="uploadProgress.percentage"
                 :status="uploadProgress.status"
                 :stroke-width="8"
+                :format="(percent: number) => `${percent.toFixed(2)}%`"
               />
               <div class="progress-text">{{ uploadProgress.text }}</div>
             </div>
@@ -328,24 +329,22 @@ const startUpload = async () => {
     // 模拟上传进度
     const progressInterval = setInterval(() => {
       if (uploadProgress.percentage < 90) {
-        uploadProgress.percentage += Math.random() * 20
-        if (uploadProgress.percentage > 90) {
-          uploadProgress.percentage = 90
-        }
+        const increment = Math.random() * 10 + 2 // 2-12之间的随机增量
+        uploadProgress.percentage = Math.min(90, Number((uploadProgress.percentage + increment).toFixed(2)))
       }
-    }, 200)
+    }, 300)
 
     uploadProgress.text = '正在上传文件...'
 
     // 调用月度计划上传API
-    const response = await api.post('/api/v1/monthly-plans/upload', formData, {
+    const response = await api.post('/api/v1/monthly-data/uploads', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     })
 
     clearInterval(progressInterval)
-    uploadProgress.percentage = 100
+    uploadProgress.percentage = 100.00
     uploadProgress.status = 'success'
     uploadProgress.text = '上传成功！'
 

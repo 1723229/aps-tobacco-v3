@@ -658,7 +658,7 @@ const confirmScheduling = async () => {
   } catch (error: any) {
     console.error('❌ 月度排产执行失败:', error)
     
-    // 处理重复提交的情况
+    // 处理不同类型的错误
     if (error.response?.status === 409) {
       // 409冲突，任务已存在
       const detail = error.response?.data?.detail || '月度排产任务已创建，正在后台执行'
@@ -671,6 +671,14 @@ const confirmScheduling = async () => {
         console.log('🔄 检测到已存在任务，开始轮询状态:', taskId)
         await pollTaskStatus(taskId)
       }
+    } else if (error.response?.status === 404) {
+      // 404错误，月度批次不存在
+      const errorMessage = error.response?.data?.detail || '月度批次不存在'
+      ElMessage.error(errorMessage)
+      progressDialogVisible.value = false
+      
+      // 刷新列表以更新状态
+      await refreshPlans()
     } else {
       // 其他错误
       const errorMessage = error.response?.data?.detail || error.message || '排产任务创建失败'

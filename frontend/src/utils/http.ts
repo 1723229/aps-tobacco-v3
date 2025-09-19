@@ -42,8 +42,15 @@ httpClient.interceptors.response.use(
         }
     },
     (error: AxiosError) => {
-        // 对于400错误（业务逻辑错误），让上层组件自行处理，避免重复显示
-        if (error.response?.status === 400) {
+        // 对于400、404错误（业务逻辑错误），让上层组件自行处理，避免重复显示
+        if (error.response?.status === 400 || error.response?.status === 404) {
+            console.error('HTTP请求错误详情:', {
+                url: error.config?.url,
+                method: error.config?.method,
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
             return Promise.reject(error);
         }
 
