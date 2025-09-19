@@ -41,10 +41,22 @@ import base64
 from collections import defaultdict, Counter
 import statistics
 
-from app.algorithms.monthly_scheduling.base import (
-    BaseAlgorithm, AlgorithmType, Priority, MachineType,
-    MonthlyPlanItem, ScheduleResult, MonthlySchedulingError
+from .monthly_base import (
+    MonthlyAlgorithmBase, 
+    MonthlyAlgorithmType, 
+    MonthlyPriority, 
+    MonthlyMachineType,
+    MonthlyPlanItem, 
+    MonthlyScheduleResult as ScheduleResult, 
+    MonthlySchedulingError,
+    MonthlyProcessingStage
 )
+
+# 为了向后兼容，创建别名
+AlgorithmType = MonthlyAlgorithmType
+Priority = MonthlyPriority
+MachineType = MonthlyMachineType
+BaseAlgorithm = MonthlyAlgorithmBase
 
 
 class OutputFormat(Enum):
@@ -232,7 +244,7 @@ class StatisticalSummary:
         }
 
 
-class MonthlyResultFormatter(BaseAlgorithm):
+class MonthlyResultFormatter(MonthlyAlgorithmBase):
     """
     月度结果格式化算法类
     
@@ -247,7 +259,7 @@ class MonthlyResultFormatter(BaseAlgorithm):
         Args:
             config: 格式化器配置
         """
-        super().__init__(AlgorithmType.MONTHLY_ENGINE, config)
+        super().__init__(MonthlyProcessingStage.SCHEDULE_GENERATION, "MonthlyResultFormatter")
         self.formatter_config = config or FormatterConfig()
         
         # 本地化配置

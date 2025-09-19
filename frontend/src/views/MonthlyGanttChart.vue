@@ -364,6 +364,13 @@ async function fetchMonthlyWorkOrders() {
       monthly_batch_id: monthlyBatchId
     }
 
+    // 添加任务ID参数（如果存在）
+    const taskId = route.query.task_id as string
+    if (taskId) {
+      params.task_id = taskId
+      console.log('📋 使用任务ID:', taskId)
+    }
+
     // 添加机台筛选
     if (filterOptions.value.machine_code) {
       params.machine_code = filterOptions.value.machine_code
@@ -378,28 +385,26 @@ async function fetchMonthlyWorkOrders() {
     })
 
     if (response.code === 200 && response.data) {
-      // 后端返回的数据结构包含machine_schedules，我们需要从中提取工单数据
+      // 后端返回的数据结构包含gantt_data，我们需要从中提取工单数据
       const scheduleData = response.data
       const extractedWorkOrders: MonthlyWorkOrder[] = []
 
-      // 从machine_schedules中提取工单
-      if (scheduleData.machine_schedules) {
-        scheduleData.machine_schedules.forEach((machineSchedule: any) => {
-          machineSchedule.work_orders.forEach((workOrder: any) => {
-            extractedWorkOrders.push({
-              work_order_nr: workOrder.work_order_nr,
-              work_order_type: machineSchedule.machine_type === 'FEEDER' ? 'HWS' : 'HJB',
-              machine_type: machineSchedule.machine_type === 'FEEDER' ? '喂丝机' : '卷包机',
-              machine_code: machineSchedule.machine_code,
-              maker_code: machineSchedule.machine_type === 'MAKER' ? machineSchedule.machine_code : undefined,
-              feeder_code: machineSchedule.machine_type === 'FEEDER' ? machineSchedule.machine_code : undefined,
-              product_code: workOrder.article_nr,
-              plan_quantity: workOrder.allocated_quantity || 0,
-              work_order_status: workOrder.status || 'PENDING',
-              planned_start_time: workOrder.scheduled_start,
-              planned_end_time: workOrder.scheduled_end,
-              monthly_batch_id: monthlyBatchId
-            })
+      // 从gantt_data.schedule_blocks中提取工单
+      if (scheduleData.gantt_data?.schedule_blocks) {
+        scheduleData.gantt_data.schedule_blocks.forEach((workOrder: any) => {
+          extractedWorkOrders.push({
+            work_order_nr: workOrder.work_order_nr,
+            work_order_type: 'HJB', // 月度工单类型
+            machine_type: '卷包机',
+            machine_code: workOrder.machine_code,
+            maker_code: workOrder.machine_code,
+            feeder_code: undefined,
+            product_code: workOrder.article_name,
+            plan_quantity: Math.round(workOrder.duration * 10) || 100, // 根据duration估算产量
+            work_order_status: workOrder.status || 'SCHEDULED',
+            planned_start_time: workOrder.start_time,
+            planned_end_time: workOrder.end_time,
+            monthly_batch_id: monthlyBatchId
           })
         })
       }

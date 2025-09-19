@@ -35,29 +35,20 @@ from app.models.monthly_task_models import MonthlySchedulingTask, MonthlyTaskSta
 from app.models.monthly_plan_models import MonthlyPlan
 from app.models.monthly_schedule_result_models import MonthlyScheduleResult
 
-# 尝试导入月度算法模块，如果不存在则使用 None
+# 导入新的完整算法引擎
 try:
-    from app.algorithms.monthly_scheduling import MonthlyCalendarService
+    from app.algorithms.monthly_scheduling import MonthlySchedulingEngine
+    ALGORITHM_ENGINE_AVAILABLE = True
 except ImportError:
-    MonthlyCalendarService = None
+    MonthlySchedulingEngine = None
+    ALGORITHM_ENGINE_AVAILABLE = False
 
-try:
-    from app.algorithms.monthly_scheduling import MonthlyCapacityCalculator
-except ImportError:
-    MonthlyCapacityCalculator = None
-
-try:
-    from app.algorithms.monthly_scheduling import MonthlyMachineSelector
-except ImportError:
-    MonthlyMachineSelector = None
-
-try:
-    from app.algorithms.monthly_scheduling import MonthlyTimelineGenerator
-except ImportError:
-    MonthlyTimelineGenerator = None
+# 旧算法模块已移除，只保留完整算法引擎
 
 # 创建路由器
 router = APIRouter(prefix="/monthly-scheduling", tags=["月度排产管理"])
+
+
 
 
 # =============================================================================
@@ -308,62 +299,89 @@ async def execute_monthly_scheduling_pipeline(
             task.update_progress(0, len(plans), "容量计算")
             await db.commit()
             
-            # 执行简化的月度排产算法流程
+            # 执行完整的月度排产算法流程
             scheduled_results = []
             executed_algorithms = []
             
-            # 记录算法执行开始
-            task.update_progress(10, len(plans), "算法初始化")
+            # 使用完整算法引擎执行月度排产
+            if not (ALGORITHM_ENGINE_AVAILABLE and MonthlySchedulingEngine):
+                raise Exception("完整算法引擎不可用，请检查算法模块配置")
+            
+            logging.info(f"🚀 使用完整算法引擎执行月度排产: 批次={monthly_batch_id}")
+            
+            task.update_progress(10, len(plans), "初始化完整算法引擎")
             await db.commit()
             
-            # 简化的排产逻辑：为每个计划生成基本的排产结果
+            # 创建算法引擎实例
+            engine = MonthlySchedulingEngine(db)
+            
+            # 执行完整算法
+            task.update_progress(20, len(plans), "执行数据验证和预处理")
+            await db.commit()
+            
+            execution_result = await engine.execute_complete_scheduling(
+                monthly_batch_id=monthly_batch_id,
+                algorithm_config=algorithm_config,
+                task_id=task_id
+            )
+            
+            task.update_progress(80, len(plans), "算法执行完成，保存结果")
+            await db.commit()
+            
+            if not execution_result["success"]:
+                # 算法执行失败，记录错误信息
+                error_msg = "; ".join(execution_result.get("errors", ["算法执行失败"]))
+                raise Exception(f"完整算法执行失败: {error_msg}")
+            
+            # 将算法结果转换为数据库记录
             processed_count = 0
-            for plan in plans:
+            for schedule_record in execution_result["scheduled_results"]:
                 try:
-                    # 计算基本的时间分配（简化逻辑）
-                    plan_duration_hours = 8  # 假设每个计划需要8小时
-                    start_time = datetime.now().replace(hour=8, minute=0, second=0, microsecond=0) + timedelta(days=processed_count)
-                    end_time = start_time + timedelta(hours=plan_duration_hours)
-                    
-                    # 选择机台（简化逻辑）
-                    feeder_code = f"FEEDER_{(processed_count % 3) + 1:02d}"  # 轮换分配喂丝机
-                    maker_code = f"MAKER_{(processed_count % 5) + 1:02d}"    # 轮换分配卷包机
-                    
-                    # 创建排产结果记录
-                    schedule_result = MonthlyScheduleResult.create_schedule_result(
+                    # 创建数据库记录
+                    db_record = MonthlyScheduleResult.create_schedule_result(
                         task_id=task_id,
-                        plan_id=plan.monthly_plan_id,
+                        plan_id=schedule_record["monthly_plan_id"],
                         batch_id=monthly_batch_id,
-                        work_order_nr=f"WO2019M{plan.monthly_plan_id:04d}",  # 生成工单号
-                        article_nr=plan.article_nr,
-                        start_time=start_time,
-                        end_time=end_time,
-                        allocated_quantity=plan.target_quantity_boxes,
+                        work_order_nr=schedule_record["work_order_nr"],
+                        article_nr=schedule_record["article_nr"],
+                        start_time=schedule_record["scheduled_start_time"],
+                        end_time=schedule_record["scheduled_end_time"],
+                        allocated_quantity=schedule_record["target_quantity_boxes"],
                         assigned_machines={
-                            "feeder": feeder_code,
-                            "maker": maker_code
+                            "feeder": schedule_record["feeder_code"],
+                            "maker": schedule_record["maker_code"]
                         },
-                        algorithm_version="v1.0_simplified"
+                        algorithm_version=schedule_record.get("algorithm_version", "v2.0_complete"),
+                        calculation_details=schedule_record.get("calculation_details", {})
                     )
                     
-                    db.add(schedule_result)
-                    scheduled_results.append(schedule_result)
+                    db.add(db_record)
+                    scheduled_results.append(db_record)
                     processed_count += 1
                     
-                    # 更新进度
-                    progress = int((processed_count / len(plans)) * 80) + 10  # 10-90%
-                    task.update_progress(processed_count, len(plans), f"处理计划 {processed_count}/{len(plans)}")
-                    
-                    if processed_count % 2 == 0:  # 每处理2个计划提交一次
-                        await db.commit()
-                        
                 except Exception as e:
-                    logging.error(f"处理计划 {plan.article_nr} 时出错: {str(e)}")
+                    logging.error(f"保存排产记录失败: {str(e)}")
                     continue
+            
+            executed_algorithms.extend([
+                "完整数据验证算法 (ALG-015)",
+                "智能机台选择算法 (ALG-001, ALG-007, ALG-011)", 
+                "精确时间计算算法 (ALG-002, ALG-014)",
+                "智能时间分配算法 (ALG-006, ALG-009, ALG-005)",
+                "产能拆分算法 (ALG-008)",
+                "优先级排序算法 (ALG-010)",
+                "结果优化算法 (ALG-016)"
+            ])
+            
+            # 记录执行统计
+            task.algorithm_statistics = execution_result.get("execution_statistics", {})
+            task.performance_metrics = execution_result.get("performance_metrics", {})
+            
+            logging.info(f"✅ 完整算法执行成功: 处理 {processed_count} 条记录")
             
             # 最终提交
             await db.commit()
-            executed_algorithms.append("简化排产算法")
+            executed_algorithms.append("完整月度排产算法引擎")
             
             # 更新任务完成状态
             result_summary = {

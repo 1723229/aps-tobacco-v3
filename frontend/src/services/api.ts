@@ -1132,7 +1132,8 @@ export class MonthlyWorkOrderAPI {
      * @returns 月度工单排程数据
      */
     static async getMonthlyWorkOrders(params: {
-        monthly_batch_id: string;
+        monthly_batch_id?: string;
+        task_id?: string;
         machine_code?: string;
         article_nr?: string;
         start_date?: string;

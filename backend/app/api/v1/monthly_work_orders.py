@@ -72,7 +72,8 @@ router = APIRouter(prefix="/monthly-work-orders", tags=["月度工单管理"])
 
 @router.get("/schedule", response_model=APIResponse)
 async def get_monthly_work_order_schedule(
-    monthly_batch_id: str = Query(..., description="月度导入批次ID"),
+    monthly_batch_id: Optional[str] = Query(None, description="月度导入批次ID"),
+    task_id: Optional[str] = Query(None, description="排产任务ID"),
     machine_code: Optional[str] = Query(None, description="机台代码过滤"),
     article_nr: Optional[str] = Query(None, description="牌号代码过滤"),
     start_date: Optional[str] = Query(None, description="开始日期(YYYY-MM-DD)"),
@@ -87,6 +88,29 @@ async def get_monthly_work_order_schedule(
     返回适用于甘特图展示的完整排程数据
     """
     try:
+        # 如果提供了task_id但没有monthly_batch_id，则从任务中获取
+        if task_id and not monthly_batch_id:
+            from app.models.monthly_task_models import MonthlySchedulingTask
+            task_query = select(MonthlySchedulingTask).where(MonthlySchedulingTask.task_id == task_id)
+            task_result = await db.execute(task_query)
+            task = task_result.scalar_one_or_none()
+            
+            if not task:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"未找到任务ID: {task_id}"
+                )
+            
+            monthly_batch_id = task.monthly_batch_id
+            logger.info(f"从任务 {task_id} 获取到批次ID: {monthly_batch_id}")
+        
+        # 必须有batch_id或者task_id之一
+        if not monthly_batch_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="必须提供 monthly_batch_id 或 task_id 参数"
+            )
+        
         # 验证批次ID格式
         if not monthly_batch_id.startswith("MONTHLY_"):
             raise HTTPException(
