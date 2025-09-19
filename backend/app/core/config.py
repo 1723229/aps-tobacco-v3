@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     upload_max_size: int = 50 * 1024 * 1024  # 50MB
     upload_allowed_extensions: List[str] = [".xlsx", ".xls"]
     upload_temp_dir: str = "/tmp/aps_uploads"
+    data_dir: str = "data"  # 数据存储根目录
     
     # 任务队列配置（Celery）
     celery_broker_url: str = "redis://:Redis_Apex_2025.@10.0.0.66:6379/14"
@@ -73,6 +74,13 @@ class Settings(BaseSettings):
     @classmethod
     def validate_upload_dir(cls, v):
         """验证并创建上传临时目录"""
+        os.makedirs(v, exist_ok=True)
+        return v
+    
+    @field_validator('data_dir')
+    @classmethod
+    def validate_data_dir(cls, v):
+        """验证并创建数据存储目录"""
         os.makedirs(v, exist_ok=True)
         return v
     
