@@ -248,3 +248,188 @@ async def _ensure_calendar_exists(year: int, month: int, db: AsyncSession):
         logger.error(f"生成默认日历失败: {str(e)}")
         await db.rollback()
         # 不抛出异常，允许查询继续进行
+
+
+@router.post("", response_model=APIResponse)
+async def create_work_calendar_day(
+    day_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    创建工作日历日期配置
+    """
+    try:
+        # 解析日期
+        calendar_date = datetime.strptime(day_data["calendar_date"], "%Y-%m-%d").date()
+        
+        # 检查是否已存在
+        existing_query = select(MonthlyWorkCalendar).where(
+            MonthlyWorkCalendar.calendar_date == calendar_date
+        )
+        result = await db.execute(existing_query)
+        existing_record = result.scalar_one_or_none()
+        
+        if existing_record:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"日期 {calendar_date} 的配置已存在"
+            )
+        
+        # 创建新记录
+        calendar_record = MonthlyWorkCalendar(
+            calendar_date=calendar_date,
+            calendar_year=calendar_date.year,
+            calendar_month=calendar_date.month,
+            calendar_day=calendar_date.day,
+            calendar_week_day=calendar_date.isoweekday(),
+            monthly_day_type=day_data.get("monthly_day_type", "WORKDAY"),
+            monthly_is_working=day_data.get("monthly_is_working", 1),
+            monthly_total_hours=float(day_data.get("monthly_total_hours", 8.0)),
+            monthly_capacity_factor=float(day_data.get("monthly_capacity_factor", 1.0)),
+            monthly_holiday_name=day_data.get("monthly_holiday_name"),
+            monthly_notes=day_data.get("monthly_notes"),
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        
+        db.add(calendar_record)
+        await db.commit()
+        await db.refresh(calendar_record)
+        
+        return APIResponse(
+            code=200,
+            message="工作日历配置创建成功",
+            data={
+                "monthly_calendar_id": calendar_record.monthly_calendar_id,
+                "calendar_date": str(calendar_record.calendar_date)
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"创建工作日历配置失败: {str(e)}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"创建工作日历配置失败: {str(e)}"
+        )
+
+
+@router.put("/{calendar_id}", response_model=APIResponse)
+async def update_work_calendar_day(
+    calendar_id: int,
+    day_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    更新工作日历日期配置
+    """
+    try:
+        # 查找现有记录
+        existing_query = select(MonthlyWorkCalendar).where(
+            MonthlyWorkCalendar.monthly_calendar_id == calendar_id
+        )
+        result = await db.execute(existing_query)
+        existing_record = result.scalar_one_or_none()
+        
+        if not existing_record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"工作日历配置 ID {calendar_id} 不存在"
+            )
+        
+        # 更新字段
+        if "calendar_date" in day_data:
+            calendar_date = datetime.strptime(day_data["calendar_date"], "%Y-%m-%d").date()
+            existing_record.calendar_date = calendar_date
+            existing_record.calendar_year = calendar_date.year
+            existing_record.calendar_month = calendar_date.month
+            existing_record.calendar_day = calendar_date.day
+            existing_record.calendar_week_day = calendar_date.isoweekday()
+            
+        if "monthly_day_type" in day_data:
+            existing_record.monthly_day_type = day_data["monthly_day_type"]
+            
+        if "monthly_is_working" in day_data:
+            existing_record.monthly_is_working = day_data["monthly_is_working"]
+            
+        if "monthly_total_hours" in day_data:
+            existing_record.monthly_total_hours = float(day_data["monthly_total_hours"])
+            
+        if "monthly_capacity_factor" in day_data:
+            existing_record.monthly_capacity_factor = float(day_data["monthly_capacity_factor"])
+            
+        if "monthly_holiday_name" in day_data:
+            existing_record.monthly_holiday_name = day_data["monthly_holiday_name"]
+            
+        if "monthly_notes" in day_data:
+            existing_record.monthly_notes = day_data["monthly_notes"]
+            
+        existing_record.updated_at = datetime.now()
+        
+        await db.commit()
+        await db.refresh(existing_record)
+        
+        return APIResponse(
+            code=200,
+            message="工作日历配置更新成功",
+            data={
+                "monthly_calendar_id": existing_record.monthly_calendar_id,
+                "calendar_date": str(existing_record.calendar_date)
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新工作日历配置失败: {str(e)}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"更新工作日历配置失败: {str(e)}"
+        )
+
+
+@router.delete("/{calendar_id}", response_model=APIResponse)
+async def delete_work_calendar_day(
+    calendar_id: int,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    删除工作日历日期配置
+    """
+    try:
+        # 查找现有记录
+        existing_query = select(MonthlyWorkCalendar).where(
+            MonthlyWorkCalendar.monthly_calendar_id == calendar_id
+        )
+        result = await db.execute(existing_query)
+        existing_record = result.scalar_one_or_none()
+        
+        if not existing_record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"工作日历配置 ID {calendar_id} 不存在"
+            )
+        
+        await db.delete(existing_record)
+        await db.commit()
+        
+        return APIResponse(
+            code=200,
+            message="工作日历配置删除成功",
+            data={
+                "deleted_calendar_id": calendar_id
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除工作日历配置失败: {str(e)}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"删除工作日历配置失败: {str(e)}"
+        )

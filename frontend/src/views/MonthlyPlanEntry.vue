@@ -126,17 +126,17 @@
                 <span class="header-title">最近上传记录</span>
               </div>
               <div class="header-actions">
-                <el-button 
-                  type="text" 
-                  icon="Refresh" 
+                <el-button
+                  type="text"
+                  icon="Refresh"
                   @click="loadRecentUploads"
                   :loading="loadingRecords"
                   size="small"
                 >
                   刷新
                 </el-button>
-                <el-button 
-                  :type="showHistory ? 'primary' : 'default'" 
+                <el-button
+                  :type="showHistory ? 'primary' : 'default'"
                   @click="toggleHistory"
                   size="small"
                   text
@@ -235,7 +235,7 @@
                 @current-change="handleCurrentChange"
               />
             </div>
-            
+
             <div v-if="recentUploads.length === 0 && !loadingRecords" class="empty-state">
               <el-empty description="暂无上传记录" />
             </div>
@@ -351,7 +351,7 @@ const startUpload = async () => {
 
     if (response.data.code === 200) {
       ElMessage.success('月度计划文件上传成功！')
-      
+
       // 重置状态
       setTimeout(() => {
         selectedFile.value = null
@@ -366,8 +366,17 @@ const startUpload = async () => {
   } catch (error: any) {
     console.error('上传失败:', error)
     uploadProgress.status = 'exception'
-    uploadProgress.text = '上传失败: ' + (error.message || '网络错误')
-    ElMessage.error('文件上传失败: ' + (error.message || '请检查网络连接'))
+
+    // 处理重复文件名等400错误
+    if (error?.response?.status === 400) {
+      const errorMessage = error.response.data?.detail || error.response.data?.message || '上传失败'
+      uploadProgress.text = '上传失败: ' + errorMessage
+      ElMessage.error(errorMessage)
+    } else {
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || '网络错误'
+      uploadProgress.text = '上传失败: ' + errorMessage
+      ElMessage.error('文件上传失败: ' + errorMessage)
+    }
   } finally {
     uploading.value = false
   }
@@ -389,7 +398,7 @@ const loadRecentUploads = async () => {
     if (response.data.code === 200) {
       recentUploads.value = response.data.data.imports || []
       pagination.total = response.data.data.pagination?.total_count || 0
-      
+
       // 映射字段名称以匹配前端表格显示
       recentUploads.value = recentUploads.value.map((item: any) => ({
         ...item,
@@ -835,54 +844,54 @@ const getStatusText = (status: string) => {
   .monthly-plan-entry {
     padding: 0;
   }
-  
+
   .title-content {
     flex-direction: column;
     gap: 16px;
     align-items: stretch;
     padding: 0 20px;
   }
-  
+
   .title-left {
     flex-direction: column;
     text-align: center;
     gap: 16px;
   }
-  
+
   .title-icon {
     width: 60px;
     height: 60px;
     font-size: 24px;
     align-self: center;
   }
-  
+
   .title-text h1 {
     font-size: 1.8rem;
   }
-  
+
   .title-text p {
     font-size: 1rem;
   }
-  
+
   .main-content {
     padding: 0 20px;
     transform: translateY(-20px);
   }
-  
+
   .upload-card :deep(.el-card__body) {
     padding: 24px 20px;
   }
-  
+
   .history-content {
     padding: 20px;
   }
-  
+
   .file-card {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-  
+
   .action-buttons {
     flex-direction: column;
     width: 100%;
@@ -894,21 +903,21 @@ const getStatusText = (status: string) => {
   .page-title-section {
     background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
   }
-  
+
   .title-text h1 {
     color: #f7fafc;
   }
-  
+
   .title-text p {
     color: #e2e8f0;
   }
-  
+
   .upload-card,
   .history-card {
     background: #2d3748;
     color: #f7fafc;
   }
-  
+
   .file-card {
     background: #4a5568;
   }

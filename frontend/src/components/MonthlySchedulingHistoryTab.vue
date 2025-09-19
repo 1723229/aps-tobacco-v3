@@ -371,9 +371,9 @@ const viewTaskDetail = (task: MonthlySchedulingTaskResponse) => {
 }
 
 const viewGanttChart = (task: MonthlySchedulingTaskResponse) => {
-  // 跳转到甘特图页面并传递任务信息
+  // 跳转到月度甘特图页面并传递任务信息
   router.push({
-    name: 'GanttChart',
+    name: 'MonthlyGanttChart',
     query: {
       task_id: task.task_id,
       monthly_batch_id: task.monthly_batch_id

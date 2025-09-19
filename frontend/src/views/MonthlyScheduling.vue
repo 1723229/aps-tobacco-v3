@@ -409,71 +409,124 @@ const canExecuteScheduling = computed(() => {
   return selectedPlanForScheduling.value && !schedulingLoading.value
 })
 
-// 加载全局统计数据
-const loadGlobalStatistics = async () => {
-  try {
-    console.log('📊 开始加载全局统计数据...')
-    
-    const statisticsResponse = await MonthlyPlanAPI.getSchedulingStatistics()
-    
-    if (statisticsResponse.code === 200) {
-      availablePlansCount.value = statisticsResponse.data.available_plans_count
-      runningTasksCount.value = statisticsResponse.data.running_tasks_count
-      completedTasksCount.value = statisticsResponse.data.completed_tasks_count
-      
-      console.log('✅ 全局统计数据加载完成:', {
-        待排产计划: availablePlansCount.value,
-        进行中: runningTasksCount.value,
-        已完成: completedTasksCount.value
-      })
+// 基于列表数据计算统计数据，确保一致性
+const calculateStatisticsFromPlans = () => {
+  let available = 0
+  let running = 0
+  let completed = 0
+  
+  availablePlans.value.forEach((plan: any) => {
+    switch (plan.scheduling_status) {
+      case 'unscheduled':
+        if (plan.can_schedule) {
+          available++
+        }
+        break
+      case 'pending':
+      case 'running':
+        running++
+        break
+      case 'completed':
+        completed++
+        break
     }
-  } catch (error) {
-    console.error('❌ 加载全局统计数据失败:', error)
-    // 出错时设置为0，避免显示错误数据
-    availablePlansCount.value = 0
-    runningTasksCount.value = 0
-    completedTasksCount.value = 0
-  }
+  })
+  
+  availablePlansCount.value = available
+  runningTasksCount.value = running
+  completedTasksCount.value = completed
+  
+  console.log('✅ 基于列表数据计算统计:', {
+    待排产计划: available,
+    进行中: running,
+    已完成: completed,
+    总计: availablePlans.value.length
+  })
 }
 
 // 方法定义
 const refreshPlans = async () => {
   plansLoading.value = true
   try {
-    // 并行加载：列表数据 + 全局统计数据
-    const [historyResponse] = await Promise.all([
-      MonthlyPlanAPI.getUploadHistory(
-        currentPage.value,
-        pageSize.value, 
-        'COMPLETED' // 只获取已解析完成的记录
-      ),
-      loadGlobalStatistics() // 同时加载全局统计
-    ])
+    // 加载列表数据
+    const historyResponse = await MonthlyPlanAPI.getUploadHistory(
+      currentPage.value,
+      pageSize.value, 
+      'COMPLETED' // 只获取已解析完成的记录
+    )
     
-    const allRecords = historyResponse.data.imports
+    const allRecords = (historyResponse.data as any).imports
     totalCount.value = historyResponse.data.pagination.total_count
     
-    // 直接使用后端返回的数据，不需要额外合并
-    availablePlans.value = allRecords.map((record: any) => {
-      // 对于月度计划，默认都是未排产状态
-      const scheduling_status = 'unscheduled'
-      const can_schedule = record.valid_records > 0
-      const scheduling_text = can_schedule ? '可排产' : '无法排产'
-      
-      return {
-        batch_id: record.monthly_batch_id, // 使用正确的字段名
-        file_name: record.file_name,
-        total_records: record.total_records,
-        valid_records: record.valid_records,
-        import_end_time: record.updated_time, // 使用updated_time作为完成时间
-        display_name: `${record.file_name} (${record.valid_records}条记录)`,
-        can_schedule: can_schedule, // 根据有效记录数判断是否可排产
-        scheduling_status: scheduling_status, // 默认未排产状态
-        scheduling_text: scheduling_text, // 根据可排产状态设置文本
-        task_id: null, // 目前没有任务ID
-        work_orders_summary: 0 // 目前没有工单摘要
-      }
-    })
+    // 查询每个批次的最新排产任务状态
+    const plansWithStatus = await Promise.all(
+      allRecords.map(async (record: any) => {
+        const can_schedule = record.valid_records > 0
+        let scheduling_status = 'unscheduled'
+        let scheduling_text = can_schedule ? '可排产' : '无法排产'
+        let task_id = null
+        
+        if (can_schedule) {
+          try {
+            // 查询该批次的最新排产任务
+            const taskResponse = await MonthlySchedulingAPI.getHistory({
+              monthly_batch_id: record.monthly_batch_id,
+              page: 1,
+              page_size: 1
+            })
+            
+            if (taskResponse.code === 200 && taskResponse.data.tasks.length > 0) {
+              const latestTask = taskResponse.data.tasks[0]
+              task_id = latestTask.task_id
+              
+              // 根据任务状态设置排产状态
+              switch (latestTask.status) {
+                case 'PENDING':
+                  scheduling_status = 'pending'
+                  scheduling_text = '等待中'
+                  break
+                case 'RUNNING':
+                  scheduling_status = 'running'
+                  scheduling_text = '排产中'
+                  break
+                case 'COMPLETED':
+                  scheduling_status = 'completed'
+                  scheduling_text = '已完成'
+                  break
+                case 'FAILED':
+                  scheduling_status = 'failed'
+                  scheduling_text = '失败'
+                  break
+                default:
+                  scheduling_status = 'unscheduled'
+                  scheduling_text = '可排产'
+              }
+            }
+          } catch (error) {
+            console.warn(`获取批次 ${record.monthly_batch_id} 的任务状态失败:`, error)
+          }
+        }
+        
+        return {
+          batch_id: record.monthly_batch_id, // 使用正确的字段名
+          file_name: record.file_name,
+          total_records: record.total_records,
+          valid_records: record.valid_records,
+          import_end_time: record.updated_time, // 使用updated_time作为完成时间
+          display_name: `${record.file_name} (${record.valid_records}条记录)`,
+          can_schedule: can_schedule, // 根据有效记录数判断是否可排产
+          scheduling_status: scheduling_status, // 动态查询的状态
+          scheduling_text: scheduling_text, // 动态设置的文本
+          task_id: task_id, // 最新任务ID
+          work_orders_summary: 0 // 目前没有工单摘要
+        }
+      })
+    )
+    
+    availablePlans.value = plansWithStatus
+    
+    // 基于列表数据计算统计，确保一致性
+    calculateStatisticsFromPlans()
     
     console.log('📊 列表数据加载完成:', {
       当前页记录数: availablePlans.value.length,
@@ -575,11 +628,13 @@ const confirmScheduling = async () => {
       target_efficiency: 0.85
     }
     
-    // 确保batch_id有正确的MONTHLY_前缀
-    let batchId = selectedPlanForScheduling.value.batch_id
-    if (!batchId.startsWith('MONTHLY_')) {
-      batchId = `MONTHLY_${batchId}`
-    }
+    // 直接使用batch_id，它已经包含正确的MONTHLY_前缀
+    const batchId = selectedPlanForScheduling.value.batch_id
+    
+    console.log('🚀 开始执行月度排产:', {
+      monthly_batch_id: batchId,
+      config: defaultConfig
+    })
     
     const response = await MonthlySchedulingAPI.executeScheduling(
       batchId,
@@ -591,14 +646,11 @@ const confirmScheduling = async () => {
     // 开始轮询任务状态
     await pollTaskStatus(response.data.task_id)
     
-    // 刷新计划列表和全局统计
-    await Promise.all([
-      refreshPlans(),
-      loadGlobalStatistics()
-    ])
+    // 刷新计划列表
+    await refreshPlans()
     
   } catch (error: any) {
-    console.error('Execute scheduling error:', error)
+    console.error('❌ 月度排产执行失败:', error)
     
     // 处理重复提交的情况
     if (error.response?.status === 409) {
@@ -615,20 +667,9 @@ const confirmScheduling = async () => {
       }
     } else {
       // 其他错误
-      let errorMessage = '排产任务创建失败'
-      if (error.response?.data?.detail) {
-        errorMessage = `${error.response.data.detail}`
-      } else if (error.response?.data?.message) {
-        errorMessage = `${error.response.data.message}`
-      } else if (error.message) {
-        errorMessage = `${error.message}`
-      }
-      
+      const errorMessage = error.response?.data?.detail || error.message || '排产任务创建失败'
       ElMessage.error(errorMessage)
     }
-    
-    // 调试信息
-    console.log('Selected plan:', selectedPlanForScheduling.value)
   } finally {
     schedulingLoading.value = false
   }
@@ -672,10 +713,7 @@ const pollTaskStatus = async (taskId: string) => {
           clearInterval(pollingTimer.value!)
           pollingTimer.value = null
           // 刷新列表和全局统计
-          await Promise.all([
-            refreshPlans(),
-            loadGlobalStatistics()
-          ])
+          await refreshPlans()
           // 延迟关闭弹窗，让用户看到完成状态
           setTimeout(() => {
             progressDialogVisible.value = false
@@ -685,10 +723,7 @@ const pollTaskStatus = async (taskId: string) => {
           clearInterval(pollingTimer.value!)
           pollingTimer.value = null
           // 刷新列表和全局统计
-          await Promise.all([
-            refreshPlans(),
-            loadGlobalStatistics()
-          ])
+          await refreshPlans()
         }
     } catch (error) {
       console.error('Poll task status error:', error)
@@ -719,7 +754,6 @@ const closeProgressPanel = () => {
   // 刷新列表状态和全局统计
   Promise.all([
     refreshPlans(),
-    loadGlobalStatistics()
   ])
 }
 
@@ -729,23 +763,42 @@ const viewAllHistory = () => {
 
 const viewGanttChart = (planOrTask: AvailableBatch | SchedulingTask) => {
   let taskId: string | undefined
-  let importBatchId: string
+  let monthlyBatchId: string
   
   if ('task_id' in planOrTask) {
-    // SchedulingTask
+    // SchedulingTask (来自历史记录)
     taskId = planOrTask.task_id
-    importBatchId = planOrTask.import_batch_id
+    monthlyBatchId = (planOrTask as any).monthly_batch_id || (planOrTask as any).import_batch_id
   } else {
-    // AvailableBatch with task info
+    // AvailableBatch (来自主列表)
     taskId = (planOrTask as any).task_id
-    importBatchId = planOrTask.batch_id
+    monthlyBatchId = planOrTask.batch_id // 这里就是monthly_batch_id
+  }
+  
+  console.log('🔗 跳转甘特图:', { 
+    taskId, 
+    monthlyBatchId, 
+    planOrTask: planOrTask,
+    keys: Object.keys(planOrTask)
+  })
+  
+  // 如果没有月度批次ID，尝试从其他字段获取
+  if (!monthlyBatchId) {
+    monthlyBatchId = (planOrTask as any).monthly_batch_id || 
+                     (planOrTask as any).import_batch_id ||
+                     (planOrTask as any).batch_id
+  }
+  
+  if (!monthlyBatchId) {
+    ElMessage.error('缺少批次ID信息，无法查看甘特图')
+    return
   }
   
   router.push({
     name: 'MonthlyGanttChart',
     query: {
       ...(taskId && { task_id: taskId }),
-      monthly_batch_id: importBatchId
+      monthly_batch_id: monthlyBatchId
     }
   })
 }

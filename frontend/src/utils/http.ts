@@ -33,7 +33,7 @@ httpClient.interceptors.response.use(
         const { data } = response;
 
         // 检查业务状态码
-        if (data.code === 200) {
+        if (data.code === 200 || data.code === 202) {
             return response;
         } else {
             // 业务错误

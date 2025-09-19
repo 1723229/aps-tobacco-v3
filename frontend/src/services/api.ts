@@ -1010,8 +1010,8 @@ export class MonthlySchedulingAPI {
     static async executeScheduling(
         monthlyBatchId: string,
         algorithmConfig?: any
-    ): Promise<any> {
-        const response = await httpClient.post(`${API_PREFIX}/monthly-scheduling/execute`, {
+    ): Promise<ApiResponse<{ task_id: string; monthly_batch_id: string; status: string }>> {
+        const response = await httpClient.post<ApiResponse<{ task_id: string; monthly_batch_id: string; status: string }>>(`${API_PREFIX}/monthly-scheduling/execute`, {
             monthly_batch_id: monthlyBatchId,
             algorithm_config: {
                 optimization_level: 'medium',
@@ -1070,6 +1070,18 @@ export class MonthlySchedulingAPI {
             params
         });
         return response.data;
+    }
+
+    /**
+     * 获取月度排产历史任务（getHistory别名方法）
+     * @param params 查询参数  
+     * @returns 月度排产任务历史
+     */
+    static async getHistory(params?: any): Promise<ApiResponse<{
+        tasks: MonthlySchedulingTaskResponse[];
+        pagination: any;
+    }>> {
+        return this.getTaskHistory(params);
     }
 
     /**
