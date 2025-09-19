@@ -551,14 +551,34 @@ async def _build_gantt_data(
             
             schedule_blocks.append({
                 "block_id": f"block_{result.monthly_schedule_id}_{machine_code}",
+                "monthly_schedule_id": result.monthly_schedule_id,
+                "monthly_task_id": result.monthly_task_id,
+                "monthly_plan_id": result.monthly_plan_id,
+                "monthly_batch_id": result.monthly_batch_id,
                 "machine_code": machine_code,
+                "machine_type": "FEEDING" if machine_code == result.assigned_feeder_code else "PACKING",
                 "work_order_nr": result.work_order_nr,
-                "start_time": result.scheduled_start_time.isoformat(),
-                "end_time": result.scheduled_end_time.isoformat(),
-                "duration": result.duration_hours,
-                "article_name": result.article_nr,
+                "article_nr": result.article_nr,
+                "article_name": result.article_nr,  # 使用article_nr作为显示名称
+                "assigned_feeder_code": result.assigned_feeder_code,
+                "assigned_maker_code": result.assigned_maker_code,
+                "machine_group": result.machine_group,
+                "start_time": result.scheduled_start_time.isoformat() if result.scheduled_start_time else None,
+                "end_time": result.scheduled_end_time.isoformat() if result.scheduled_end_time else None,
+                "duration": float(result.scheduled_duration_hours) if result.scheduled_duration_hours else 0.0,
+                "allocated_quantity": result.allocated_boxes,
+                "allocated_boxes": result.allocated_boxes,
+                "estimated_speed": float(result.estimated_speed) if result.estimated_speed else None,
+                "algorithm_version": result.algorithm_version,
+                "priority_score": float(result.priority_score) if result.priority_score else None,
+                "constraint_violations": result.constraint_violations,
+                "optimization_notes": result.optimization_notes,
+                "status": result.schedule_status,
+                "execution_progress": float(result.execution_progress) if result.execution_progress else 0.0,
                 "color": color,
-                "status": result.schedule_status
+                "created_time": result.created_time.isoformat() if result.created_time else None,
+                "updated_time": result.updated_time.isoformat() if result.updated_time else None,
+                "created_by": result.created_by
             })
     
     return {

@@ -90,7 +90,10 @@ export interface MonthlyWorkOrder {
     machine_code: string;
     maker_code?: string;  // 卷包机代码
     feeder_code?: string; // 喂丝机代码
+    assigned_maker_code?: string;  // 分配的卷包机代码
+    assigned_feeder_code?: string; // 分配的喂丝机代码
     product_code: string;
+    article_name?: string; // 产品名称
     plan_quantity: number;
     safety_stock?: number;
     work_order_status: string; // 后端返回字符串格式，可能为PENDING等
@@ -102,6 +105,8 @@ export interface MonthlyWorkOrder {
     updated_time?: string | null;
     monthly_batch_id?: string;
     task_id?: string;
+    duration?: number; // 持续时间（小时）
+    color?: string; // 甘特图条颜色
 }
 
 // 排产API响应接口
