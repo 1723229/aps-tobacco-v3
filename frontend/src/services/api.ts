@@ -82,6 +82,28 @@ export interface WorkOrder {
     updated_time?: string | null;
 }
 
+// 月度工单接口
+export interface MonthlyWorkOrder {
+    work_order_nr: string;
+    work_order_type: "HJB" | "HWS"; // 后端实际返回的类型
+    machine_type: "卷包机" | "喂丝机" | "合并计划"; // 后端实际返回的类型
+    machine_code: string;
+    maker_code?: string;  // 卷包机代码
+    feeder_code?: string; // 喂丝机代码
+    product_code: string;
+    plan_quantity: number;
+    safety_stock?: number;
+    work_order_status: string; // 后端返回字符串格式，可能为PENDING等
+    planned_start_time: string | null;
+    planned_end_time: string | null;
+    actual_start_time?: string | null;
+    actual_end_time?: string | null;
+    created_time?: string | null;
+    updated_time?: string | null;
+    monthly_batch_id?: string;
+    task_id?: string;
+}
+
 // 排产API响应接口
 export interface SchedulingExecuteResponse {
     code: number;
@@ -105,6 +127,18 @@ export interface WorkOrdersResponse {
     message: string;
     data: {
         work_orders: WorkOrder[];
+        total_count: number;
+        page: number;
+        page_size: number;
+        total_pages: number;
+    };
+}
+
+export interface MonthlyWorkOrdersResponse {
+    code: number;
+    message: string;
+    data: {
+        work_orders: MonthlyWorkOrder[];
         total_count: number;
         page: number;
         page_size: number;
@@ -1078,6 +1112,51 @@ export class MonthlySchedulingAPI {
     }
 }
 
+// === 月度工单 API ===
+export class MonthlyWorkOrderAPI {
+    /**
+     * 获取月度工单排程数据
+     * @param params 查询参数
+     * @returns 月度工单排程数据
+     */
+    static async getMonthlyWorkOrders(params: {
+        monthly_batch_id: string;
+        machine_code?: string;
+        article_nr?: string;
+        start_date?: string;
+        end_date?: string;
+        export_format?: string;
+    }): Promise<ApiResponse<any>> {
+        const response = await httpClient.get<ApiResponse<any>>(`${API_PREFIX}/monthly-work-orders/schedule`, {
+            params
+        });
+        return response.data;
+    }
+
+    /**
+     * 获取月度工单详情
+     * @param workOrderNr 工单号
+     * @returns 月度工单详情
+     */
+    static async getMonthlyWorkOrderDetail(workOrderNr: string): Promise<ApiResponse<MonthlyWorkOrder>> {
+        const response = await httpClient.get<ApiResponse<MonthlyWorkOrder>>(`${API_PREFIX}/monthly-work-orders/${workOrderNr}`);
+        return response.data;
+    }
+
+    /**
+     * 更新月度工单状态
+     * @param workOrderNr 工单号
+     * @param status 新状态
+     * @returns 更新结果
+     */
+    static async updateMonthlyWorkOrderStatus(workOrderNr: string, status: string): Promise<ApiResponse<any>> {
+        const response = await httpClient.put<ApiResponse<any>>(`${API_PREFIX}/monthly-work-orders/${workOrderNr}/status`, {
+            status
+        });
+        return response.data;
+    }
+}
+
 // === 工作日历 API ===
 export class WorkCalendarAPI {
     /**
@@ -1112,75 +1191,76 @@ export const mesAPI = MESAPI;
 export const machineConfigAPI = MachineConfigAPI;
 export const monthlyPlanAPI = MonthlyPlanAPI;
 export const monthlySchedulingAPI = MonthlySchedulingAPI;
+export const monthlyWorkOrderAPI = MonthlyWorkOrderAPI;
 export const workCalendarAPI = WorkCalendarAPI;
 
 // 导出组合API对象，包含所有API方法和httpClient实例方法
 const api = {
-  // HttpClient方法
-  get: httpClient.get.bind(httpClient),
-  post: httpClient.post.bind(httpClient),
-  put: httpClient.put.bind(httpClient),
-  delete: httpClient.delete.bind(httpClient),
-  patch: httpClient.patch.bind(httpClient),
-  
-  // DecadePlan API方法
-  uploadFile: DecadePlanAPI.uploadFile,
-  parseFile: DecadePlanAPI.parseFile,
-  getParseStatus: DecadePlanAPI.getParseStatus,
-  getDecadePlans: DecadePlanAPI.getDecadePlans,
-  pollParseStatus: DecadePlanAPI.pollParseStatus,
-  getUploadHistory: DecadePlanAPI.getUploadHistory,
-  getStatistics: DecadePlanAPI.getStatistics,
-  getSchedulingStatistics: DecadePlanAPI.getSchedulingStatistics,
-  getAvailableBatchesForScheduling: DecadePlanAPI.getAvailableBatchesForScheduling,
-  
-  // Scheduling API方法
-  executeScheduling: SchedulingAPI.executeScheduling,
-  getTaskStatus: SchedulingAPI.getTaskStatus,
-  pollTaskStatus: SchedulingAPI.pollTaskStatus,
-  getSchedulingHistory: SchedulingAPI.getSchedulingHistory,
-  
-  // WorkOrder API方法
-  getWorkOrders: WorkOrderAPI.getWorkOrders,
-  
-  // MES API方法
-  checkHealth: mesAPI.checkHealth,
-  getMachineStatus: mesAPI.getMachineStatus,
-  pushWorkOrders: mesAPI.pushWorkOrders,
-  getWorkOrderStatus: mesAPI.getWorkOrderStatus,
-  getMaintenanceSchedule: mesAPI.getMaintenanceSchedule,
-  getRecentEvents: mesAPI.getRecentEvents,
-  
-  // Machine Config API方法
-  getMachines: MachineConfigAPI.getMachines,
-  createMachine: MachineConfigAPI.createMachine,
-  updateMachine: MachineConfigAPI.updateMachine,
-  deleteMachine: MachineConfigAPI.deleteMachine,
-  getMachineRelations: MachineConfigAPI.getMachineRelations,
-  createMachineRelation: MachineConfigAPI.createMachineRelation,
-  updateMachineRelation: MachineConfigAPI.updateMachineRelation,
-  deleteMachineRelation: MachineConfigAPI.deleteMachineRelation,
-  getMachineSpeeds: MachineConfigAPI.getMachineSpeeds,
-  createMachineSpeed: MachineConfigAPI.createMachineSpeed,
-  updateMachineSpeed: MachineConfigAPI.updateMachineSpeed,
-  deleteMachineSpeed: MachineConfigAPI.deleteMachineSpeed,
-  getMaintenancePlans: MachineConfigAPI.getMaintenancePlans,
-  createMaintenancePlan: MachineConfigAPI.createMaintenancePlan,
-  updateMaintenancePlan: MachineConfigAPI.updateMaintenancePlan,
-  deleteMaintenancePlan: MachineConfigAPI.deleteMaintenancePlan,
-  getShiftConfigs: MachineConfigAPI.getShiftConfigs,
-  createShiftConfig: MachineConfigAPI.createShiftConfig,
-  updateShiftConfig: MachineConfigAPI.updateShiftConfig,
-  deleteShiftConfig: MachineConfigAPI.deleteShiftConfig,
-  
-  // Monthly Plan API方法
-  uploadMonthlyFile: MonthlyPlanAPI.uploadFile,
-  getMonthlyPlans: MonthlyPlanAPI.getMonthlyPlans,
-  getMonthlyPlanDetail: MonthlyPlanAPI.getMonthlyPlanDetail,
-  
-  // Work Calendar API方法
-  getWorkCalendar: WorkCalendarAPI.getWorkCalendar,
-  updateWorkCalendar: WorkCalendarAPI.updateWorkCalendar
+    // HttpClient方法
+    get: httpClient.get.bind(httpClient),
+    post: httpClient.post.bind(httpClient),
+    put: httpClient.put.bind(httpClient),
+    delete: httpClient.delete.bind(httpClient),
+    patch: httpClient.patch.bind(httpClient),
+
+    // DecadePlan API方法
+    uploadFile: DecadePlanAPI.uploadFile,
+    parseFile: DecadePlanAPI.parseFile,
+    getParseStatus: DecadePlanAPI.getParseStatus,
+    getDecadePlans: DecadePlanAPI.getDecadePlans,
+    pollParseStatus: DecadePlanAPI.pollParseStatus,
+    getUploadHistory: DecadePlanAPI.getUploadHistory,
+    getStatistics: DecadePlanAPI.getStatistics,
+    getSchedulingStatistics: DecadePlanAPI.getSchedulingStatistics,
+    getAvailableBatchesForScheduling: DecadePlanAPI.getAvailableBatchesForScheduling,
+
+    // Scheduling API方法
+    executeScheduling: SchedulingAPI.executeScheduling,
+    getTaskStatus: SchedulingAPI.getTaskStatus,
+    pollTaskStatus: SchedulingAPI.pollTaskStatus,
+    getSchedulingHistory: SchedulingAPI.getSchedulingHistory,
+
+    // WorkOrder API方法
+    getWorkOrders: WorkOrderAPI.getWorkOrders,
+
+    // MES API方法
+    checkHealth: mesAPI.checkHealth,
+    getMachineStatus: mesAPI.getMachineStatus,
+    pushWorkOrders: mesAPI.pushWorkOrders,
+    getWorkOrderStatus: mesAPI.getWorkOrderStatus,
+    getMaintenanceSchedule: mesAPI.getMaintenanceSchedule,
+    getRecentEvents: mesAPI.getRecentEvents,
+
+    // Machine Config API方法
+    getMachines: MachineConfigAPI.getMachines,
+    createMachine: MachineConfigAPI.createMachine,
+    updateMachine: MachineConfigAPI.updateMachine,
+    deleteMachine: MachineConfigAPI.deleteMachine,
+    getMachineRelations: MachineConfigAPI.getMachineRelations,
+    createMachineRelation: MachineConfigAPI.createMachineRelation,
+    updateMachineRelation: MachineConfigAPI.updateMachineRelation,
+    deleteMachineRelation: MachineConfigAPI.deleteMachineRelation,
+    getMachineSpeeds: MachineConfigAPI.getMachineSpeeds,
+    createMachineSpeed: MachineConfigAPI.createMachineSpeed,
+    updateMachineSpeed: MachineConfigAPI.updateMachineSpeed,
+    deleteMachineSpeed: MachineConfigAPI.deleteMachineSpeed,
+    getMaintenancePlans: MachineConfigAPI.getMaintenancePlans,
+    createMaintenancePlan: MachineConfigAPI.createMaintenancePlan,
+    updateMaintenancePlan: MachineConfigAPI.updateMaintenancePlan,
+    deleteMaintenancePlan: MachineConfigAPI.deleteMaintenancePlan,
+    getShiftConfigs: MachineConfigAPI.getShiftConfigs,
+    createShiftConfig: MachineConfigAPI.createShiftConfig,
+    updateShiftConfig: MachineConfigAPI.updateShiftConfig,
+    deleteShiftConfig: MachineConfigAPI.deleteShiftConfig,
+
+    // Monthly Plan API方法
+    uploadMonthlyFile: MonthlyPlanAPI.uploadFile,
+    getMonthlyPlans: MonthlyPlanAPI.getMonthlyPlans,
+    getMonthlyPlanDetail: MonthlyPlanAPI.getMonthlyPlanDetail,
+
+    // Work Calendar API方法
+    getWorkCalendar: WorkCalendarAPI.getWorkCalendar,
+    updateWorkCalendar: WorkCalendarAPI.updateWorkCalendar
 };
 
 // 导出组合API作为默认导出

@@ -454,7 +454,7 @@ const refreshPlans = async () => {
     totalCount.value = historyResponse.data.pagination.total_count
     
     // 直接使用后端返回的数据，不需要额外合并
-    availablePlans.value = allRecords.map(record => {
+    availablePlans.value = allRecords.map((record: any) => {
       // 对于月度计划，默认都是未排产状态
       const scheduling_status = 'unscheduled'
       const can_schedule = record.valid_records > 0
@@ -558,6 +558,12 @@ const startScheduling = async (plan: AvailableBatch) => {
 const confirmScheduling = async () => {
   if (!selectedPlanForScheduling.value) return
   
+  // 防止重复提交
+  if (schedulingLoading.value) {
+    console.log('⚠️ 排产任务正在执行中，忽略重复提交')
+    return
+  }
+  
   schedulingLoading.value = true
   
   try {
@@ -569,8 +575,14 @@ const confirmScheduling = async () => {
       target_efficiency: 0.85
     }
     
+    // 确保batch_id有正确的MONTHLY_前缀
+    let batchId = selectedPlanForScheduling.value.batch_id
+    if (!batchId.startsWith('MONTHLY_')) {
+      batchId = `MONTHLY_${batchId}`
+    }
+    
     const response = await MonthlySchedulingAPI.executeScheduling(
-      selectedPlanForScheduling.value.batch_id,
+      batchId,
       defaultConfig
     )
     
@@ -585,9 +597,38 @@ const confirmScheduling = async () => {
       loadGlobalStatistics()
     ])
     
-  } catch (error) {
-    ElMessage.error('排产任务创建失败')
+  } catch (error: any) {
     console.error('Execute scheduling error:', error)
+    
+    // 处理重复提交的情况
+    if (error.response?.status === 409) {
+      // 409冲突，任务已存在
+      const detail = error.response?.data?.detail || '月度排产任务已创建，正在后台执行'
+      ElMessage.warning(detail)
+      
+      // 如果错误信息包含任务ID，尝试开始轮询
+      const taskIdMatch = detail.match(/任务ID：(\w+)/)
+      if (taskIdMatch) {
+        const taskId = taskIdMatch[1]
+        console.log('🔄 检测到已存在任务，开始轮询状态:', taskId)
+        await pollTaskStatus(taskId)
+      }
+    } else {
+      // 其他错误
+      let errorMessage = '排产任务创建失败'
+      if (error.response?.data?.detail) {
+        errorMessage = `${error.response.data.detail}`
+      } else if (error.response?.data?.message) {
+        errorMessage = `${error.response.data.message}`
+      } else if (error.message) {
+        errorMessage = `${error.message}`
+      }
+      
+      ElMessage.error(errorMessage)
+    }
+    
+    // 调试信息
+    console.log('Selected plan:', selectedPlanForScheduling.value)
   } finally {
     schedulingLoading.value = false
   }
@@ -701,10 +742,10 @@ const viewGanttChart = (planOrTask: AvailableBatch | SchedulingTask) => {
   }
   
   router.push({
-    name: 'GanttChart',
+    name: 'MonthlyGanttChart',
     query: {
       ...(taskId && { task_id: taskId }),
-      import_batch_id: importBatchId
+      monthly_batch_id: importBatchId
     }
   })
 }

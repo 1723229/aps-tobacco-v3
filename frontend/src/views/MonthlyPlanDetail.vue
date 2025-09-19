@@ -12,7 +12,7 @@
             <el-icon><Calendar /></el-icon>
             月度计划详情
           </h1>
-          <p class="page-subtitle">批次ID: {{ batchId }}</p>
+          <p class="page-subtitle">批次ID: {{ batchInfo?.monthly_batch_id || batchId || '暂无数据' }}</p>
         </div>
         <div class="header-right">
           <el-button @click="refreshData" :loading="loading">
@@ -47,7 +47,7 @@
             </div>
             <div class="info-content">
               <div class="info-label">批次ID</div>
-              <div class="info-value">{{ batchInfo?.batch_id || '暂无数据' }}</div>
+              <div class="info-value">{{ batchInfo?.monthly_batch_id || batchId || '暂无数据' }}</div>
             </div>
           </div>
 
@@ -412,6 +412,8 @@ onMounted(() => {
 <style scoped>
 .monthly-plan-detail {
   padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
   min-height: 100vh;
   background-color: #f5f7fa;
 }

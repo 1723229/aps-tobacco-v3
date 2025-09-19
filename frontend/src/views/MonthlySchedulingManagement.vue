@@ -559,6 +559,12 @@ const startScheduling = async (plan: AvailableBatch) => {
 const confirmScheduling = async () => {
   if (!selectedPlanForScheduling.value) return
   
+  // 防止重复提交
+  if (schedulingLoading.value) {
+    console.log('⚠️ 排产任务正在执行中，忽略重复提交')
+    return
+  }
+  
   schedulingLoading.value = true
   progressDialogVisible.value = true
   
@@ -595,8 +601,26 @@ const confirmScheduling = async () => {
     
   } catch (error: any) {
     console.error('❌ 月度排产执行失败:', error)
-    ElMessage.error(error.message || '排产任务创建失败')
-    progressDialogVisible.value = false
+    
+    // 处理重复提交的情况
+    if (error.response?.status === 409) {
+      // 409冲突，任务已存在
+      const detail = error.response?.data?.detail || '月度排产任务已创建，正在后台执行'
+      ElMessage.warning(detail)
+      
+      // 如果错误信息包含任务ID，尝试开始轮询
+      const taskIdMatch = detail.match(/任务ID：(\w+)/)
+      if (taskIdMatch) {
+        const taskId = taskIdMatch[1]
+        console.log('🔄 检测到已存在任务，开始轮询状态:', taskId)
+        await pollTaskStatus(taskId)
+      }
+    } else {
+      // 其他错误
+      const errorMessage = error.response?.data?.detail || error.message || '排产任务创建失败'
+      ElMessage.error(errorMessage)
+      progressDialogVisible.value = false
+    }
   } finally {
     schedulingLoading.value = false
   }
@@ -710,7 +734,7 @@ const viewGanttChart = (planOrTask: AvailableBatch | MonthlySchedulingTaskRespon
   }
   
   router.push({
-    name: 'GanttChart',
+    name: 'MonthlyGanttChart',
     query: {
       ...(taskId && { task_id: taskId }),
       monthly_batch_id: importBatchId

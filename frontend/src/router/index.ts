@@ -105,6 +105,14 @@ const router = createRouter({
             },
             props: true,
         },
+        {
+            path: "/monthly-gantt-chart",
+            name: "MonthlyGanttChart",
+            component: () => import("../views/MonthlyGanttChart.vue"),
+            meta: {
+                title: "月度排产甘特图",
+            },
+        },
     ],
 });
 
