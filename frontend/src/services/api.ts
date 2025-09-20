@@ -1035,17 +1035,7 @@ export class MonthlySchedulingAPI {
      * @returns 任务状态信息
      */
     static async getTaskStatus(taskId: string): Promise<any> {
-        const response = await httpClient.get(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}/status`);
-        return response.data;
-    }
-
-    /**
-     * 获取月度排产结果
-     * @param taskId 任务ID
-     * @returns 排产结果
-     */
-    static async getSchedulingResult(taskId: string): Promise<any> {
-        const response = await httpClient.get(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}/result`);
+        const response = await httpClient.get(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}`);
         return response.data;
     }
 
@@ -1079,7 +1069,7 @@ export class MonthlySchedulingAPI {
 
     /**
      * 获取月度排产历史任务（getHistory别名方法）
-     * @param params 查询参数  
+     * @param params 查询参数
      * @returns 月度排产任务历史
      */
     static async getHistory(params?: any): Promise<ApiResponse<{
@@ -1099,15 +1089,6 @@ export class MonthlySchedulingAPI {
         return response.data;
     }
 
-    /**
-     * 取消月度排产任务
-     * @param taskId 任务ID
-     * @returns 取消结果
-     */
-    static async cancelTask(taskId: string): Promise<any> {
-        const response = await httpClient.post(`${API_PREFIX}/monthly-scheduling/tasks/${taskId}/cancel`);
-        return response.data;
-    }
 
     /**
      * 获取月度排产统计信息

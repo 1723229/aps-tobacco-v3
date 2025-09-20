@@ -18,7 +18,7 @@ from sqlalchemy.orm import relationship
 from app.db.connection import Base
 import enum
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 class MonthlyTaskStatus(enum.Enum):
@@ -259,12 +259,27 @@ class MonthlySchedulingTask(Base):
         self.current_stage = "执行完成"
         self.progress = 100
         if result_summary:
-            self.result_summary = result_summary
+            # 处理JSON序列化问题：转换datetime对象为字符串
+            self.result_summary = self._serialize_for_json(result_summary)
         
         # 计算执行时间
         if self.start_time and self.end_time:
             delta = self.end_time - self.start_time
             self.execution_duration = int(delta.total_seconds())
+    
+    def _serialize_for_json(self, obj: Any) -> Any:
+        """递归处理对象，将datetime等不能JSON序列化的对象转换为字符串"""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, dict):
+            return {k: self._serialize_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._serialize_for_json(item) for item in obj]
+        elif hasattr(obj, '__dict__'):
+            # 处理自定义对象
+            return {k: self._serialize_for_json(v) for k, v in obj.__dict__.items() if not k.startswith('_')}
+        else:
+            return obj
     
     def fail_execution(self, error_message: str) -> None:
         """任务执行失败"""

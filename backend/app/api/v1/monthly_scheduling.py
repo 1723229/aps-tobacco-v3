@@ -331,6 +331,9 @@ async def execute_monthly_scheduling_pipeline(
             task.update_progress(20, len(plans), "执行数据验证和预处理")
             await db.commit()
             
+            # 关闭算法引擎的自动保存，避免重复保存
+            algorithm_config['auto_save_results'] = False
+            
             execution_result = await engine.execute_monthly_scheduling(
                 monthly_batch_id=monthly_batch_id,
                 task_id=task_id,

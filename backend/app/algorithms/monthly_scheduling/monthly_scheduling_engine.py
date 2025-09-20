@@ -450,7 +450,8 @@ class MonthlySchedulingEngine:
                 time_windows=time_windows,
                 machine_relations=data['machine_relations'],
                 work_calendar=data['work_calendar'],
-                shift_configs=data['shift_configs']  # 传递班次配置用于正确计算每日工时
+                shift_configs=data['shift_configs'],  # 传递班次配置用于正确计算每日工时
+                task_id=self.execution_state['task_id']  # 传递统一的任务ID
             )
             
             # 验证优化结果

@@ -445,6 +445,28 @@ const calculateStatisticsFromPlans = () => {
   })
 }
 
+// 加载全局统计数据
+const loadGlobalStatistics = async () => {
+  try {
+    console.log('📊 开始加载月度排产全局统计数据...')
+    
+    // 目前使用基于列表数据的统计，将来可以调用专门的API
+    calculateStatisticsFromPlans()
+    
+    console.log('✅ 月度排产全局统计数据加载完成:', {
+      待排产计划: availablePlansCount.value,
+      进行中: runningTasksCount.value,
+      已完成: completedTasksCount.value
+    })
+  } catch (error) {
+    console.error('❌ 加载月度排产全局统计数据失败:', error)
+    // 出错时设置为0，避免显示错误数据
+    availablePlansCount.value = 0
+    runningTasksCount.value = 0
+    completedTasksCount.value = 0
+  }
+}
+
 // 方法定义
 const refreshPlans = async () => {
   plansLoading.value = true
@@ -528,6 +550,9 @@ const refreshPlans = async () => {
     
     // 基于列表数据计算统计，确保一致性
     calculateStatisticsFromPlans()
+    
+    // 同时加载全局统计数据，保持与旬计划一致
+    await loadGlobalStatistics()
     
     console.log('📊 列表数据加载完成:', {
       当前页记录数: availablePlans.value.length,

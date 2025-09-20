@@ -58,6 +58,7 @@ class SchedulingOptimizer:
         self._original_time_windows = {}  # 缓存原始时间窗口
         self._machine_selection_counter = {}  # 机台选择计数器，用于轮换选择
         self._daily_utilization = {}  # 每日利用率统计 {date: {total_hours: float, schedules: int}}
+        self._current_task_id = None  # 统一的任务ID，避免重复生成
         
     def optimize_schedule(
         self, 
@@ -66,7 +67,8 @@ class SchedulingOptimizer:
         time_windows: Dict[str, List[Dict]], 
         machine_relations: Dict[str, Dict],
         work_calendar: Dict[str, Any] = None,
-        shift_configs: List[Dict[str, Any]] = None
+        shift_configs: List[Dict[str, Any]] = None,
+        task_id: str = None
     ) -> Dict[str, Any]:
         """
         执行主调度优化算法
@@ -85,6 +87,15 @@ class SchedulingOptimizer:
         try:
             # 1. 初始化调度状态
             self._initialize_scheduling_state(monthly_plans, time_windows)
+            
+            # 设置统一的任务ID，优先使用传入的task_id
+            if task_id:
+                self._current_task_id = task_id
+                logger.info(f"🔑 使用传入的统一任务ID: {self._current_task_id}")
+            else:
+                import uuid
+                self._current_task_id = f"TASK_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8].upper()}"
+                logger.info(f"🔑 生成新的任务ID: {self._current_task_id}")
             
             # 缓存原始时间窗口和工作日历
             self._original_time_windows = time_windows.copy()
@@ -683,7 +694,7 @@ class SchedulingOptimizer:
         work_order_nr = f"WO_{plan.monthly_batch_id}_{plan.article_nr}_{uuid.uuid4().hex[:8].upper()}"
         
         return {
-            'monthly_task_id': f"TASK_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            'monthly_task_id': self._current_task_id,  # 使用统一的任务ID
             'monthly_plan_id': plan.monthly_plan_id,
             'monthly_batch_id': plan.monthly_batch_id,
             'work_order_nr': work_order_nr,
