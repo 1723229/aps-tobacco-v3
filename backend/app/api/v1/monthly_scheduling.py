@@ -315,14 +315,27 @@ async def execute_monthly_scheduling_pipeline(
             # 创建算法引擎实例
             engine = MonthlySchedulingEngine(db)
             
+            # 创建进度回调函数
+            async def progress_callback(progress_info):
+                try:
+                    task.update_progress(
+                        int(progress_info['total_progress'] * 0.01 * len(plans)),
+                        len(plans),
+                        progress_info['message']
+                    )
+                    await db.commit()
+                except Exception as e:
+                    logging.warning(f"进度回调失败: {str(e)}")
+            
             # 执行完整算法
             task.update_progress(20, len(plans), "执行数据验证和预处理")
             await db.commit()
             
-            execution_result = await engine.execute_complete_scheduling(
+            execution_result = await engine.execute_monthly_scheduling(
                 monthly_batch_id=monthly_batch_id,
+                task_id=task_id,
                 algorithm_config=algorithm_config,
-                task_id=task_id
+                progress_callback=progress_callback
             )
             
             task.update_progress(80, len(plans), "算法执行完成，保存结果")
@@ -330,26 +343,64 @@ async def execute_monthly_scheduling_pipeline(
             
             if not execution_result["success"]:
                 # 算法执行失败，记录错误信息
-                error_msg = "; ".join(execution_result.get("errors", ["算法执行失败"]))
+                error_details = execution_result.get("error_details", {})
+                error_msg = error_details.get("error_message", "算法执行失败")
                 raise Exception(f"完整算法执行失败: {error_msg}")
+            
+            # 从新算法引擎结果中提取调度结果
+            algorithm_results = execution_result.get("algorithm_results", {})
+            scheduled_results_from_engine = algorithm_results.get("scheduled_results", [])
+            
+            if not scheduled_results_from_engine:
+                raise Exception("算法执行成功但没有生成调度结果")
+            
+            logging.info(f"✅ 算法引擎生成调度结果: {len(scheduled_results_from_engine)} 条")
+            
+            # 🔒 获取机台关系数据用于最终验证
+            from app.models.machine_config_models import MachineRelation
+            machine_relations_query = select(MachineRelation)
+            machine_relations_result = await db.execute(machine_relations_query)
+            machine_relations_records = machine_relations_result.scalars().all()
+            
+            # 构建有效的机台关系映射
+            valid_machine_pairs = set()
+            for relation in machine_relations_records:
+                valid_machine_pairs.add((relation.maker_code, relation.feeder_code))
+            
+            logging.info(f"🔒 数据库保存前最终验证：有效机台关系对数 {len(valid_machine_pairs)}")
             
             # 将算法结果转换为数据库记录
             processed_count = 0
-            for schedule_record in execution_result["scheduled_results"]:
+            rejected_count = 0
+            
+            for schedule_record in scheduled_results_from_engine:
                 try:
-                    # 创建数据库记录
+                    maker_code = schedule_record["assigned_maker_code"]
+                    feeder_code = schedule_record["assigned_feeder_code"]
+                    work_order = schedule_record.get("work_order_nr", f"WO_{schedule_record['monthly_plan_id']}")
+                    
+                    # 🔒 CRITICAL: 数据库保存前的最终验证
+                    if (maker_code, feeder_code) not in valid_machine_pairs:
+                        logging.error(f"🚨 FINAL REJECTION: 工单 {work_order} 的机台组合 {maker_code}+{feeder_code} "
+                                    f"不在aps_machine_relation表中，拒绝保存到数据库！")
+                        rejected_count += 1
+                        continue
+                    
+                    # 验证通过，创建数据库记录
+                    logging.debug(f"✅ FINAL VALIDATION PASSED: 工单 {work_order} 的机台组合 {maker_code}+{feeder_code} 验证通过")
+                    
                     db_record = MonthlyScheduleResult.create_schedule_result(
                         task_id=task_id,
                         plan_id=schedule_record["monthly_plan_id"],
                         batch_id=monthly_batch_id,
-                        work_order_nr=schedule_record["work_order_nr"],
+                        work_order_nr=work_order,
                         article_nr=schedule_record["article_nr"],
                         start_time=schedule_record["scheduled_start_time"],
                         end_time=schedule_record["scheduled_end_time"],
                         allocated_quantity=schedule_record["target_quantity_boxes"],
                         assigned_machines={
-                            "feeder": schedule_record["feeder_code"],
-                            "maker": schedule_record["maker_code"]
+                            "feeder": feeder_code,
+                            "maker": maker_code
                         },
                         algorithm_version=schedule_record.get("algorithm_version", "v2.0_complete"),
                         calculation_details=schedule_record.get("calculation_details", {})
@@ -363,19 +414,20 @@ async def execute_monthly_scheduling_pipeline(
                     logging.error(f"保存排产记录失败: {str(e)}")
                     continue
             
-            executed_algorithms.extend([
-                "完整数据验证算法 (ALG-015)",
-                "智能机台选择算法 (ALG-001, ALG-007, ALG-011)", 
-                "精确时间计算算法 (ALG-002, ALG-014)",
-                "智能时间分配算法 (ALG-006, ALG-009, ALG-005)",
-                "产能拆分算法 (ALG-008)",
-                "优先级排序算法 (ALG-010)",
-                "结果优化算法 (ALG-016)"
-            ])
+            if rejected_count > 0:
+                logging.warning(f"🚨 最终验证拒绝了 {rejected_count} 条不符合机台关系的记录")
+
             
             # 记录执行统计
-            task.algorithm_statistics = execution_result.get("execution_statistics", {})
-            task.performance_metrics = execution_result.get("performance_metrics", {})
+            performance_metrics = execution_result.get("performance_metrics", {})
+            execution_summary = execution_result.get("execution_summary", {})
+            
+            task.algorithm_statistics = {
+                "total_execution_time": performance_metrics.get("total_execution_time_seconds", 0),
+                "phase_breakdown": performance_metrics.get("phase_breakdown", {}),
+                "algorithm_efficiency": performance_metrics.get("algorithm_efficiency", "NORMAL")
+            }
+            task.performance_metrics = performance_metrics
             
             logging.info(f"✅ 完整算法执行成功: 处理 {processed_count} 条记录")
             
@@ -390,11 +442,14 @@ async def execute_monthly_scheduling_pipeline(
                 "failed_schedules": len(plans) - processed_count,
                 "algorithms_executed": executed_algorithms,
                 "performance_metrics": {
-                    "plans_per_second": processed_count / max(1, 1),  # 防止除零
-                    "efficiency_achieved": algorithm_config.get("target_efficiency", 0.85)
+                    "total_execution_time_seconds": performance_metrics.get("total_execution_time_seconds", 0),
+                    "plans_per_second": processed_count / max(1, performance_metrics.get("total_execution_time_seconds", 1)),
+                    "efficiency_achieved": algorithm_config.get("target_efficiency", 0.85),
+                    "algorithm_efficiency": performance_metrics.get("algorithm_efficiency", "NORMAL")
                 },
                 "algorithm_config": algorithm_config,
-                "constraints": constraints
+                "constraints": constraints,
+                "execution_details": execution_summary
             }
             
             task.complete_execution(result_summary)

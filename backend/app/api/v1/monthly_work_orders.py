@@ -545,23 +545,26 @@ async def _build_gantt_data(
     # 构建排程块
     schedule_blocks = []
     for result in schedule_results:
-        for machine_code in result.get_machine_codes():
-            # 根据牌号确定颜色
-            color = _get_article_color(result.article_nr)
-            
-            schedule_blocks.append({
-                "block_id": f"block_{result.monthly_schedule_id}_{machine_code}",
-                "monthly_schedule_id": result.monthly_schedule_id,
-                "monthly_task_id": result.monthly_task_id,
-                "monthly_plan_id": result.monthly_plan_id,
-                "monthly_batch_id": result.monthly_batch_id,
-                "machine_code": machine_code,
-                "machine_type": "FEEDING" if machine_code == result.assigned_feeder_code else "PACKING",
-                "work_order_nr": result.work_order_nr,
-                "article_nr": result.article_nr,
-                "article_name": result.article_nr,  # 使用article_nr作为显示名称
-                "assigned_feeder_code": result.assigned_feeder_code,
-                "assigned_maker_code": result.assigned_maker_code,
+        # 🔒 CRITICAL FIX: 不要为每个机台都创建记录，只创建一个基于实际机台关系的记录
+        # 这样可以避免错误的机台配对
+        
+        # 根据牌号确定颜色
+        color = _get_article_color(result.article_nr)
+        
+        # 只创建一个记录，使用正确的机台组合
+        schedule_blocks.append({
+            "block_id": f"block_{result.monthly_schedule_id}",
+            "monthly_schedule_id": result.monthly_schedule_id,
+            "monthly_task_id": result.monthly_task_id,
+            "monthly_plan_id": result.monthly_plan_id,
+            "monthly_batch_id": result.monthly_batch_id,
+            "machine_code": result.assigned_maker_code,  # 使用卷包机作为主要机台代码
+            "machine_type": "PACKING",  # 卷包机类型
+            "work_order_nr": result.work_order_nr,
+            "article_nr": result.article_nr,
+            "article_name": result.article_nr,  # 使用article_nr作为显示名称
+            "assigned_feeder_code": result.assigned_feeder_code,
+            "assigned_maker_code": result.assigned_maker_code,
                 "machine_group": result.machine_group,
                 "start_time": result.scheduled_start_time.isoformat() if result.scheduled_start_time else None,
                 "end_time": result.scheduled_end_time.isoformat() if result.scheduled_end_time else None,
