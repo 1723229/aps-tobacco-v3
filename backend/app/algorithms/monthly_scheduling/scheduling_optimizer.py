@@ -332,8 +332,10 @@ class SchedulingOptimizer:
         
         # 使用动态阈值：如果所需时间超过单台机台月度可用时长的20%，则拆分调度
         time_params = getattr(self, '_time_params', {})
-        single_machine_monthly_hours = time_params.get('single_machine_monthly_hours', 136.0)  # 基于实际数据：8小时×20天×85%
-        large_product_threshold = single_machine_monthly_hours * 0.2  # 20%阈值，约27小时
+        single_machine_monthly_hours = time_params.get('single_machine_monthly_hours')
+        if single_machine_monthly_hours is None:
+            raise ValueError("single_machine_monthly_hours未从数据库获取，不允许使用默认值")
+        large_product_threshold = single_machine_monthly_hours * 0.2  # 20%阈值
         
         if min_required_hours > large_product_threshold:
             logger.info(f"产品 {article_nr} 需要 {min_required_hours:.2f}小时（阈值:{large_product_threshold:.1f}），启用拆分调度")
@@ -420,7 +422,9 @@ class SchedulingOptimizer:
             usage_penalty = usage_count * 500
             
             # 性能因素作为次要考虑
-            speed = info.get('actual_speed', info.get('speed_per_hour', 100.0))
+            speed = info.get('actual_speed') or info.get('speed_per_hour')
+            if speed is None:
+                raise ValueError(f"机台速度未从数据库获取，不允许使用默认值")
             performance_bonus = speed * 0.1  # 性能只占很小权重
             
             final_priority = base_priority - usage_penalty + performance_bonus
@@ -706,9 +710,10 @@ class SchedulingOptimizer:
             'scheduled_start_time': time_slot.get('start') or time_slot.get('scheduled_start_time'),
             'scheduled_end_time': time_slot.get('end') or time_slot.get('scheduled_end_time'),
             'scheduled_duration_hours': time_slot.get('duration') or time_slot.get('scheduled_duration_hours'),
-            'estimated_speed': capacity_info.get('actual_speed', capacity_info.get('speed_per_hour', 8.0)),
-            'efficiency_rate': capacity_info.get('efficiency_rate', 100.0),
-            'utilization_rate': capacity_info.get('utilization_rate', 0.8),
+            'estimated_speed': capacity_info.get('actual_speed') or capacity_info.get('speed_per_hour'),
+            'efficiency_rate': capacity_info.get('efficiency_rate') or 
+                               (capacity_info.get('efficiency', 100) / 100 if capacity_info.get('efficiency') is not None else None),
+            'utilization_rate': capacity_info.get('utilization_rate') or 0.8,  # TODO: 从配置表获取
             'algorithm_version': 'v2.0_complete',
             'scheduling_timestamp': datetime.now(),
             'priority_score': self._calculate_priority_score(plan, capacity_info),
@@ -1644,10 +1649,13 @@ class SchedulingOptimizer:
             if total_allocated >= target_quantity:
                 break
                 
-            # 计算该机台可以处理的最大数量
-            max_hours_per_day = 17.0  # 每日最大工作时长
+            # 计算该机台可以处理的最大数量（使用从数据库获取的每日工时）
+            time_params = getattr(self, '_time_params', {})
+            daily_work_hours = time_params.get('daily_work_hours')
+            if daily_work_hours is None:
+                raise ValueError("每日工作时长未从数据库获取，不允许使用默认值")
             speed = capacity_info['actual_speed']
-            max_daily_quantity = int(speed * max_hours_per_day)
+            max_daily_quantity = int(speed * daily_work_hours)
             
             # 查找该机台的可用时间
             remaining_quantity = target_quantity - total_allocated
@@ -1763,17 +1771,18 @@ class SchedulingOptimizer:
                     daily_work_hours = first_work_day.get('total_hours', 0.0)
                     logger.warning(f"从工作日历获取每日工时: {daily_work_hours:.2f}小时")
         
-        # 默认值处理
+        # 数据验证 - 不允许默认值
         if total_work_days <= 0:
-            total_work_days = 20  # 默认工作日数
+            raise ValueError("工作日数未从数据库获取或无效，不允许使用默认值")
         if daily_work_hours <= 0:
-            daily_work_hours = 17.33  # 从班次配置应该计算出的值
-            logger.warning(f"未能从班次配置计算每日工时，使用预期值{daily_work_hours}小时")
+            raise ValueError("每日工作时长未从班次配置获取或无效，不允许使用默认值")
         
         # **强制覆盖模式：基于正确的17.33小时/天计算产能**
         # 基础产能计算
         base_monthly_hours = total_work_days * daily_work_hours
-        single_machine_base_hours = base_monthly_hours * 0.85  # 85%基础利用率
+        # 获取利用率系数从数据库，不使用硬编码
+        base_utilization = 1  # 后续需要从配置表获取
+        single_machine_base_hours = base_monthly_hours * base_utilization  # 基础利用率
         
         # 验证产能充足性：计算理论总产能vs实际需求
         # 35台机台 × 17.33小时/天 × 20天 × 平均速度
@@ -1782,9 +1791,9 @@ class SchedulingOptimizer:
         logger.info(f"📈 产能分析: 35台×{daily_work_hours:.2f}h×{total_work_days}天 = {theoretical_capacity:,.0f}机台小时")
         
         # 强制覆盖策略：确保100%排产
-        # 策略1：提高设备利用率至95%
-        # 策略2：启用所有35台机台的通用拆分
-        extended_utilization = 0.95  # 95%利用率
+        # 策略1：提高设备利用率至100%
+        # 策略2：启用所有35台机台的通用拆分、
+        extended_utilization = 1  # 100%利用率 - 需要从数据库获取
         single_machine_extended_hours = base_monthly_hours * extended_utilization
         
         logger.info(f"🎯 强制覆盖模式: 单机可用{single_machine_extended_hours:.0f}h/月, 总产能{35*single_machine_extended_hours:,.0f}机台小时")
@@ -2306,7 +2315,9 @@ class SchedulingOptimizer:
         
         # 计算总需求和总产能
         total_demand = sum(plan.target_quantity_boxes for plan in monthly_plans)
-        single_machine_hours = time_params.get('single_machine_extended_hours', 294.6)  # 17.33×20×0.85
+        single_machine_hours = time_params.get('single_machine_extended_hours')
+        if single_machine_hours is None:
+            raise ValueError("single_machine_extended_hours未从时间参数获取，不允许使用默认值")
         
         # 按产品规模分类
         split_plans = []
