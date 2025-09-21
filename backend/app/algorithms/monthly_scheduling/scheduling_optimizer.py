@@ -713,7 +713,7 @@ class SchedulingOptimizer:
             'estimated_speed': capacity_info.get('actual_speed') or capacity_info.get('speed_per_hour'),
             'efficiency_rate': capacity_info.get('efficiency_rate') or 
                                (capacity_info.get('efficiency', 100) / 100 if capacity_info.get('efficiency') is not None else None),
-            'utilization_rate': capacity_info.get('utilization_rate') or 0.8,  # TODO: 从配置表获取
+            'utilization_rate': capacity_info.get('utilization_rate') or 1,
             'algorithm_version': 'v2.0_complete',
             'scheduling_timestamp': datetime.now(),
             'priority_score': self._calculate_priority_score(plan, capacity_info),
@@ -763,7 +763,7 @@ class SchedulingOptimizer:
         # 更新机台利用率
         current_util = self._scheduling_state['machine_utilization'].get(machine_code, 0.0)
         self._scheduling_state['machine_utilization'][machine_code] = min(
-            current_util + capacity_info.get('utilization_rate', 0.8), 1.0
+            current_util + capacity_info.get('utilization_rate', 1.0 ), 1.0
         )
         
         # 从未分配列表中移除
@@ -1979,8 +1979,8 @@ class SchedulingOptimizer:
             if remaining_quantity <= 0 or used_machines >= needed_machines:
                 break
             
-            # 为每台机台分配合理的数量（不超过其月度产能的80%）
-            machine_max_quantity = int(single_machine_hours * capacity_info['actual_speed'] * 0.8)
+            # 为每台机台分配合理的数量
+            machine_max_quantity = int(single_machine_hours * capacity_info['actual_speed'])
             allocatable_quantity = min(remaining_quantity, machine_max_quantity)
             
             if allocatable_quantity <= 0:
