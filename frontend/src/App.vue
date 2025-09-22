@@ -41,11 +41,11 @@
                   <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
                 </div>
                 <div class="dropdown-menu">
-                  <div class="dropdown-item" @click="handleMenuSelect('/decade-plan/entry')">
+                  <div class="dropdown-item" @click="handleMenuSelect('/scheduling')">
                     <el-icon><UploadFilled /></el-icon>
                     <span>卷包旬计划合并</span>
                   </div>
-                  <div class="dropdown-item" @click="handleMenuSelect('/monthly-plan/entry')">
+                  <div class="dropdown-item" @click="handleMenuSelect('/monthly-scheduling')">
                     <el-icon><Calendar /></el-icon>
                     <span>月度计划排产</span>
                   </div>
@@ -80,7 +80,7 @@
       <el-footer class="app-footer">
         <div class="footer-content">
           <div class="footer-left">
-            <span>© 2024 APS 烟草生产计划系统. All rights reserved.</span>
+            <span>© 2025 APS 烟草生产计划系统. All rights reserved.</span>
           </div>
           <div class="footer-right">
             <span>Version 1.0.0</span>

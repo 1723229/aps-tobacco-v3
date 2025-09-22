@@ -141,6 +141,7 @@
               :row-height="60"
               :row-label-width="0"
               font="Inter, sans-serif"
+              :disable-tooltip="true"
               @click-bar="onBarClick"
               @mouseenter-bar="onBarMouseenter"
               @mouseleave-bar="onBarMouseleave"
@@ -414,6 +415,15 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+function formatChineseDateTime(date: Date): string {
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}年${month}月${day}日 ${hours}:${minutes}`
+}
+
 // 事件处理
 function onBarClick(event: any) {
   const bar = event.bar
@@ -422,11 +432,81 @@ function onBarClick(event: any) {
 }
 
 function onBarMouseenter(event: any) {
-  console.log('悬停条形:', event.bar)
+  const bar = event.bar
+  console.log('悬停条形:', bar)
+  
+  // 创建自定义中文tooltip
+  const tooltip = document.createElement('div')
+  tooltip.id = 'custom-gantt-tooltip'
+  tooltip.style.cssText = `
+    position: fixed;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 10000;
+    pointer-events: none;
+    min-width: 280px;
+    max-width: 400px;
+    line-height: 1.5;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
+  `
+  
+  const startTime = new Date(bar.startTime)
+  const endTime = new Date(bar.endTime)
+  
+  tooltip.innerHTML = `
+    <div style="font-weight: 600; color: #fff; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+      ${bar.product}
+    </div>
+    <div style="margin-bottom: 4px;">
+      <span style="color: #ddd; display: inline-block; width: 60px;">工单号</span>
+      <span style="color: #fff; font-family: monospace;">${bar.workOrder}</span>
+    </div>
+    <div style="margin-bottom: 4px;">
+      <span style="color: #ddd; display: inline-block; width: 60px;">数量</span>
+      <span style="color: #4CAF50; font-weight: 500;">${bar.quantity}箱</span>
+    </div>
+    <div style="margin-bottom: 4px;">
+      <span style="color: #ddd; display: inline-block; width: 60px;">开始</span>
+      <span style="color: #2196F3;">${formatChineseDateTime(startTime)}</span>
+    </div>
+    <div>
+      <span style="color: #ddd; display: inline-block; width: 60px;">结束</span>
+      <span style="color: #FF9800;">${formatChineseDateTime(endTime)}</span>
+    </div>
+  `
+  
+  document.body.appendChild(tooltip)
+  
+  // 鼠标移动时更新tooltip位置
+  const updateTooltipPosition = (e: MouseEvent) => {
+    tooltip.style.left = (e.clientX + 10) + 'px'
+    tooltip.style.top = (e.clientY + 10) + 'px'
+  }
+  
+  document.addEventListener('mousemove', updateTooltipPosition)
+  tooltip.setAttribute('data-mousemove-listener', 'true')
 }
 
 function onBarMouseleave(event: any) {
   console.log('离开条形:', event.bar)
+  
+  // 移除自定义tooltip
+  const tooltip = document.getElementById('custom-gantt-tooltip')
+  if (tooltip) {
+    // 移除鼠标移动监听器
+    if (tooltip.getAttribute('data-mousemove-listener')) {
+      document.removeEventListener('mousemove', (e: MouseEvent) => {
+        tooltip.style.left = (e.clientX + 10) + 'px'
+        tooltip.style.top = (e.clientY + 10) + 'px'
+      })
+    }
+    tooltip.remove()
+  }
 }
 
 // 获取机台选项

@@ -308,7 +308,7 @@ const activityLoading = ref(false)
 
 // 方法
 const goToEntry = () => {
-  router.push('/decade-plan/entry?tab=history')
+  router.push('/scheduling')
 }
 
 const goToMachineConfig = () => {
@@ -320,12 +320,12 @@ const goToScheduling = () => {
 }
 
 const goToMonthlyPlan = () => {
-  router.push('/monthly-plan/entry')
+  router.push('/monthly-scheduling')
 }
 
 const downloadTemplate = () => {
-  // 模板下载功能移到录入页面
-  router.push('/decade-plan/entry')
+  // 跳转到旬计划排产管理页面
+  router.push('/scheduling')
 }
 
 const viewDetails = (batchId: string, planType?: string) => {

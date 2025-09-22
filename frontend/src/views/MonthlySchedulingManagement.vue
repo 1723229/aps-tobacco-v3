@@ -152,9 +152,10 @@
                         v-if="row.scheduling_status === 'running'"
                         type="warning" 
                         size="small"
-                        @click="viewSchedulingProgress(row)"
+                        loading
+                        disabled
                       >
-                        查看进度
+                        排产中...
                       </el-button>
                       
                       <el-button 
@@ -225,125 +226,7 @@
       </div>
     </div>
     
-    <!-- 排产进度监控弹窗 -->
-    <el-dialog
-      v-model="progressDialogVisible"
-      title="排产进度监控"
-      width="80%"
-      :close-on-click-modal="false"
-      :close-on-press-escape="false"
-      :show-close="true"
-      @close="closeProgressPanel"
-    >
-      <div v-if="currentTask" class="dialog-progress-content">
-        <div class="progress-header-section">
-          <div class="task-info">
-            <h3>{{ currentTask.task_name }}</h3>
-            <el-tag 
-              :type="getTaskStatusType(currentTask.status)"
-              size="large"
-              class="status-tag"
-            >
-              {{ getTaskStatusText(currentTask.status) }}
-            </el-tag>
-          </div>
-        </div>
-        
-        <div class="progress-body">
-          <div class="progress-section">
-            <div class="progress-header">
-              <h4>执行进度</h4>
-              <span class="progress-percent">{{ currentTask.progress }}%</span>
-            </div>
-            <el-progress 
-              :percentage="currentTask.progress" 
-              :status="getProgressStatus(currentTask.status)"
-              stroke-width="8"
-              class="progress-bar"
-            />
-            <div class="progress-details">
-              <span>当前阶段: {{ currentTask.current_stage }}</span>
-              <span>{{ currentTask.processed_records }} / {{ currentTask.total_records }} 记录</span>
-            </div>
-          </div>
-          
-          <div class="task-details">
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="detail-label">任务ID</span>
-                <span class="detail-value">{{ currentTask.task_id.slice(-12) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">批次ID</span>
-                <span class="detail-value">{{ currentTask.monthly_batch_id?.slice(-8) || '--' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">执行时长</span>
-                <span class="detail-value">{{ formatDuration(currentTask.execution_duration) }}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div v-if="currentTask.error_message" class="error-section">
-            <el-alert
-              :title="currentTask.error_message"
-              type="error"
-              show-icon
-              :closable="false"
-            />
-          </div>
-          
-          <!-- 排产完成结果 -->
-          <div v-if="currentTask.status === 'COMPLETED' && currentTask.algorithm_summary" class="result-summary">
-            <div class="summary-grid">
-              <div class="summary-card">
-                <div class="summary-icon">
-                  <el-icon><Document /></el-icon>
-                </div>
-                <div class="summary-content">
-                  <h3>{{ currentTask.scheduled_plans || 0 }}</h3>
-                  <p>总工单数</p>
-                </div>
-              </div>
-              <div class="summary-card">
-                <div class="summary-icon success">
-                  <el-icon><Box /></el-icon>
-                </div>
-                <div class="summary-content">
-                  <h3>{{ Math.floor((currentTask.scheduled_plans || 0) * 0.6) }}</h3>
-                  <p>卷包机工单</p>
-                </div>
-              </div>
-              <div class="summary-card">
-                <div class="summary-icon warning">
-                  <el-icon><Operation /></el-icon>
-                </div>
-                <div class="summary-content">
-                  <h3>{{ Math.floor((currentTask.scheduled_plans || 0) * 0.4) }}</h3>
-                  <p>喂丝机工单</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button 
-            v-if="currentTask?.status === 'COMPLETED'"
-            type="primary" 
-            @click="viewGanttChart(currentTask)"
-          >
-            <el-icon><TrendCharts /></el-icon>
-            查看甘特图
-          </el-button>
-          <el-button @click="closeProgressPanel">
-            关闭
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
+    <!-- 进度弹窗已移除，现在直接在按钮上显示loading状态 -->
   </div>
 </template>
 
@@ -390,8 +273,6 @@ const availablePlans = ref<AvailableBatch[]>([])
 const selectedPlans = ref<AvailableBatch[]>([])
 const plansLoading = ref(false)
 const schedulingLoading = ref(false)
-const currentTask = ref<MonthlySchedulingTaskResponse | null>(null)
-const progressDialogVisible = ref(false)
 const selectedPlanForScheduling = ref<AvailableBatch | null>(null)
 const pollingTimer = ref<number | null>(null)
 
@@ -416,7 +297,7 @@ const calculateStatisticsFromPlans = () => {
   let running = 0
   let completed = 0
   
-  availablePlans.value.forEach(plan => {
+  availablePlans.value.forEach((plan: any) => {
     switch (plan.scheduling_status) {
       case 'unscheduled':
         if (plan.can_schedule) {
@@ -478,7 +359,7 @@ const refreshPlans = async () => {
       'COMPLETED' // 只获取已解析完成的记录
     )
     
-    const allRecords = historyResponse.data.imports
+    const allRecords = historyResponse.data.records
     totalCount.value = historyResponse.data.pagination.total_count
     
     // 查询每个批次的最新排产任务状态
@@ -531,18 +412,19 @@ const refreshPlans = async () => {
         }
         
         return {
-          batch_id: record.monthly_batch_id, // 使用正确的字段名
+          batch_id: record.batch_id || record.monthly_batch_id, // 使用正确的字段名
           file_name: record.file_name,
           total_records: record.total_records,
           valid_records: record.valid_records,
-          import_end_time: record.updated_time, // 使用updated_time作为完成时间
+          import_end_time: record.import_end_time || record.updated_time, // 使用updated_time作为完成时间
           display_name: `${record.file_name} (${record.valid_records}条记录)`,
           can_schedule: can_schedule, // 根据有效记录数判断是否可排产
           scheduling_status: scheduling_status, // 动态查询的状态
           scheduling_text: scheduling_text, // 动态设置的文本
           task_id: task_id, // 最新任务ID
-          work_orders_summary: 0 // 目前没有工单摘要
-        }
+          work_orders_summary: 0, // 目前没有工单摘要
+          scheduling: false // 临时的排产中状态
+        } as any
       })
     )
     
@@ -629,8 +511,17 @@ const getSchedulingStatusText = (row: AvailableBatch) => {
 }
 
 const startScheduling = async (plan: AvailableBatch) => {
-  // 直接执行排产，不显示配置对话框
+  // 设置选中的计划
   selectedPlanForScheduling.value = plan
+  
+  // 立即标记为开始排产状态（设置loading），无需等待API调用
+  const planIndex = availablePlans.value.findIndex(p => (p as any).batch_id === plan.batch_id)
+  if (planIndex !== -1) {
+    // 临时设置scheduling状态，表示正在提交排产请求
+    (availablePlans.value[planIndex] as any).scheduling = true
+  }
+  
+  // 立即开始排产（不显示配置对话框，直接使用默认配置）
   await confirmScheduling()
 }
 
@@ -644,7 +535,6 @@ const confirmScheduling = async () => {
   }
   
   schedulingLoading.value = true
-  progressDialogVisible.value = true
   
   try {
     // 使用默认的月度算法配置
@@ -700,7 +590,7 @@ const confirmScheduling = async () => {
       // 404错误，月度批次不存在
       const errorMessage = error.response?.data?.detail || '月度批次不存在'
       ElMessage.error(errorMessage)
-      progressDialogVisible.value = false
+      // progressDialogVisible 已移除
       
       // 刷新列表以更新状态
       await refreshPlans()
@@ -708,19 +598,22 @@ const confirmScheduling = async () => {
       // 其他错误
       const errorMessage = error.response?.data?.detail || error.message || '排产任务创建失败'
       ElMessage.error(errorMessage)
-      progressDialogVisible.value = false
+      // progressDialogVisible 已移除
     }
   } finally {
     schedulingLoading.value = false
+    
+    // 清除按钮的loading状态
+    if (selectedPlanForScheduling.value) {
+      const planIndex = availablePlans.value.findIndex(p => (p as any).batch_id === selectedPlanForScheduling.value!.batch_id)
+      if (planIndex !== -1) {
+        (availablePlans.value[planIndex] as any).scheduling = false
+      }
+    }
   }
 }
 
-const viewSchedulingProgress = (plan: AvailableBatch) => {
-  if ((plan as any).task_id) {
-    progressDialogVisible.value = true
-    pollTaskStatus((plan as any).task_id)
-  }
-}
+// viewSchedulingProgress 方法已移除，因为不再需要手动查看进度
 
 const retryScheduling = async (plan: AvailableBatch) => {
   try {
@@ -748,29 +641,41 @@ const pollTaskStatus = async (taskId: string) => {
       const response = await MonthlySchedulingAPI.getTaskStatus(taskId)
       currentTask.value = response.data
       
-              if (response.data.status === 'COMPLETED') {
-          ElMessage.success('排产完成！')
-          clearInterval(pollingTimer.value!)
-          pollingTimer.value = null
-          // 刷新列表和全局统计
-          await Promise.all([
-            refreshPlans(),
-            loadGlobalStatistics()
-          ])
-          // 延迟关闭弹窗，让用户看到完成状态
-          setTimeout(() => {
-            progressDialogVisible.value = false
-          }, 2000)
-        } else if (response.data.status === 'FAILED') {
-          ElMessage.error('排产失败')
-          clearInterval(pollingTimer.value!)
-          pollingTimer.value = null
-          // 刷新列表和全局统计
-          await Promise.all([
-            refreshPlans(),
-            loadGlobalStatistics()
-          ])
-        }
+      // 每次轮询都刷新列表状态，确保按钮状态实时同步
+      await refreshPlans()
+      
+      if (response.data.status === 'COMPLETED') {
+        ElMessage.success('排产完成！')
+        clearInterval(pollingTimer.value!)
+        pollingTimer.value = null
+        // 最终刷新列表和全局统计
+        await Promise.all([
+          refreshPlans(),
+          loadGlobalStatistics()
+        ])
+        // 清除选中的计划，停止loading状态
+        selectedPlanForScheduling.value = null
+      } else if (response.data.status === 'FAILED') {
+        ElMessage.error('排产失败')
+        clearInterval(pollingTimer.value!)
+        pollingTimer.value = null
+        selectedPlanForScheduling.value = null
+        // 最终刷新列表和全局统计
+        await Promise.all([
+          refreshPlans(),
+          loadGlobalStatistics()
+        ])
+      } else if (response.data.status === 'CANCELLED') {
+        ElMessage.warning('排产任务已取消')
+        clearInterval(pollingTimer.value!)
+        pollingTimer.value = null
+        selectedPlanForScheduling.value = null
+        // 最终刷新列表和全局统计
+        await Promise.all([
+          refreshPlans(),
+          loadGlobalStatistics()
+        ])
+      }
     } catch (error) {
       console.error('Poll task status error:', error)
       // 停止轮询如果出错
@@ -778,6 +683,7 @@ const pollTaskStatus = async (taskId: string) => {
         clearInterval(pollingTimer.value)
         pollingTimer.value = null
       }
+      selectedPlanForScheduling.value = null
     }
   }
   
@@ -790,19 +696,7 @@ const pollTaskStatus = async (taskId: string) => {
   }
 }
 
-const closeProgressPanel = () => {
-  progressDialogVisible.value = false
-  currentTask.value = null
-  if (pollingTimer.value) {
-    clearInterval(pollingTimer.value)
-    pollingTimer.value = null
-  }
-  // 刷新列表状态和全局统计
-  Promise.all([
-    refreshPlans(),
-    loadGlobalStatistics()
-  ])
-}
+// closeProgressPanel 方法已移除，因为不再使用弹窗
 
 const viewAllHistory = () => {
   router.push('/scheduling/history')

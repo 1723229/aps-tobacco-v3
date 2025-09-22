@@ -152,7 +152,7 @@ async def get_work_calendar(
         total_work_days = len([d for d in calendar_days if d["monthly_day_type"] == "WORKDAY"])
         total_holidays = len([d for d in calendar_days if d["monthly_day_type"] == "HOLIDAY"])
         total_maintenance_days = len([d for d in calendar_days if d["monthly_day_type"] == "MAINTENANCE"])
-        total_working_hours = sum(d["monthly_total_hours"] for d in calendar_days if d["monthly_is_working"] == 1)
+        total_working_hours = round(sum(d["monthly_total_hours"] for d in calendar_days if d["monthly_is_working"] == 1), 2)
         
         # 构建响应数据
         response_data = {

@@ -152,9 +152,10 @@
                         v-if="row.scheduling_status === 'running'"
                         type="warning" 
                         size="small"
-                        @click="viewSchedulingProgress(row)"
+                        loading
+                        disabled
                       >
-                        查看进度
+                        排产中...
                       </el-button>
                       
                       <el-button 
@@ -713,9 +714,10 @@ const pollTaskStatus = async (taskId: string) => {
   const poll = async () => {
     try {
       const response = await MonthlySchedulingAPI.getTaskStatus(taskId)
-      currentTask.value = response.data
+      // 修复数据结构：实际的任务信息在 response.data.task 中
+      currentTask.value = response.data.task
       
-              if (response.data.status === 'COMPLETED') {
+              if (response.data.task?.status === 'COMPLETED') {
           ElMessage.success('排产完成！')
           clearInterval(pollingTimer.value!)
           pollingTimer.value = null
@@ -725,7 +727,7 @@ const pollTaskStatus = async (taskId: string) => {
           setTimeout(() => {
             progressDialogVisible.value = false
           }, 2000)
-        } else if (response.data.status === 'FAILED') {
+        } else if (response.data.task?.status === 'FAILED') {
           ElMessage.error('排产失败')
           clearInterval(pollingTimer.value!)
           pollingTimer.value = null
@@ -746,7 +748,11 @@ const pollTaskStatus = async (taskId: string) => {
   await poll()
   
   // 开始轮询（每3秒）
-  if (currentTask.value && ['PENDING', 'RUNNING'].includes(currentTask.value.status)) {
+  // 如果任务状态是undefined、null、PENDING或RUNNING，都继续轮询
+  const status = currentTask.value?.status
+  const shouldContinuePolling = !status || ['PENDING', 'RUNNING'].includes(status)
+  
+  if (shouldContinuePolling) {
     pollingTimer.value = window.setInterval(poll, 3000)
   }
 }
