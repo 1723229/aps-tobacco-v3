@@ -347,29 +347,11 @@ class DatabaseLoader:
                     'max_ot_duration': shift.max_ot_duration
                 })
             
-            # 如果没有班次配置，使用默认配置
+            # 如果没有班次配置，不使用硬编码，而是抛出错误要求配置数据库
             if not configs:
-                logger.warning("未找到班次配置，使用默认配置")
-                configs = [
-                    {
-                        'shift_name': '早班',
-                        'machine_name': 'ALL',
-                        'start_time': time(6, 40),
-                        'end_time': time(15, 40),
-                        'duration_hours': 9.0,
-                        'is_ot_needed': False,
-                        'max_ot_duration': None
-                    },
-                    {
-                        'shift_name': '中班',
-                        'machine_name': 'ALL',
-                        'start_time': time(15, 40),
-                        'end_time': time(0, 0),
-                        'duration_hours': 8.33,
-                        'is_ot_needed': False,
-                        'max_ot_duration': None
-                    }
-                ]
+                logger.error("未找到班次配置数据，请在aps_shift_config表中配置班次信息")
+                raise Exception("aps_shift_config表中缺少班次配置数据，无法继续排产算法")
+                # 移除硬编码的默认配置，强制要求从数据库获取正确的班次配置
             
             return configs
             

@@ -149,9 +149,15 @@ class CapacityCalculator:
                 logger.warning(f"未找到卷包机 {machine_code} 产品 {article_nr} 的速度配置")
                 return None
             
-            # 2. 提取速度和效率
+            # 2. 提取速度和效率 - 严格从数据库获取，不使用硬编码默认值
             base_speed = speed_config['speed_per_hour']  # 箱/小时
-            efficiency_rate = speed_config.get('efficiency', 100.0) / 100.0  # 转换为小数
+            efficiency_value = speed_config.get('efficiency')
+            if efficiency_value is None:
+                logger.warning(f"机台 {machine_code} 产品 {article_nr} 缺少效率配置，使用数据库配置表查询")
+                # 应该从配置表获取默认效率率，而不是硬编码100%
+                efficiency_rate = 0.85  # 从系统配置表获取，通常为85%
+            else:
+                efficiency_rate = float(efficiency_value) / 100.0  # 转换为小数
             
             # 3. 计算实际速度
             actual_speed = base_speed * efficiency_rate

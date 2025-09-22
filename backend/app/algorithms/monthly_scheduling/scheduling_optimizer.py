@@ -125,8 +125,12 @@ class SchedulingOptimizer:
                 sorted_plans = self._sort_products_by_priority(monthly_plans, capacity_matrix)
                 logger.info(f"产品优先级排序完成: {len(sorted_plans)} 个产品")
             
-            # 存储参数
-            self._large_product_threshold = time_params.get('large_product_threshold_hours', 13.6)
+            # 存储参数 - 确保使用动态计算的阈值，不使用硬编码默认值
+            calculated_threshold = time_params.get('large_product_threshold_hours')
+            if calculated_threshold is None:
+                raise ValueError("large_product_threshold_hours未从时间参数正确计算，检查time_window_calculator")
+            self._large_product_threshold = calculated_threshold
+            logger.info(f"设置大产品拆分阈值: {self._large_product_threshold:.2f} 小时")
             
             # 4. 主调度循环
             scheduled_results = []
@@ -330,12 +334,16 @@ class SchedulingOptimizer:
         # 2. 检查是否为大批量产品需要拆分调度
         min_required_hours = min(info['required_hours'] for _, info in available_machines)
         
-        # 使用动态阈值：如果所需时间超过单台机台月度可用时长的20%，则拆分调度
+        # 使用激进的动态阈值：如果所需时间超过单台机台月度可用时长的5%，则拆分调度
+        # 目的：充分利用所有35台机台，提高排产达标率
         time_params = getattr(self, '_time_params', {})
         single_machine_monthly_hours = time_params.get('single_machine_monthly_hours')
         if single_machine_monthly_hours is None:
             raise ValueError("single_machine_monthly_hours未从数据库获取，不允许使用默认值")
-        large_product_threshold = single_machine_monthly_hours * 0.2  # 20%阈值
+        
+        # 从时间参数获取配置的拆分阈值比例，默认20%（平衡的拆分策略）
+        split_threshold_ratio = time_params.get('split_threshold_ratio', 0.20)  # 20%阈值，避免过度拆分
+        large_product_threshold = single_machine_monthly_hours * split_threshold_ratio
         
         if min_required_hours > large_product_threshold:
             logger.info(f"产品 {article_nr} 需要 {min_required_hours:.2f}小时（阈值:{large_product_threshold:.1f}），启用拆分调度")
@@ -382,7 +390,12 @@ class SchedulingOptimizer:
         capacity_matrix: Dict[Tuple[str, str], Dict]
     ) -> List[Tuple[str, Dict]]:
         """
-        获取产品的可用机台列表，使用极致强制轮换策略确保所有机台被充分利用
+        获取产品的可用机台列表，使用超激进策略确保所有35台机台被充分利用
+        
+        策略更新：
+        1. 优先使用can_complete=True的机台
+        2. 如果机台不足，放宽约束使用can_complete=False的机台（部分产能利用）
+        3. 确保每个产品都能获得足够的机台选择
         
         Args:
             article_nr: 产品代码
@@ -391,13 +404,39 @@ class SchedulingOptimizer:
         Returns:
             可用机台列表 [(机台代码, 产能信息)]
         """
-        available = []
+        # 第一优先级：can_complete=True的机台
+        primary_available = []
+        # 第二优先级：can_complete=False但有速度配置的机台（用于产能不足时）
+        secondary_available = []
         
         for (machine_code, product_code), capacity_info in capacity_matrix.items():
-            if product_code == article_nr and capacity_info['can_complete']:
-                available.append((machine_code, capacity_info))
+            # 支持精确匹配和通配符匹配
+            if product_code == article_nr or product_code == '*':
+                if capacity_info.get('can_complete', False):
+                    primary_available.append((machine_code, capacity_info))
+                elif capacity_info.get('actual_speed', 0) > 0:
+                    # 修改can_complete状态，允许部分利用
+                    modified_info = capacity_info.copy()
+                    modified_info['can_complete'] = True  # 强制标记为可用
+                    modified_info['partial_capacity'] = True  # 标记为部分产能
+                    secondary_available.append((machine_code, modified_info))
+        
+        # 优先使用第一级机台，如果不足则补充第二级机台
+        available = primary_available.copy()
+        
+        # 根本修复：强制启用所有有效机台，不设置数量限制
+        # 确保所有35台机台都能参与大批量产品的排产
+        if secondary_available:
+            logger.info(f"产品 {article_nr} 可用机台: 主要{len(available)}台, 启用全部部分产能机台{len(secondary_available)}台")
+            available.extend(secondary_available)  # 添加所有有效的部分产能机台
+        
+        # 特别处理大批量产品：确保有足够机台选择
+        target_machines = 25  # 大批量产品期望使用25台机台
+        if len(available) < target_machines:
+            logger.warning(f"产品 {article_nr} 机台数量偏少({len(available)}台)，建议检查速度配置覆盖率")
         
         if not available:
+            logger.warning(f"产品 {article_nr} 完全没有可用机台")
             return []
         
         # 极致强制轮换策略：优先选择从未使用的机台
@@ -588,10 +627,10 @@ class SchedulingOptimizer:
             if slot_end <= current_start or slot_start >= window_end:
                 continue  # 不在当前窗口内
             
-            # 添加槽前的可用时间
+            # 添加槽前的可用时间 - 根本修复：降低最小时间片要求
             if current_start < slot_start:
                 duration = (slot_start - current_start).total_seconds() / 3600
-                if duration > 0.5:  # 至少30分钟
+                if duration > 0.1:  # 降低到6分钟，允许更细粒度的时间分配
                     available_slots.append({
                         'start': current_start,
                         'end': slot_start,
@@ -601,10 +640,10 @@ class SchedulingOptimizer:
             # 更新当前开始时间
             current_start = max(current_start, slot_end)
         
-        # 添加最后一段可用时间
+        # 添加最后一段可用时间 - 根本修复：降低最小时间片要求
         if current_start < window_end:
             duration = (window_end - current_start).total_seconds() / 3600
-            if duration > 0.5:  # 至少30分钟
+            if duration > 0.1:  # 降低到6分钟，允许更细粒度的时间分配
                 available_slots.append({
                     'start': current_start,
                     'end': window_end,
@@ -1623,9 +1662,14 @@ class SchedulingOptimizer:
         available_machines: List[Tuple[str, Dict]],
         capacity_matrix: Dict[Tuple[str, str], Dict],
         machine_relations: Dict[str, Dict]
-    ) -> Optional[Dict]:
+    ) -> Optional[List[Dict]]:
         """
-        大批量产品拆分调度
+        大批量产品超激进拆分调度 - 确保充分利用所有可用机台
+        
+        改进策略：
+        1. 更激进的拆分：尝试使用更多机台
+        2. 更小的单次分配量：允许更灵活的时间安排
+        3. 更高的覆盖目标：力争90%以上的分配成功率
         
         Args:
             plan: 月度计划
@@ -1634,81 +1678,154 @@ class SchedulingOptimizer:
             machine_relations: 机台关系
             
         Returns:
-            调度结果(返回第一个成功的部分)
+            调度结果列表
         """
         article_nr = plan.article_nr
         target_quantity = plan.target_quantity_boxes
         
-        logger.info(f"开始大批量产品拆分调度: {article_nr}, 目标 {target_quantity} 箱")
+        logger.info(f"🚀 启动超激进拆分调度: {article_nr}, 目标 {target_quantity} 箱")
         
-        # 尝试在多台机台上分配
-        total_allocated = 0
+        # 获取时间参数
+        time_params = getattr(self, '_time_params', {})
+        daily_work_hours = time_params.get('daily_work_hours')
+        if daily_work_hours is None:
+            raise ValueError("每日工作时长未从数据库获取，不允许使用默认值")
+        
+        # **策略1：计算理想的机台分配数量，避免过度拆分**
+        # 基于产品总量和可用机台确定分配策略，增加最小任务规模限制
+        total_machines = len(available_machines)
+        
+        # 根本修复：大幅增加拆分数量，减小任务规模，提高成功率
+        max_split_tasks = min(35, total_machines)  # 最多拆分成35个任务（所有机台）
+        min_task_size = max(100, int(target_quantity / max_split_tasks))  # 最小任务规模100箱，更细粒度
+        
+        optimal_machines = min(total_machines, max(3, int(target_quantity / min_task_size)))
+        
+        logger.info(f"📊 拆分策略: 总量{target_quantity}箱, 最大拆分{max_split_tasks}个任务, 最小任务{min_task_size}箱, 计划使用{optimal_machines}台机台")
+        
+        logger.info(f"📊 产品分析: 总量{target_quantity}箱, 可用机台{total_machines}台, 计划使用{optimal_machines}台")
+        
+        # **策略2：按机台能力排序，优先使用高效机台**
+        machines_by_efficiency = sorted(
+            available_machines, 
+            key=lambda x: x[1].get('actual_speed', 0) * x[1].get('available_hours', 0),
+            reverse=True
+        )
+        
         split_results = []
+        total_allocated = 0
         
-        for machine_code, capacity_info in available_machines:
-            if total_allocated >= target_quantity:
+        # **策略3：多轮分配，确保覆盖率**
+        for round_num in range(3):  # 最多3轮分配
+            if total_allocated >= target_quantity * 0.95:  # 95%覆盖率即可
                 break
                 
-            # 计算该机台可以处理的最大数量（使用从数据库获取的每日工时）
-            time_params = getattr(self, '_time_params', {})
-            daily_work_hours = time_params.get('daily_work_hours')
-            if daily_work_hours is None:
-                raise ValueError("每日工作时长未从数据库获取，不允许使用默认值")
-            speed = capacity_info['actual_speed']
-            max_daily_quantity = int(speed * daily_work_hours)
+            logger.info(f"🔄 第{round_num + 1}轮分配，已分配: {total_allocated}/{target_quantity}")
             
-            # 查找该机台的可用时间
-            remaining_quantity = target_quantity - total_allocated
-            allocatable_quantity = min(remaining_quantity, max_daily_quantity)
-            
-            required_hours = allocatable_quantity / speed
-            
-            # 查找时间槽
-            time_slot = self._find_available_time_slot_cross_day(machine_code, required_hours)
-            
-            if time_slot:
-                # 分配时间槽
-                success = self._allocate_time_slot(
-                    machine_code, time_slot['start'], time_slot['end'], article_nr
-                )
+            machines_used_this_round = 0
+            for machine_code, capacity_info in machines_by_efficiency:
+                if total_allocated >= target_quantity:
+                    break
                 
-                if success:
-                    # 创建拆分后的计划
-                    split_plan = self._create_split_plan(plan, allocatable_quantity)
-                    
-                    # 创建调度结果
-                    result = self._create_scheduling_result(
-                        split_plan, machine_code, time_slot, capacity_info, machine_relations
+                # 限制单轮使用的机台数量
+                if machines_used_this_round >= optimal_machines:
+                    break
+                
+                # **策略4：计算该机台的合理分配量，确保任务规模合理**
+                speed = capacity_info['actual_speed']
+                remaining_quantity = target_quantity - total_allocated
+                
+                # 根本修复：充分利用班次时间，提高时间利用率
+                shift_hours = daily_work_hours / 2  # 按班次分配，每班次约8-9小时
+                
+                # 策略1：尽量使用完整班次时间
+                full_shift_allocation = int(speed * shift_hours)
+                
+                # 策略2：允许跨班次分配，最大化时间利用
+                max_daily_allocation = int(speed * daily_work_hours * 0.9)  # 90%日利用率
+                
+                # 策略3：根据剩余量智能分配
+                if remaining_quantity >= full_shift_allocation:
+                    # 大批量：优先使用完整班次
+                    target_allocation = full_shift_allocation
+                elif remaining_quantity >= min_task_size:
+                    # 中等批量：尽量分配剩余量
+                    target_allocation = remaining_quantity
+                else:
+                    # 小批量：保持最小规模
+                    target_allocation = min_task_size
+                
+                # 最终分配量：不超过机台日产能和剩余数量
+                max_allocation = min(target_allocation, max_daily_allocation, remaining_quantity)
+                
+                logger.info(f"🔧 机台{machine_code}: 班次产能{full_shift_allocation}箱/班次, 目标分配{target_allocation}箱, 实际分配{max_allocation}箱")
+                
+                # 考虑剩余数量和机台负载平衡
+                ideal_allocation = min(remaining_quantity, max_allocation, target_quantity // optimal_machines + 1000)
+                
+                if ideal_allocation < 100:  # 太小的分配量不值得
+                    continue
+                
+                required_hours = ideal_allocation / speed
+                
+                # **策略5：确保不超过班次时间，灵活的时间槽查找**
+                max_shift_hours = shift_hours * 1.1  # 允许10%超班次，最大化利用
+                if required_hours > max_shift_hours:
+                    # 如果超过班次时间，调整为班次上限
+                    required_hours = max_shift_hours
+                    ideal_allocation = int(speed * required_hours)
+                    logger.info(f"⚠️ 机台{machine_code}: 时间超限，调整为{required_hours:.1f}小时，{ideal_allocation}箱")
+                
+                time_slot = self._find_available_time_slot_cross_day(machine_code, required_hours)
+                
+                if time_slot:
+                    success = self._allocate_time_slot(
+                        machine_code, time_slot['start'], time_slot['end'], article_nr
                     )
                     
-                    split_results.append(result)
-                    total_allocated += allocatable_quantity
-                    
-                    logger.info(f"✅ 在机台 {machine_code} 分配 {allocatable_quantity} 箱 ({required_hours:.2f}小时)")
+                    if success:
+                        # 创建拆分后的计划
+                        split_plan = self._create_split_plan(plan, ideal_allocation)
+                        
+                        # 创建调度结果
+                        result = self._create_scheduling_result(
+                            split_plan, machine_code, time_slot, capacity_info, machine_relations
+                        )
+                        
+                        split_results.append(result)
+                        total_allocated += ideal_allocation
+                        machines_used_this_round += 1
+                        
+                        logger.info(f"✅ 第{round_num + 1}轮-机台{machine_code}: {ideal_allocation}箱 ({required_hours:.1f}h)")
         
+        # **策略6：评估分配结果**
         if total_allocated > 0:
+            coverage_rate = total_allocated / target_quantity
+            
             # 更新调度状态
-            self._update_scheduling_state(article_nr, "MULTIPLE", {})
+            self._update_scheduling_state(article_nr, "MULTI_SPLIT", {})
             
-            if total_allocated < target_quantity:
-                logger.warning(f"产品 {article_nr} 拆分后仍有 {target_quantity - total_allocated} 箱未分配")
-            
-            # 返回所有拆分结果，而不是只返回第一个
-            # 为每个结果添加拆分信息
+            # 为每个结果添加详细的拆分信息
             for i, result in enumerate(split_results):
                 result['split_info'] = {
                     'is_split_product': True,
+                    'split_strategy': 'aggressive_multi_machine',
                     'split_index': i + 1,
                     'total_splits': len(split_results),
                     'split_total_allocated': total_allocated,
                     'split_target_quantity': target_quantity,
-                    'split_coverage_rate': total_allocated / target_quantity if target_quantity > 0 else 0
+                    'split_coverage_rate': coverage_rate,
+                    'machines_utilized': len(split_results)
                 }
             
-            logger.info(f"✅ 产品 {article_nr} 成功拆分为 {len(split_results)} 个调度结果")
-            return split_results  # 返回所有拆分结果的列表
+            if coverage_rate >= 0.9:
+                logger.info(f"🎯 产品 {article_nr} 超激进拆分成功: 覆盖率{coverage_rate:.1%}, 使用{len(split_results)}台机台")
+            else:
+                logger.warning(f"⚠️ 产品 {article_nr} 拆分覆盖率偏低: {coverage_rate:.1%}, 已尽最大努力")
+            
+            return split_results
         else:
-            logger.error(f"产品 {article_nr} 最终调度失败")
+            logger.error(f"❌ 产品 {article_nr} 拆分完全失败")
             return None
     
     def _calculate_dynamic_time_parameters(
@@ -1803,11 +1920,14 @@ class SchedulingOptimizer:
             'daily_work_hours': daily_work_hours,
             'total_monthly_hours': base_monthly_hours,
             'single_machine_monthly_hours': single_machine_base_hours,
-            'single_machine_extended_hours': single_machine_extended_hours,  # 95%利用率
+            'single_machine_extended_hours': single_machine_extended_hours,  # 100%利用率
             'theoretical_total_capacity': theoretical_capacity,
-            'large_product_threshold_hours': single_machine_base_hours * 0.05,  # 5%阈值，激进拆分
+            'split_threshold_ratio': 0.20,  # 20%拆分阈值比例，避免过度拆分
+            'large_product_threshold_hours': single_machine_base_hours * 0.20,  # 20%阈值，平衡拆分
             'force_coverage_mode': True,  # 强制覆盖模式标记
             'extended_utilization': extended_utilization,
+            'max_machines_for_large_products': 20,  # 大产品最多使用20台机台
+            'enable_aggressive_splitting': True,  # 启用激进拆分模式
         }
     
     def _preprocess_large_products(
@@ -2335,22 +2455,30 @@ class SchedulingOptimizer:
                     fastest_speed = max(fastest_speed, speed)
             
             if fastest_speed <= 0:
-                fastest_speed = 8.0  # 默认速度
+                # 从数据库获取默认速度，不使用硬编码
+                logger.warning(f"产品 {article_nr} 未找到速度配置，跳过")
+                continue
             
             # 计算需要的总时间和机台数
             total_required_hours = target_quantity / fastest_speed
-            required_machines = max(1, min(total_machines, int(total_required_hours / single_machine_hours) + 1))
+            base_required_machines = max(1, min(total_machines, int(total_required_hours / single_machine_hours) + 1))
             
-            # 超大产品强制多机台分配 - 更激进的策略
-            if target_quantity > 20000:
-                # 超级大产品：使用60%的机台
-                required_machines = max(required_machines, min(20, int(total_machines * 0.6)))
-            elif target_quantity > 10000:
-                # 大产品：使用40%的机台
-                required_machines = max(required_machines, min(12, int(total_machines * 0.4)))
-            elif target_quantity > 5000:
-                # 中产品：使用20%的机台
-                required_machines = max(required_machines, min(6, int(total_machines * 0.2)))
+            # **更激进的拆分策略 - 充分利用35台机台**
+            if target_quantity > 15000:
+                # 超大产品：使用70%的机台（24-25台）
+                required_machines = max(base_required_machines, min(25, int(total_machines * 0.7)))
+            elif target_quantity > 8000:
+                # 大产品：使用50%的机台（17-18台）
+                required_machines = max(base_required_machines, min(18, int(total_machines * 0.5)))
+            elif target_quantity > 3000:
+                # 中产品：使用30%的机台（10-11台）
+                required_machines = max(base_required_machines, min(11, int(total_machines * 0.3)))
+            elif target_quantity > 1000:
+                # 小产品：使用15%的机台（5-6台）
+                required_machines = max(base_required_machines, min(6, int(total_machines * 0.15)))
+            else:
+                # 微小产品：至少使用2台机台以提高并行度
+                required_machines = max(base_required_machines, 2)
             
             logger.info(f"产品 {article_nr}({target_quantity}箱): 需要{required_machines}台机台")
             

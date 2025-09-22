@@ -400,30 +400,38 @@ class TimeWindowCalculator:
         if daily_hours > 0:
             # 使用工作日历中的实际时长
             expected_total_hours = work_days_count * daily_hours
+            logger.info(f"使用工作日历时长: {work_days_count}天 × {daily_hours:.2f}小时/天 = {expected_total_hours:.2f}小时")
         else:
-            # 计算班次配置的实际时长（移除硬编码假设）
+            # 精确计算班次配置的实际时长
             total_shift_hours = 0.0
             shift_configs = getattr(self, '_cached_shift_configs', [])
-            for shift in shift_configs:
-                start_time = shift.get('start_time')
-                end_time = shift.get('end_time')
-                if start_time and end_time:
-                    # 将time对象转换为总秒数进行计算
-                    start_seconds = start_time.hour * 3600 + start_time.minute * 60 + start_time.second
-                    end_seconds = end_time.hour * 3600 + end_time.minute * 60 + end_time.second
-                    
-                    # 处理跨日班次
-                    if end_seconds <= start_seconds:
-                        # 跨日班次
-                        duration = (24 * 3600 - start_seconds + end_seconds) / 3600
-                    else:
-                        # 同日班次
-                        duration = (end_seconds - start_seconds) / 3600
-                    total_shift_hours += duration
-                    logger.debug(f"班次 {shift.get('shift_name')}: {duration:.2f}小时")
             
-            expected_total_hours = work_days_count * total_shift_hours if total_shift_hours > 0 else work_days_count * 16
-            logger.info(f"动态计算期望总时长: {work_days_count}天 × {total_shift_hours:.2f}小时/天 = {expected_total_hours:.2f}小时")
+            if not shift_configs:
+                logger.error("无法获取班次配置，时间窗口验证将使用保守估算")
+                expected_total_hours = work_days_count * 16  # 保守估算
+            else:
+                for shift in shift_configs:
+                    start_time = shift.get('start_time')
+                    end_time = shift.get('end_time')
+                    if start_time and end_time:
+                        # 将time对象转换为总秒数进行精确计算
+                        start_seconds = start_time.hour * 3600 + start_time.minute * 60 + start_time.second
+                        end_seconds = end_time.hour * 3600 + end_time.minute * 60 + end_time.second
+                        
+                        # 处理跨日班次（中班15:40-24:00）
+                        if end_seconds <= start_seconds:
+                            # 跨日班次：24:00-15:40 = 8.33小时
+                            duration = (24 * 3600 - start_seconds + end_seconds) / 3600
+                        else:
+                            # 同日班次：15:40-06:40 = 9小时  
+                            duration = (end_seconds - start_seconds) / 3600
+                        
+                        total_shift_hours += duration
+                        logger.info(f"✓ 班次 {shift.get('shift_name', '未知')}: "
+                                   f"{start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')} = {duration:.2f}小时")
+                
+                expected_total_hours = work_days_count * total_shift_hours
+                logger.info(f"🕐 精确计算总时长: {work_days_count}天 × {total_shift_hours:.2f}小时/天 = {expected_total_hours:.2f}小时")
         
         for machine_code, windows in all_windows.items():
             if not windows:
