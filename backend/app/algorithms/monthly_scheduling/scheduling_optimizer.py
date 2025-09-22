@@ -1744,19 +1744,21 @@ class SchedulingOptimizer:
                 # 策略2：允许跨班次分配，最大化时间利用
                 max_daily_allocation = int(speed * daily_work_hours * 0.9)  # 90%日利用率
                 
-                # 策略3：根据剩余量智能分配
+                # 策略3：通用智能分配 - 根本修复剩余量处理
                 if remaining_quantity >= full_shift_allocation:
                     # 大批量：优先使用完整班次
                     target_allocation = full_shift_allocation
-                elif remaining_quantity >= min_task_size:
-                    # 中等批量：尽量分配剩余量
-                    target_allocation = remaining_quantity
                 else:
-                    # 小批量：保持最小规模
-                    target_allocation = min_task_size
+                    # 关键修复：对于任何剩余量，都尽量分配完整，不设下限
+                    # 即使小于min_task_size，也要尽量分配剩余量
+                    target_allocation = max(remaining_quantity, int(full_shift_allocation * 0.3))
                 
-                # 最终分配量：不超过机台日产能和剩余数量
+                # 最终分配量：优先保证剩余量完全分配
                 max_allocation = min(target_allocation, max_daily_allocation, remaining_quantity)
+                
+                # 特殊处理：如果剩余量很小且接近目标完成，强制分配完
+                if remaining_quantity <= full_shift_allocation * 0.2 and remaining_quantity > 0:
+                    max_allocation = remaining_quantity
                 
                 logger.info(f"🔧 机台{machine_code}: 班次产能{full_shift_allocation}箱/班次, 目标分配{target_allocation}箱, 实际分配{max_allocation}箱")
                 
