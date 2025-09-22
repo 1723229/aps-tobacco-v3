@@ -32,24 +32,11 @@
                 <span class="nav-text">机台配置</span>
               </div>
 
-              <div class="nav-dropdown" :class="{ active: activeMenuIndex.includes('/decade-plan') || activeMenuIndex.includes('/monthly-plan') || activeMenuIndex.includes('/scheduling') }">
-                <div class="nav-item dropdown-trigger">
-                  <div class="nav-icon">
-                    <el-icon><Operation /></el-icon>
-                  </div>
-                  <span class="nav-text">排产作业</span>
-                  <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+              <div class="nav-item" :class="{ active: activeMenuIndex.includes('/monthly-scheduling') }" @click="handleMenuSelect('/monthly-scheduling')">
+                <div class="nav-icon">
+                  <el-icon><Calendar /></el-icon>
                 </div>
-                <div class="dropdown-menu">
-                  <div class="dropdown-item" @click="handleMenuSelect('/scheduling')">
-                    <el-icon><UploadFilled /></el-icon>
-                    <span>卷包旬计划合并</span>
-                  </div>
-                  <div class="dropdown-item" @click="handleMenuSelect('/monthly-scheduling')">
-                    <el-icon><Calendar /></el-icon>
-                    <span>月度计划排产</span>
-                  </div>
-                </div>
+                <span class="nav-text">月度计划排产</span>
               </div>
             </nav>
           </div>
@@ -153,29 +140,14 @@ const notifications = ref<Notification[]>([])
 // 计算属性
 const activeMenuIndex = computed(() => {
   const path = route.path
-  if (path.startsWith('/decade-plan/entry')) {
-    return '/decade-plan/entry'
-  }
   if (path.startsWith('/monthly-plan/entry')) {
     return '/monthly-plan/entry'
   }
   if (path.startsWith('/monthly-plan/detail')) {
     return '/monthly-plan/entry'
   }
-  if (path === '/scheduling') {
-    return '/scheduling'
-  }
   if (path.startsWith('/monthly-scheduling')) {
     return '/monthly-scheduling'
-  }
-  if (path.startsWith('/scheduling/history')) {
-    return '/scheduling/history'
-  }
-  if (path.startsWith('/scheduling/task')) {
-    return '/scheduling/history'
-  }
-  if (path.startsWith('/gantt-chart')) {
-    return '/gantt-chart'
   }
   if (path.startsWith('/machine-config')) {
     return '/machine-config'

@@ -16,88 +16,37 @@
 
     <!-- 系统概览统计 -->
     <div class="overview-section">
-      <el-row :gutter="24">
-        <el-col :span="6">
-          <el-card class="stat-card combined-card">
+      <el-row :gutter="24" justify="center">
+        <el-col :span="8">
+          <el-card class="stat-card">
             <div class="stat-header">
               <el-icon class="stat-icon upload-icon"><Upload /></el-icon>
               <span class="stat-title">今日上传</span>
             </div>
             <div class="stat-content">
-              <div class="stat-item decade-item">
-                <span class="plan-type">旬计划合并</span>
-                <span class="stat-value">{{ decadeStatistics.today_uploads || 0 }}</span>
-              </div>
-              <div class="stat-item monthly-item">
-                <span class="plan-type">月度计划</span>
-                <span class="stat-value">{{ monthlyStatistics.today_uploads || 0 }}</span>
-              </div>
-              <div class="stat-total">
-                <span>总计：{{ (decadeStatistics.today_uploads || 0) + (monthlyStatistics.today_uploads || 0) }} 个文件</span>
-              </div>
+              <div class="stat-number">{{ monthlyStatistics.today_uploads || 0 }}</div>
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card combined-card">
+        <el-col :span="8">
+          <el-card class="stat-card">
             <div class="stat-header">
               <el-icon class="stat-icon process-icon"><DataLine /></el-icon>
               <span class="stat-title">本月处理</span>
             </div>
             <div class="stat-content">
-              <div class="stat-item decade-item">
-                <span class="plan-type">旬计划合并</span>
-                <span class="stat-value">{{ decadeStatistics.monthly_processed || 0 }}</span>
-              </div>
-              <div class="stat-item monthly-item">
-                <span class="plan-type">月度计划</span>
-                <span class="stat-value">{{ monthlyStatistics.monthly_processed || 0 }}</span>
-              </div>
-              <div class="stat-total">
-                <span>总计：{{ (decadeStatistics.monthly_processed || 0) + (monthlyStatistics.monthly_processed || 0) }} 条记录</span>
-              </div>
+              <div class="stat-number">{{ monthlyStatistics.monthly_processed || 0 }}</div>
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card combined-card">
-            <div class="stat-header">
-              <el-icon class="stat-icon batch-icon"><Document /></el-icon>
-              <span class="stat-title">总工单数</span>
-            </div>
-            <div class="stat-content">
-              <div class="stat-item decade-item">
-                <span class="plan-type">旬计划合并</span>
-                <span class="stat-value">{{ decadeStatistics.total_work_orders || 0 }}</span>
-              </div>
-              <div class="stat-item monthly-item">
-                <span class="plan-type">月度计划</span>
-                <span class="stat-value">{{ monthlyStatistics.total_work_orders || 0 }}</span>
-              </div>
-              <div class="stat-total">
-                <span>总计：{{ (decadeStatistics.total_work_orders || 0) + (monthlyStatistics.total_work_orders || 0) }} 个</span>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card combined-card">
+        <el-col :span="8">
+          <el-card class="stat-card">
             <div class="stat-header">
               <el-icon class="stat-icon task-icon"><TrendCharts /></el-icon>
               <span class="stat-title">排产任务</span>
             </div>
             <div class="stat-content">
-              <div class="stat-item decade-item">
-                <span class="plan-type">旬计划合并</span>
-                <span class="stat-value">{{ decadeStatistics.scheduling_tasks || 0 }}</span>
-              </div>
-              <div class="stat-item monthly-item">
-                <span class="plan-type">月度计划</span>
-                <span class="stat-value">{{ monthlyStatistics.scheduling_tasks || 0 }}</span>
-              </div>
-              <div class="stat-total">
-                <span>总计：{{ (decadeStatistics.scheduling_tasks || 0) + (monthlyStatistics.scheduling_tasks || 0) }} 个</span>
-              </div>
+              <div class="stat-number">{{ monthlyStatistics.scheduling_tasks || 0 }}</div>
             </div>
           </el-card>
         </el-col>
@@ -107,32 +56,7 @@
     <!-- 快速操作 -->
     <div class="quick-actions">
       <el-row :gutter="24" justify="center">
-        <el-col :span="8">
-          <el-card class="action-card upload-card" @click="goToEntry">
-            <div class="card-header">
-              <div class="header-logo">
-                <el-icon><UploadFilled /></el-icon>
-              </div>
-              <div class="header-menu">
-                <el-icon><Upload /></el-icon>
-                <span>旬计划数据录入</span>
-              </div>
-            </div>
-            <div class="action-content">
-              <div class="action-icon upload-action">
-                <el-icon><UploadFilled /></el-icon>
-              </div>
-              <div class="action-text">
-                <h3>卷包旬计划合并</h3>
-                <p>上传Excel文件进行旬计划数据录入，执行智能排产</p>
-              </div>
-              <div class="action-arrow">
-                <el-icon><ArrowRight /></el-icon>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
            <el-card class="action-card scheduling-card" @click="goToMonthlyPlan">
             <div class="card-header">
               <div class="header-logo">
@@ -157,7 +81,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-card class="action-card machine-config-card" @click="goToMachineConfig">
             <div class="card-header">
               <div class="header-logo">
@@ -209,15 +133,7 @@
           <el-table-column prop="batch_id" label="批次ID" width="150" />
           <el-table-column prop="file_name" label="文件名" min-width="200">
             <template #default="{ row }">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span>{{ row.file_name }}</span>
-                <el-tag
-                  :type="row.plan_type === 'decade' ? 'primary' : 'success'"
-                  size="small"
-                >
-                  {{ row.plan_type === 'decade' ? '旬计划' : '月度计划' }}
-                </el-tag>
-              </div>
+              <span>{{ row.file_name }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="upload_time" label="上传时间" width="180">
@@ -280,21 +196,11 @@ import {
   Calendar
 } from '@element-plus/icons-vue'
 import { formatDateTime, getStatusColor, getStatusText } from '@/utils'
-import { useDecadePlanStore } from '@/stores/decade-plan'
-import DecadePlanAPI from '@/services/api'
-import type { StatisticsData, HistoryRecord } from '@/types/api'
+import type { HistoryRecord } from '@/types/api'
 
 const router = useRouter()
-const decadePlanStore = useDecadePlanStore()
 
 // 响应式数据
-const decadeStatistics = ref({
-  today_uploads: 0,
-  monthly_processed: 0,
-  total_work_orders: 0,
-  scheduling_tasks: 0
-})
-
 const monthlyStatistics = ref({
   today_uploads: 0,
   monthly_processed: 0,
@@ -307,42 +213,45 @@ const recentActivity = ref<HistoryRecord[]>([])
 const activityLoading = ref(false)
 
 // 方法
-const goToEntry = () => {
-  router.push('/scheduling')
-}
-
 const goToMachineConfig = () => {
   router.push('/machine-config')
-}
-
-const goToScheduling = () => {
-  router.push('/scheduling')
 }
 
 const goToMonthlyPlan = () => {
   router.push('/monthly-scheduling')
 }
 
-const downloadTemplate = () => {
-  // 跳转到旬计划排产管理页面
-  router.push('/scheduling')
-}
-
 const viewDetails = (batchId: string, planType?: string) => {
   if (planType === 'monthly') {
     // 跳转到月度计划详情页
     router.push(`/monthly-plan/detail/${batchId}`)
-  } else {
-    // 默认跳转到旬计划详情页
-    router.push(`/decade-plan/detail/${batchId}`)
   }
 }
 
 const refreshActivity = async () => {
   activityLoading.value = true
   try {
-    const historyResponse = await DecadePlanAPI.getUploadHistory(1, 5)
-    recentActivity.value = historyResponse.data.records
+    const monthlyResponse = await fetch('/api/v1/monthly-data/imports?page=1&page_size=10').then(res => res.json())
+    
+    const activities: any[] = []
+    // 添加月度计划记录
+    if (monthlyResponse.code === 200 && monthlyResponse.data?.imports) {
+      monthlyResponse.data.imports.forEach((record: any) => {
+        activities.push({
+          batch_id: record.monthly_batch_id,
+          file_name: record.file_name || '月度计划文件',
+          total_records: record.total_records,
+          valid_records: record.valid_records,
+          import_end_time: record.updated_time || record.created_time,
+          status: record.status,
+          plan_type: 'monthly',
+          display_name: record.file_name || '月度计划文件',
+          upload_time: record.upload_time || record.created_time
+        })
+      })
+    }
+
+    recentActivity.value = activities.slice(0, 5)
     ElMessage.success('数据已刷新')
   } catch (error) {
     console.error('刷新数据失败:', error)
@@ -357,11 +266,8 @@ const loadStatistics = async () => {
   try {
     console.log('📊 开始加载统计数据...')
 
-    // 并行加载旬计划和月度计划的统计数据
-    await Promise.all([
-      loadDecadeStatistics(),
-      loadMonthlyStatistics()
-    ])
+    // 加载月度计划的统计数据
+    await loadMonthlyStatistics()
 
     console.log('✅ 统计数据加载完成')
   } catch (error) {
@@ -370,30 +276,6 @@ const loadStatistics = async () => {
   }
 }
 
-// 加载旬计划统计数据
-const loadDecadeStatistics = async () => {
-  try {
-    const [originalStatsResponse, workOrdersResponse, tasksResponse] = await Promise.all([
-      DecadePlanAPI.getStatistics(),
-      fetch('/api/v1/scheduling/work-orders?page=1&page_size=1000').then(res => res.json()),
-      fetch('/api/v1/scheduling/tasks?page=1&page_size=100').then(res => res.json())
-    ])
-
-    const baseStats = originalStatsResponse.data
-
-    decadeStatistics.value = {
-      today_uploads: baseStats.today_uploads || 0,
-      monthly_processed: baseStats.monthly_processed || 0,
-      total_work_orders: workOrdersResponse.code === 200 ? (workOrdersResponse.data?.work_orders?.length || 0) : 0,
-      scheduling_tasks: tasksResponse.code === 200 ? (tasksResponse.data?.pagination?.total_count || 0) : 0
-    }
-
-    console.log('✅ 旬计划统计:', decadeStatistics.value)
-  } catch (error) {
-    console.error('❌ 旬计划统计加载失败:', error)
-    decadeStatistics.value = { today_uploads: 0, monthly_processed: 0, total_work_orders: 0, scheduling_tasks: 0 }
-  }
-}
 
 // 加载月度计划统计数据
 const loadMonthlyStatistics = async () => {
@@ -439,25 +321,10 @@ const loadRecentActivity = async () => {
   try {
     activityLoading.value = true
 
-    // 并行加载旬计划和月度计划的活动记录
-    const [decadeResponse, monthlyResponse] = await Promise.all([
-      DecadePlanAPI.getUploadHistory(1, 10), // 增加获取数量
-      fetch('/api/v1/monthly-data/imports?page=1&page_size=10').then(res => res.json())
-    ])
+    // 加载月度计划的活动记录
+    const monthlyResponse = await fetch('/api/v1/monthly-data/imports?page=1&page_size=10').then(res => res.json())
 
     const activities: any[] = []
-
-    // 添加旬计划记录
-    if (decadeResponse.data?.records) {
-      decadeResponse.data.records.forEach((record: any) => {
-        activities.push({
-          ...record,
-          plan_type: 'decade', // 标记为旬计划
-          display_name: record.file_name || '旬计划文件',
-          upload_time: record.import_end_time || record.created_time
-        })
-      })
-    }
 
     // 添加月度计划记录
     if (monthlyResponse.code === 200 && monthlyResponse.data?.imports) {
@@ -553,92 +420,49 @@ onMounted(async () => {
 
 .stat-card {
   transition: all 0.3s ease;
-  border-radius: 12px;
-  border: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  border: 1px solid #e8eaed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  height: 140px;
 }
 
-.combined-card {
-  height: 180px;
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-color: rgba(64, 158, 255, 0.3);
 }
 
 .stat-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 20px;
 }
 
 .stat-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
+  font-size: 14px;
+  font-weight: 500;
+  color: #606266;
+  letter-spacing: 0.5px;
 }
 
 .stat-content {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
+  justify-content: center;
+  flex: 1;
 }
 
-.decade-item {
-  background: rgba(64, 158, 255, 0.1);
-  border-left: 3px solid #409eff;
-}
-
-.monthly-item {
-  background: rgba(103, 194, 58, 0.1);
-  border-left: 3px solid #67c23a;
-}
-
-.stat-item .plan-type {
-  color: #666;
-  font-weight: 500;
-}
-
-.stat-item .stat-value {
-  font-weight: 600;
-  font-size: 16px;
-}
-
-.decade-item .stat-value {
-  color: #409eff;
-}
-
-.monthly-item .stat-value {
-  color: #67c23a;
-}
-
-.stat-total {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
-  text-align: center;
-  font-size: 12px;
-  color: #909399;
-  font-weight: 500;
-}
-
-
-
-.stat-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+.stat-number {
+  font-size: 36px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1;
 }
 
 .stat-icon {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .upload-icon {
@@ -649,12 +473,8 @@ onMounted(async () => {
   color: #67c23a;
 }
 
-.success-icon {
+.task-icon {
   color: #e6a23c;
-}
-
-.batch-icon {
-  color: #f56c6c;
 }
 
 .quick-actions {
@@ -827,47 +647,6 @@ onMounted(async () => {
   min-height: 100px; /* 调整最小高度 */
 }
 
-/* 卷包旬计划录入卡片特殊样式 */
-.upload-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.upload-card .card-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 40px;
-  background: linear-gradient(135deg, #e6f0ff 0%, #d9e8ff 100%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 16px;
-  color: #606266;
-  font-size: 12px;
-  z-index: 1;
-  border-radius: 8px 8px 0 0;
-}
-
-.upload-card .header-logo {
-  display: flex;
-  align-items: center;
-  font-weight: 600;
-}
-
-.upload-card .header-menu {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-}
-
-.upload-card .action-content {
-  margin-top: 40px;
-  padding: 16px 24px 24px 24px;
-  min-height: 100px;
-}
 
 /* 智能排产管理卡片特殊样式 */
 .scheduling-card {

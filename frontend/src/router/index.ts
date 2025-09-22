@@ -12,56 +12,6 @@ const router = createRouter({
                 title: "APS 烟草生产计划系统",
             },
         },
-        {
-            path: "/decade-plan/entry",
-            name: "decade-plan-entry",
-            component: () => import("../views/DecadePlanEntry.vue"),
-            meta: {
-                title: "卷包旬计划录入",
-            },
-        },
-        {
-            path: "/decade-plan/detail/:batchId",
-            name: "decade-plan-detail",
-            component: () => import("../views/DecadePlanDetail.vue"),
-            meta: {
-                title: "旬计划详情",
-            },
-            props: true,
-        },
-        {
-            path: "/scheduling",
-            name: "SchedulingManagement",
-            component: () => import("../views/SchedulingManagement.vue"),
-            meta: {
-                title: "智能排产管理",
-            },
-        },
-        {
-            path: "/scheduling/history",
-            name: "SchedulingHistory",
-            component: () => import("../views/SchedulingHistory.vue"),
-            meta: {
-                title: "排产历史记录",
-            },
-        },
-        {
-            path: "/scheduling/task/:taskId",
-            name: "SchedulingTaskDetail",
-            component: () => import("../views/SchedulingTaskDetail.vue"),
-            meta: {
-                title: "排产任务详情",
-            },
-            props: true,
-        },
-        {
-            path: "/gantt-chart",
-            name: "GanttChart",
-            component: () => import("../views/GanttChart.vue"),
-            meta: {
-                title: "生产甘特图",
-            },
-        },
 
         {
             path: "/machine-config",
